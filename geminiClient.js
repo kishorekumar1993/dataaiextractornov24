@@ -609,18 +609,28 @@
       clean.phoneNumber = sanitizePhoneNumber(clean.phoneNumber, clean.countryName);
     }
 
-    // All words come in CAPS ONLY for Company Name, Address, and Country
+    // First letter in each word capitalized only (Title Case), NOT all characters
     if (clean.companyName) {
-      clean.companyName = clean.companyName.toUpperCase();
+      clean.companyName = toTitleCase(clean.companyName);
     }
     if (clean.companyAddress) {
-      clean.companyAddress = clean.companyAddress.toUpperCase();
+      clean.companyAddress = toTitleCase(clean.companyAddress);
     }
     if (clean.countryName) {
-      clean.countryName = clean.countryName.toUpperCase();
+      clean.countryName = toTitleCase(clean.countryName);
     }
 
     return clean;
+  }
+
+  /**
+   * Capitalizes the first letter of each word and lowercases the rest
+   */
+  function toTitleCase(str) {
+    if (!str) return "";
+    return String(str).replace(/[A-Za-zÀ-ÖØ-öø-ÿ0-9]+(?:'[A-Za-z]+)?/g, (word) => {
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    });
   }
 
   /**

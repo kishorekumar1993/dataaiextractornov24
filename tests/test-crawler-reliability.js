@@ -22,9 +22,9 @@ const validExtractedResponse = {
   notWorkingReason: "",
   businessType: "Manufacturer",
   companyProfile: "Available",
-  companyName: "ZHEJIANG JIANGNAN STEEL STRUCTURE COMPANY, LIMITED",
-  countryName: "CHINA",
-  companyAddress: "YASHAN ROAD, ZHAPU, JIAXING CITY, ZHEJIANG PROVINCE",
+  companyName: "Zhejiang Jiangnan Steel Structure Company, Limited",
+  countryName: "China",
+  companyAddress: "Yashan Road, Zhapu, Jiaxing City, Zhejiang Province",
   state: "Available",
   city: "Available",
   emailId: "jngg@zjcne.com",
@@ -99,9 +99,9 @@ async function runTestSuite() {
     });
 
     assert.strictEqual(callCount, 1);
-    assert.strictEqual(res.data.companyName, "ZHEJIANG JIANGNAN STEEL STRUCTURE COMPANY, LIMITED");
-    assert.strictEqual(res.data.countryName, "CHINA");
-    assert.strictEqual(res.data.companyAddress, "YASHAN ROAD, ZHAPU, JIAXING CITY, ZHEJIANG PROVINCE");
+    assert.strictEqual(res.data.companyName, "Zhejiang Jiangnan Steel Structure Company, Limited");
+    assert.strictEqual(res.data.countryName, "China");
+    assert.strictEqual(res.data.companyAddress, "Yashan Road, Zhapu, Jiaxing City, Zhejiang Province");
     assert.strictEqual(res.meta.retriesUsed, 0);
   });
 
