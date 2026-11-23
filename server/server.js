@@ -40,8 +40,8 @@ const GeminiClient = require("../geminiClient.js");
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const DEFAULT_PRIMARY = process.env.PRIMARY_MODEL || "gemini-2.5-flash";
-const DEFAULT_FALLBACK = process.env.FALLBACK_MODEL || "gemini-1.5-flash";
+const DEFAULT_PRIMARY = process.env.PRIMARY_MODEL || "gemini-3.5-flash-lite";
+const DEFAULT_FALLBACK = process.env.FALLBACK_MODEL || "gemini-3.1-flash-lite";
 
 function setCorsHeaders(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");

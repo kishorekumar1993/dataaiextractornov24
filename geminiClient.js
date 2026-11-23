@@ -83,8 +83,8 @@
       userPrompt,
       systemInstruction,
       apiKey = "",
-      primaryModel = "gemini-2.5-flash",
-      fallbackModel = "gemini-1.5-flash",
+      primaryModel = "gemini-3.5-flash-lite",
+      fallbackModel = "gemini-3.1-flash-lite",
       backendProxyUrl = "",
       onProgress = () => { },
       maxRetries = 4, // 1 initial + 4 retries = 5 attempts per model

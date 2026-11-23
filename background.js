@@ -12,12 +12,11 @@ chrome.runtime.onInstalled.addListener(async () => {
   // Set default settings if not already present
   chrome.storage.local.get(["geminiModel", "fallbackModel", "crawlDepth", "concurrency", "interRequestDelayMs"], (res) => {
     const updates = {};
-    // Ensure default model is a valid, high-availability model
-    if (!res.geminiModel || res.geminiModel.includes("3.5") || res.geminiModel.includes("3.1")) {
-      updates.geminiModel = "gemini-2.5-flash";
+    if (!res.geminiModel) {
+      updates.geminiModel = "gemini-3.5-flash-lite";
     }
     if (!res.fallbackModel) {
-      updates.fallbackModel = "gemini-1.5-flash";
+      updates.fallbackModel = "gemini-3.1-flash-lite";
     }
     if (!res.crawlDepth) {
       updates.crawlDepth = 5;

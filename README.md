@@ -40,11 +40,11 @@ The extension outputs the exact JSON structure requested:
 - **Permanent Errors Guard:** Permanent 4xx errors (`400 Bad Request`, `401 Unauthorized`, `403 Forbidden`, `404 Not Found`) fail immediately without burning quota on useless retries.
 
 ### 2. Dual-Model Failover (Primary & Secondary Fallback)
-- **Primary Model:** High-throughput default model (`gemini-2.5-flash`).
-- **Secondary Model:** Auto-failover model (`gemini-1.5-flash` or configurable alternative).
+- **Primary Model:** `gemini-3.5-flash-lite` (Default primary engine).
+- **Secondary Model:** `gemini-3.1-flash-lite` (Auto-failover engine).
 - If the primary model exhausts its 4 retries due to high demand, the engine automatically switches to the secondary model with a fresh retry budget.
 - Both models use the identical extraction prompt and strict JSON schema.
-- Displays an engine badge in the UI showing which model processed the site (e.g. `Engine: gemini-2.5-flash` or `Fallback: gemini-1.5-flash`).
+- Displays an engine badge in the UI showing which model processed the site (e.g. `Engine: gemini-3.5-flash-lite` or `Fallback: gemini-3.1-flash-lite`).
 
 ### 3. Centralized AI Request Queue (`requestQueue.js`)
 - **Concurrency Control:** Default concurrency of 1 (configurable) to prevent burst rate-limiting when crawling batches.
@@ -90,8 +90,8 @@ The extension outputs the exact JSON structure requested:
 Open the extension popup and click the **⚙️ Settings** icon:
 
 1. **Gemini API Key:** Paste your key from [Google AI Studio](https://aistudio.google.com/app/apikey).
-2. **Primary Model:** Choose `gemini-2.5-flash` (recommended for speed and accuracy).
-3. **Secondary Fallback Model:** Choose `gemini-1.5-flash` (recommended for extreme stability during Google demand spikes).
+2. **Primary Model:** `gemini-3.5-flash-lite` (Primary engine).
+3. **Secondary Fallback Model:** `gemini-3.1-flash-lite` (Auto-failover when high demand occurs).
 4. **Backend Proxy URL (Optional):** Enter `http://localhost:3000/api/analyze` if running the included proxy server.
 5. Click **Test Connection** to verify your setup, then click **Save Settings**.
 

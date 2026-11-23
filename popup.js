@@ -60,8 +60,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   let initialPageData = null;
   let lastExtractedResult = null;
   let apiKey = "";
-  let geminiModel = "gemini-2.5-flash";
-  let fallbackModel = "gemini-1.5-flash";
+  let geminiModel = "gemini-3.5-flash-lite";
+  let fallbackModel = "gemini-3.1-flash-lite";
   let backendProxyUrl = "";
 
   // Initialize Queue Manager
@@ -119,20 +119,18 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     if (data.geminiModel) {
-      // Migrate away from invalid/overloaded 3.5-flash-lite / 3.1-flash-lite
-      if (data.geminiModel.includes("3.5") || data.geminiModel.includes("3.1")) {
-        geminiModel = "gemini-2.5-flash";
-        chrome.storage.local.set({ geminiModel });
-      } else {
-        geminiModel = data.geminiModel;
-      }
-      modelSelect.value = geminiModel;
+      geminiModel = data.geminiModel;
+    } else {
+      geminiModel = "gemini-3.5-flash-lite";
     }
+    modelSelect.value = geminiModel;
 
     if (data.fallbackModel) {
       fallbackModel = data.fallbackModel;
-      if (fallbackModelSelect) fallbackModelSelect.value = fallbackModel;
+    } else {
+      fallbackModel = "gemini-3.1-flash-lite";
     }
+    if (fallbackModelSelect) fallbackModelSelect.value = fallbackModel;
 
     if (data.backendProxyUrl) {
       backendProxyUrl = data.backendProxyUrl;
@@ -160,7 +158,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function saveSettings() {
     const key = apiKeyInput.value.trim();
     const model = modelSelect.value;
-    const fallback = fallbackModelSelect ? fallbackModelSelect.value : "gemini-1.5-flash";
+    const fallback = fallbackModelSelect ? fallbackModelSelect.value : "gemini-3.1-flash-lite";
     const proxyUrl = backendProxyUrlInput ? backendProxyUrlInput.value.trim() : "";
     const depth = crawlDepthSelect.value;
 

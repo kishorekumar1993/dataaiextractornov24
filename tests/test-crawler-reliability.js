@@ -340,7 +340,7 @@ async function runTestSuite() {
     const mockFetch = async (url) => {
       const model = url.split("models/")[1].split(":")[0];
       attemptedModels.push(model);
-      if (model === "gemini-2.5-flash") {
+      if (model === "gemini-3.5-flash-lite") {
         return createMockResponse(503, { error: { message: "Primary model overloaded" } });
       }
       return createMockResponse(200, wrapCandidateJson(validExtractedResponse));
@@ -351,18 +351,18 @@ async function runTestSuite() {
       userPrompt: mockPrompt,
       systemInstruction: mockInstruction,
       apiKey: "test_key",
-      primaryModel: "gemini-2.5-flash",
-      fallbackModel: "gemini-1.5-flash",
+      primaryModel: "gemini-3.5-flash-lite",
+      fallbackModel: "gemini-3.1-flash-lite",
       maxRetries: 1, // 1 retry on primary, then fallback
       baseDelayMs: 10,
       maxDelayMs: 30,
       fetchImpl: mockFetch
     });
 
-    assert.strictEqual(res.meta.modelUsed, "gemini-1.5-flash");
+    assert.strictEqual(res.meta.modelUsed, "gemini-3.1-flash-lite");
     assert.strictEqual(res.meta.isFallback, true);
-    assert.ok(attemptedModels.includes("gemini-2.5-flash"));
-    assert.ok(attemptedModels.includes("gemini-1.5-flash"));
+    assert.ok(attemptedModels.includes("gemini-3.5-flash-lite"));
+    assert.ok(attemptedModels.includes("gemini-3.1-flash-lite"));
   });
 
   // 12. Both models fail -> Recorded in Failed Queue (no crash)
@@ -399,7 +399,7 @@ async function runTestSuite() {
     const mockClient = {
       callGeminiWithRetryAndFallback: async () => {
         await new Promise(r => setTimeout(r, 60));
-        return { data: validExtractedResponse, meta: { modelUsed: "gemini-2.5-flash" } };
+        return { data: validExtractedResponse, meta: { modelUsed: "gemini-3.5-flash-lite" } };
       }
     };
 
@@ -423,7 +423,7 @@ async function runTestSuite() {
         maxObservedWorkers = Math.max(maxObservedWorkers, activeWorkers);
         await new Promise(r => setTimeout(r, 30));
         activeWorkers--;
-        return { data: validExtractedResponse, meta: { modelUsed: "gemini-2.5-flash" } };
+        return { data: validExtractedResponse, meta: { modelUsed: "gemini-3.5-flash-lite" } };
       }
     };
 

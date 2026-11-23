@@ -229,8 +229,8 @@
           userPrompt: item.userPrompt,
           systemInstruction: item.systemInstruction,
           apiKey: opts.apiKey,
-          primaryModel: opts.primaryModel || "gemini-2.5-flash",
-          fallbackModel: opts.fallbackModel || "gemini-1.5-flash",
+          primaryModel: opts.primaryModel || "gemini-3.5-flash-lite",
+          fallbackModel: opts.fallbackModel || "gemini-3.1-flash-lite",
           backendProxyUrl: opts.backendProxyUrl || "",
           maxRetries: opts.maxRetries !== undefined ? opts.maxRetries : 4,
           onProgress: (p) => {
