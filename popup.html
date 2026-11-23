@@ -16,7 +16,7 @@
         <div class="logo-icon">🕷️</div>
         <div>
           <h1 class="app-title">Site Intelligence</h1>
-          <p class="app-subtitle">Crawl & Extract with Gemini AI</p>
+          <p class="app-subtitle">Production AI Crawler & Intelligence</p>
         </div>
       </div>
       <button id="settingsBtn" class="icon-btn" title="API Settings">⚙️</button>
@@ -62,6 +62,12 @@
         <span class="pill" id="pillProducts">📦 Products</span>
       </div>
 
+      <!-- Queue Status Bar -->
+      <div class="queue-status-bar" id="queueStatusBar">
+        <span id="queueCountLabel">⚡ Ready</span>
+        <button id="retryFailedBtn" class="text-link-sm hidden">Retry Failed</button>
+      </div>
+
       <!-- Main Action Button -->
       <button id="startCrawlBtn" class="primary-btn">
         <span class="btn-icon">⚡</span>
@@ -97,6 +103,12 @@
 
       <!-- Tab Content 1: Structured View -->
       <div id="detailsTab" class="tab-content active">
+        <!-- Model Execution Meta Badge -->
+        <div id="modelExecutionBadge" class="model-badge">
+          <span class="badge-dot"></span>
+          <span id="modelExecutionText">Model: gemini-2.5-flash</span>
+        </div>
+
         <!-- Top Summary Badges -->
         <div class="summary-badges">
           <div class="badge-item">
@@ -131,7 +143,7 @@
     <div id="settingsModal" class="modal-overlay hidden">
       <div class="modal-content">
         <div class="modal-header">
-          <h2>Gemini API Configuration</h2>
+          <h2>AI Crawler Configuration & Reliability</h2>
           <button id="closeSettingsBtn" class="icon-btn">✕</button>
         </div>
         <div class="modal-body">
@@ -142,17 +154,40 @@
               <button id="toggleKeyVisibility" class="btn-toggle-key" type="button">👁️</button>
             </div>
             <p class="form-hint">
-              Get a free API key at
-              <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-link">Google AI Studio</a>.
+              Used with secure headers (<code style="color:#60a5fa">x-goog-api-key</code>). Never exposed in query URLs.
             </p>
           </div>
 
           <div class="form-group">
-            <label for="modelSelect">Gemini Model</label>
+            <label for="modelSelect">Primary Model (Main Engine)</label>
             <select id="modelSelect" class="form-select">
-              <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash (Recommended - Fastest & Accurate)</option>
-              <option value="gemini-3.1-flash-lite">Gemini 3.1 Flash</option>
+              <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (Recommended - Fastest & Accurate)</option>
+              <option value="gemini-1.5-flash">Gemini 1.5 Flash (High Quota & Stability)</option>
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro (Deep Reasoning)</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
             </select>
+          </div>
+
+          <div class="form-group">
+            <label for="fallbackModelSelect">Secondary Fallback Model (Auto 503/429 Failover)</label>
+            <select id="fallbackModelSelect" class="form-select">
+              <option value="gemini-1.5-flash" selected>Gemini 1.5 Flash (Recommended Fallback)</option>
+              <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+              <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+              <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+            </select>
+            <p class="form-hint">
+              Automatically used if the primary model exhausts retry attempts during high demand (503) or rate limits (429).
+            </p>
+          </div>
+
+          <div class="form-group">
+            <label for="backendProxyUrl">Secure Backend Proxy URL (Optional)</label>
+            <input type="text" id="backendProxyUrl" class="form-input" placeholder="http://localhost:3000/api/analyze">
+            <p class="form-hint">
+              Leave blank for Direct Client Mode. If set, AI requests go through your secure server where API keys reside in <code style="color:#60a5fa">.env</code>.
+            </p>
           </div>
 
           <div class="form-actions">
@@ -165,6 +200,9 @@
     </div>
   </div>
 
+  <!-- Scripts -->
+  <script src="geminiClient.js"></script>
+  <script src="requestQueue.js"></script>
   <script src="popup.js"></script>
 </body>
 

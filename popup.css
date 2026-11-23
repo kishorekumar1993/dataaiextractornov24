@@ -584,7 +584,8 @@ body {
   color: var(--text-muted);
 }
 
-.form-select {
+.form-select,
+.form-input {
   background: var(--bg-primary);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -592,36 +593,49 @@ body {
   color: #fff;
   font-size: 12px;
   outline: none;
+  width: 100%;
 }
 
-.form-hint {
-  font-size: 10.5px;
-  color: var(--text-muted);
-}
-
-.form-actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-.settings-message {
+.model-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  padding: 4px 10px;
+  border-radius: 12px;
   font-size: 11px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  margin-top: 4px;
+  color: #93c5fd;
+  margin-bottom: 8px;
 }
 
-.settings-message.success {
-  background: var(--success-bg);
-  color: #34d399;
-  border: 1px solid var(--success);
+.badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: #34d399;
 }
 
-.settings-message.error {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
-  border: 1px solid var(--danger);
+.queue-status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 4px;
+}
+
+.text-link-sm {
+  background: none;
+  border: none;
+  color: #f59e0b;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.text-link-sm:hover {
+  color: #fbbf24;
 }
 
 .hidden {

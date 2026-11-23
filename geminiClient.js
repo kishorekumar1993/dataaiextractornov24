@@ -1,0 +1,709 @@
+/**
+ * Production-grade Gemini AI Client with:
+ * - Exponential backoff with randomized jitter
+ * - Automatic retry on 503 (high demand), 429 (rate limit), 500, 502, 504, 408 & network errors
+ * - Retry-After header parsing
+ * - Primary & Secondary model fallback
+ * - Secure Header Authentication (x-goog-api-key)
+ * - Optional Backend Proxy support
+ * - Strict schema & QC response validation
+ * - In-flight deduplication
+ * - Structured audit logging
+ */
+
+(() => {
+  // Common international calling codes for phone sanitization
+  const COUNTRY_CODES = [
+    { name: "china", code: "86" },
+    { name: "united states", code: "1" },
+    { name: "usa", code: "1" },
+    { name: "us", code: "1" },
+    { name: "canada", code: "1" },
+    { name: "india", code: "91" },
+    { name: "united kingdom", code: "44" },
+    { name: "uk", code: "44" },
+    { name: "germany", code: "49" },
+    { name: "france", code: "33" },
+    { name: "italy", code: "39" },
+    { name: "spain", code: "34" },
+    { name: "australia", code: "61" },
+    { name: "japan", code: "81" },
+    { name: "south korea", code: "82" },
+    { name: "korea", code: "82" },
+    { name: "russia", code: "7" },
+    { name: "brazil", code: "55" },
+    { name: "mexico", code: "52" },
+    { name: "turkey", code: "90" },
+    { name: "indonesia", code: "62" },
+    { name: "malaysia", code: "60" },
+    { name: "singapore", code: "65" },
+    { name: "united arab emirates", code: "971" },
+    { name: "uae", code: "971" },
+    { name: "saudi arabia", code: "966" },
+    { name: "vietnam", code: "84" },
+    { name: "thailand", code: "66" },
+    { name: "philippines", code: "63" },
+    { name: "taiwan", code: "886" },
+    { name: "hong kong", code: "852" },
+    { name: "netherlands", code: "31" },
+    { name: "poland", code: "48" },
+    { name: "south africa", code: "27" }
+  ];
+
+  const RETRYABLE_STATUS_CODES = new Set([503, 429, 500, 502, 504, 408]);
+  const NON_RETRYABLE_STATUS_CODES = new Set([400, 401, 403, 404]);
+
+  const REQUIRED_SCHEMA_FIELDS = [
+    "websiteStatus",
+    "notWorkingReason",
+    "businessType",
+    "companyProfile",
+    "companyName",
+    "countryName",
+    "companyAddress",
+    "state",
+    "city",
+    "emailId",
+    "secondaryEmailId",
+    "phoneNumber",
+    "numberOfProducts",
+    "productImages",
+    "numberOfProductDescriptions"
+  ];
+
+  // In-flight request map for deduplication
+  const inFlightRequests = new Map();
+
+  /**
+   * Main entrypoint to call Gemini with retries and fallback
+   */
+  async function callGeminiWithRetryAndFallback(options) {
+    const {
+      context,
+      userPrompt,
+      systemInstruction,
+      apiKey = "",
+      primaryModel = "gemini-2.5-flash",
+      fallbackModel = "gemini-1.5-flash",
+      backendProxyUrl = "",
+      onProgress = () => { },
+      maxRetries = 4, // 1 initial + 4 retries = 5 attempts per model
+      baseDelayMs = 1500,
+      maxDelayMs = 16000,
+      jitterMs = 800,
+      timeoutMs = 45000,
+      fetchImpl = (typeof fetch !== "undefined" ? fetch : null)
+    } = options;
+
+    if (!fetchImpl) {
+      throw new Error("No fetch implementation available.");
+    }
+
+    // Deduplication Key based on website URL or domain
+    const dedupKey = (context.url || context.domain || "default_req").toLowerCase();
+    if (inFlightRequests.has(dedupKey)) {
+      onProgress({ status: "waiting", message: "A request for this website is already in flight. Waiting for result..." });
+      return await inFlightRequests.get(dedupKey);
+    }
+
+    const promise = (async () => {
+      // 1. If backend proxy mode is active, send request to backend proxy
+      if (backendProxyUrl && backendProxyUrl.trim() !== "") {
+        return await callBackendProxy({
+          backendProxyUrl,
+          context,
+          userPrompt,
+          systemInstruction,
+          primaryModel,
+          fallbackModel,
+          timeoutMs,
+          fetchImpl,
+          onProgress
+        });
+      }
+
+      // 2. Direct API Mode
+      if (!apiKey || apiKey.trim() === "") {
+        throw new Error("Gemini API Key is missing. Please configure it in settings or provide a backend proxy URL.");
+      }
+
+      const modelsToTry = [
+        { name: primaryModel, isFallback: false },
+        { name: fallbackModel, isFallback: true }
+      ].filter((m, idx, arr) => m.name && (idx === 0 || m.name !== arr[0].name));
+
+      let lastError = null;
+
+      for (let mIdx = 0; mIdx < modelsToTry.length; mIdx++) {
+        const currentModel = modelsToTry[mIdx];
+        const isFallback = currentModel.isFallback;
+
+        if (isFallback) {
+          onProgress({
+            status: "fallback",
+            message: `Primary model (${primaryModel}) unavailable. Switching to fallback model (${currentModel.name})...`
+          });
+          logStructuredEvent({
+            event: "model_fallback",
+            websiteUrl: context.url,
+            provider: "google-gemini",
+            fromModel: primaryModel,
+            toModel: currentModel.name,
+            reason: lastError ? lastError.message : "Primary retries exhausted"
+          });
+        }
+
+        try {
+          const result = await executeModelRequestWithRetries({
+            modelName: currentModel.name,
+            isFallback,
+            context,
+            userPrompt,
+            systemInstruction,
+            apiKey,
+            maxRetries,
+            baseDelayMs,
+            maxDelayMs,
+            jitterMs,
+            timeoutMs,
+            fetchImpl,
+            onProgress
+          });
+
+          return result;
+        } catch (err) {
+          lastError = err;
+          // If permanent client error (e.g. 400 Bad Request, 401 Invalid Key, 403 Forbidden), do not fallback
+          if (err.isPermanent) {
+            throw err;
+          }
+          // Otherwise continue to next fallback model
+        }
+      }
+
+      throw new Error(`All configured AI models failed. Last error: ${lastError ? lastError.message : "Unknown error"}`);
+    })();
+
+    inFlightRequests.set(dedupKey, promise);
+
+    try {
+      return await promise;
+    } finally {
+      inFlightRequests.delete(dedupKey);
+    }
+  }
+
+  /**
+   * Executes request for a single model with exponential backoff & jitter
+   */
+  async function executeModelRequestWithRetries(opts) {
+    const {
+      modelName,
+      isFallback,
+      context,
+      userPrompt,
+      systemInstruction,
+      apiKey,
+      maxRetries,
+      baseDelayMs,
+      maxDelayMs,
+      jitterMs,
+      timeoutMs,
+      fetchImpl,
+      onProgress
+    } = opts;
+
+    let attempt = 0;
+
+    while (attempt <= maxRetries) {
+      const startTime = Date.now();
+      let response = null;
+      let abortController = null;
+      let timer = null;
+
+      try {
+        if (attempt > 0) {
+          onProgress({
+            status: "retrying",
+            model: modelName,
+            attempt,
+            maxRetries,
+            message: `Retrying request with ${modelName} (attempt ${attempt + 1}/${maxRetries + 1})...`
+          });
+        }
+
+        // Prepare request body
+        const requestBody = {
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: userPrompt }]
+            }
+          ],
+          systemInstruction: {
+            parts: [{ text: systemInstruction }]
+          },
+          generationConfig: {
+            response_mime_type: "application/json",
+            temperature: 0.1
+          }
+        };
+
+        // Note: Use x-goog-api-key header instead of query parameter to prevent leaking key in URL
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+
+        abortController = typeof AbortController !== "undefined" ? new AbortController() : null;
+        if (abortController) {
+          timer = setTimeout(() => abortController.abort(), timeoutMs);
+        }
+
+        response = await fetchImpl(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey
+          },
+          body: JSON.stringify(requestBody),
+          signal: abortController ? abortController.signal : undefined
+        });
+
+        if (timer) clearTimeout(timer);
+
+        const durationMs = Date.now() - startTime;
+
+        // 1. Handle HTTP OK
+        if (response.ok) {
+          const jsonText = await response.text();
+          const parsedData = validateAndParseGeminiResponse(jsonText, modelName);
+
+          logStructuredEvent({
+            event: "api_success",
+            websiteUrl: context.url,
+            provider: "google-gemini",
+            model: modelName,
+            isFallback,
+            attempt,
+            httpStatus: response.status,
+            durationMs,
+            status: "success"
+          });
+
+          return {
+            data: parsedData,
+            meta: {
+              modelUsed: modelName,
+              isFallback,
+              retriesUsed: attempt,
+              durationMs
+            }
+          };
+        }
+
+        // 2. Handle HTTP Errors
+        const errorBodyText = await response.text();
+        let apiErrorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errObj = JSON.parse(errorBodyText);
+          if (errObj.error?.message) {
+            apiErrorMessage = errObj.error.message;
+          }
+        } catch (_) { }
+
+        // Check if permanent 4xx error
+        if (NON_RETRYABLE_STATUS_CODES.has(response.status)) {
+          const permErr = new Error(`Gemini API permanent failure [HTTP ${response.status}]: ${apiErrorMessage}`);
+          permErr.isPermanent = true;
+          permErr.httpStatus = response.status;
+          logStructuredEvent({
+            event: "api_permanent_failure",
+            websiteUrl: context.url,
+            provider: "google-gemini",
+            model: modelName,
+            isFallback,
+            attempt,
+            httpStatus: response.status,
+            durationMs,
+            failureReason: apiErrorMessage,
+            status: "failed"
+          });
+          throw permErr;
+        }
+
+        // Check if retryable error (503, 429, 500, 502, 504, 408)
+        if (RETRYABLE_STATUS_CODES.has(response.status)) {
+          if (attempt >= maxRetries) {
+            const maxRetryErr = new Error(`Model ${modelName} exhausted max retries (${maxRetries}). Last error: [HTTP ${response.status}] ${apiErrorMessage}`);
+            maxRetryErr.httpStatus = response.status;
+            throw maxRetryErr;
+          }
+
+          // Calculate delay with exponential backoff & jitter
+          const retryAfterHeader = response.headers ? response.headers.get("Retry-After") : null;
+          let delayMs = calculateBackoffDelay(attempt, baseDelayMs, maxDelayMs, jitterMs, retryAfterHeader);
+
+          onProgress({
+            status: "backed_off",
+            model: modelName,
+            attempt: attempt + 1,
+            delayMs,
+            message: `Model ${modelName} returned HTTP ${response.status} (${apiErrorMessage.slice(0, 80)}). Waiting ${(delayMs / 1000).toFixed(1)}s before retry...`
+          });
+
+          logStructuredEvent({
+            event: "api_retry_backoff",
+            websiteUrl: context.url,
+            provider: "google-gemini",
+            model: modelName,
+            isFallback,
+            attempt,
+            httpStatus: response.status,
+            delayMs,
+            failureReason: apiErrorMessage
+          });
+
+          await sleep(delayMs);
+          attempt++;
+          continue;
+        }
+
+        // Other unexpected status codes
+        throw new Error(`Unexpected Gemini API HTTP ${response.status}: ${apiErrorMessage}`);
+
+      } catch (err) {
+        if (timer) clearTimeout(timer);
+
+        if (err.isPermanent) {
+          throw err;
+        }
+
+        // Abort / Timeout / Network error handling
+        const isAbort = err.name === "AbortError" || (err.message && err.message.toLowerCase().includes("abort"));
+        const isNetworkError = !response || isAbort || (err.message && err.message.toLowerCase().includes("fetch"));
+
+        if (isNetworkError && attempt < maxRetries) {
+          const delayMs = calculateBackoffDelay(attempt, baseDelayMs, maxDelayMs, jitterMs, null);
+          const reason = isAbort ? `Request timed out after ${timeoutMs}ms` : err.message;
+
+          onProgress({
+            status: "network_retry",
+            model: modelName,
+            attempt: attempt + 1,
+            delayMs,
+            message: `Network/Timeout issue (${reason}). Retrying in ${(delayMs / 1000).toFixed(1)}s...`
+          });
+
+          logStructuredEvent({
+            event: "api_network_retry",
+            websiteUrl: context.url,
+            provider: "google-gemini",
+            model: modelName,
+            isFallback,
+            attempt,
+            delayMs,
+            failureReason: reason
+          });
+
+          await sleep(delayMs);
+          attempt++;
+          continue;
+        }
+
+        throw err;
+      }
+    }
+
+    throw new Error(`Model ${modelName} failed after ${maxRetries} retries.`);
+  }
+
+  /**
+   * Backend Proxy Client for secure environments where the key is kept on a server
+   */
+  async function callBackendProxy(opts) {
+    const {
+      backendProxyUrl,
+      context,
+      userPrompt,
+      systemInstruction,
+      primaryModel,
+      fallbackModel,
+      timeoutMs,
+      fetchImpl,
+      onProgress
+    } = opts;
+
+    onProgress({ status: "backend_proxy", message: `Sending request through secure backend proxy: ${backendProxyUrl}...` });
+
+    let timer = null;
+    let abortController = typeof AbortController !== "undefined" ? new AbortController() : null;
+    if (abortController) {
+      timer = setTimeout(() => abortController.abort(), timeoutMs);
+    }
+
+    try {
+      const response = await fetchImpl(backendProxyUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context,
+          userPrompt,
+          systemInstruction,
+          primaryModel,
+          fallbackModel
+        }),
+        signal: abortController ? abortController.signal : undefined
+      });
+
+      if (timer) clearTimeout(timer);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Backend proxy error [HTTP ${response.status}]: ${errText}`);
+      }
+
+      const proxyResult = await response.json();
+      if (!proxyResult.success || !proxyResult.data) {
+        throw new Error(proxyResult.error || "Backend proxy returned invalid response format");
+      }
+
+      // Re-validate data locally as QC guarantee
+      const validated = validateExtractedJson(proxyResult.data);
+
+      return {
+        data: validated,
+        meta: proxyResult.meta || {
+          modelUsed: proxyResult.modelUsed || primaryModel,
+          isFallback: !!proxyResult.isFallback,
+          retriesUsed: proxyResult.retriesUsed || 0,
+          durationMs: proxyResult.durationMs || 0
+        }
+      };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Backoff with jitter and Retry-After support
+   */
+  function calculateBackoffDelay(attempt, baseDelayMs, maxDelayMs, jitterMs, retryAfterHeader) {
+    // 1. Exponential Backoff: base * 2^attempt
+    let delay = baseDelayMs * Math.pow(2, attempt);
+
+    // 2. Add randomized jitter: [0, jitterMs)
+    const jitter = Math.floor(Math.random() * jitterMs);
+    delay = Math.min(maxDelayMs, delay + jitter);
+
+    // 3. Respect Retry-After header if provided by server
+    if (retryAfterHeader) {
+      const parsedSeconds = parseInt(retryAfterHeader, 10);
+      if (!isNaN(parsedSeconds) && parsedSeconds > 0) {
+        const serverWaitMs = parsedSeconds * 1000;
+        delay = Math.max(delay, Math.min(maxDelayMs, serverWaitMs));
+      } else {
+        const parsedDate = Date.parse(retryAfterHeader);
+        if (!isNaN(parsedDate)) {
+          const dateWaitMs = Math.max(0, parsedDate - Date.now());
+          delay = Math.max(delay, Math.min(maxDelayMs, dateWaitMs));
+        }
+      }
+    }
+
+    return delay;
+  }
+
+  /**
+   * Validates raw Gemini response structure & extracts candidate text
+   */
+  function validateAndParseGeminiResponse(rawResponseBodyText, modelName) {
+    if (!rawResponseBodyText || rawResponseBodyText.trim() === "") {
+      throw new Error(`Empty response received from ${modelName}`);
+    }
+
+    let parsedResponse = null;
+    try {
+      parsedResponse = JSON.parse(rawResponseBodyText);
+    } catch (e) {
+      throw new Error(`Failed to parse Gemini API response wrapper: ${e.message}`);
+    }
+
+    const candidate = parsedResponse.candidates?.[0];
+    if (!candidate) {
+      if (parsedResponse.promptFeedback?.blockReason) {
+        throw new Error(`Prompt blocked by safety filters: ${parsedResponse.promptFeedback.blockReason}`);
+      }
+      throw new Error(`No candidates returned by model ${modelName}`);
+    }
+
+    if (candidate.finishReason && candidate.finishReason !== "STOP" && candidate.finishReason !== "MAX_TOKENS") {
+      throw new Error(`Model execution finished with non-standard reason: ${candidate.finishReason}`);
+    }
+
+    const partText = candidate.content?.parts?.[0]?.text;
+    if (!partText || partText.trim() === "") {
+      throw new Error(`Candidate content is empty from ${modelName}`);
+    }
+
+    // Strip markdown fences if present
+    const cleanedJsonText = partText
+      .trim()
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/, "")
+      .replace(/```$/, "")
+      .trim();
+
+    let extractedObject = null;
+    try {
+      extractedObject = JSON.parse(cleanedJsonText);
+    } catch (jsonErr) {
+      // Check if truncated
+      if (candidate.finishReason === "MAX_TOKENS") {
+        throw new Error(`Response was truncated due to output token limit: ${jsonErr.message}`);
+      }
+      throw new Error(`Model generated malformed JSON: ${jsonErr.message}. Output was: "${cleanedJsonText.slice(0, 150)}..."`);
+    }
+
+    return validateExtractedJson(extractedObject);
+  }
+
+  /**
+   * Enforces all QC Schema rules and sanitizes phone numbers
+   */
+  function validateExtractedJson(obj) {
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+      throw new Error("Extracted result is not a valid JSON object.");
+    }
+
+    // Check mandatory fields
+    const missingFields = REQUIRED_SCHEMA_FIELDS.filter(field => !(field in obj));
+    if (missingFields.length > 0) {
+      throw new Error(`Extracted JSON is missing mandatory fields: ${missingFields.join(", ")}`);
+    }
+
+    // Clone clean result
+    const clean = {};
+    for (const key of REQUIRED_SCHEMA_FIELDS) {
+      clean[key] = obj[key] !== undefined && obj[key] !== null ? String(obj[key]) : "";
+    }
+
+    // Strict validation for State
+    const rawState = clean.state.trim().toLowerCase();
+    if (rawState === "available") {
+      clean.state = "Available";
+    } else {
+      clean.state = "Not Available";
+    }
+
+    // Strict validation for City
+    const rawCity = clean.city.trim().toLowerCase();
+    if (rawCity === "available") {
+      clean.city = "Available";
+    } else {
+      clean.city = "Not Available";
+    }
+
+    // Sanitize phone number (strip country code, leading zeros, toll-free, spaces)
+    if (clean.phoneNumber) {
+      clean.phoneNumber = sanitizePhoneNumber(clean.phoneNumber, clean.countryName);
+    }
+
+    return clean;
+  }
+
+  /**
+   * Phone number sanitizer enforcing:
+   * - Digits only
+   * - Strips international calling code for any country
+   * - Strips leading zeros so number never starts with 0
+   * - Rejects toll-free numbers
+   */
+  function sanitizePhoneNumber(rawPhone, countryName = "") {
+    if (!rawPhone) return "";
+    let phone = String(rawPhone).trim();
+
+    // Check toll-free prefixes (US 1800/800/888/877/866/855/844, China 400, etc.)
+    if (/^(?:\+?1[-.\s]?)?(?:800|888|877|866|855|844)/.test(phone) || /^400[-.\s]?\d/.test(phone)) {
+      return "";
+    }
+
+    const lowerCountry = (countryName || "").toLowerCase();
+    const matchedCountry = COUNTRY_CODES.find(c => lowerCountry.includes(c.name));
+
+    // If starts with +, strip + and then country code
+    if (phone.startsWith("+")) {
+      phone = phone.replace(/^\+/, "");
+      if (matchedCountry && phone.startsWith(matchedCountry.code)) {
+        phone = phone.slice(matchedCountry.code.length);
+      } else {
+        const sortedCodes = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
+        for (const item of sortedCodes) {
+          if (phone.startsWith(item.code) && (phone.length - item.code.length) >= 7) {
+            phone = phone.slice(item.code.length);
+            break;
+          }
+        }
+      }
+    }
+
+    // Strip all non-digits
+    phone = phone.replace(/\D/g, "");
+
+    // If country code is still attached at the beginning of digit string
+    if (matchedCountry && phone.startsWith(matchedCountry.code) && (phone.length - matchedCountry.code.length) >= 7) {
+      phone = phone.slice(matchedCountry.code.length);
+    }
+
+    // Strip leading zeros so it never starts with zero
+    phone = phone.replace(/^0+/, "");
+
+    // Final toll-free check on cleaned digits
+    if (/^(?:800|888|877|866|855|844|400)/.test(phone)) {
+      return "";
+    }
+
+    return phone;
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function logStructuredEvent(eventData) {
+    const timestamp = new Date().toISOString();
+    const logEntry = { timestamp, ...eventData };
+
+    // Format safe log without exposing secrets
+    console.log(`[SiteIntelligence AI Log] [${eventData.event}]`, JSON.stringify(logEntry));
+
+    // Persist to chrome.storage.local log buffer if available
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+      try {
+        chrome.storage.local.get(["ai_structured_logs"], (res) => {
+          const logs = res.ai_structured_logs || [];
+          logs.push(logEntry);
+          // Keep last 100 entries to prevent memory growth
+          if (logs.length > 100) logs.shift();
+          chrome.storage.local.set({ ai_structured_logs: logs });
+        });
+      } catch (_) { }
+    }
+  }
+
+  // Export for browser window, service worker global, or Node CommonJS
+  const exportsObj = {
+    callGeminiWithRetryAndFallback,
+    validateAndParseGeminiResponse,
+    validateExtractedJson,
+    sanitizePhoneNumber,
+    calculateBackoffDelay,
+    RETRYABLE_STATUS_CODES,
+    NON_RETRYABLE_STATUS_CODES,
+    REQUIRED_SCHEMA_FIELDS
+  };
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = exportsObj;
+  }
+  if (typeof globalThis !== "undefined") {
+    globalThis.GeminiClient = exportsObj;
+  }
+})();

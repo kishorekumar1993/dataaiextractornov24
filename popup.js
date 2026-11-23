@@ -1,4 +1,4 @@
-// Main controller for Site Intelligence Crawler Extension
+// Main controller for Site Intelligence Crawler Extension with Production AI Reliability
 document.addEventListener("DOMContentLoaded", async () => {
   // DOM Elements
   const siteDomainEl = document.getElementById("siteDomain");
@@ -15,6 +15,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   const pillAbout = document.getElementById("pillAbout");
   const pillContact = document.getElementById("pillContact");
   const pillProducts = document.getElementById("pillProducts");
+
+  // Queue Status Elements
+  const queueCountLabel = document.getElementById("queueCountLabel");
+  const retryFailedBtn = document.getElementById("retryFailedBtn");
 
   // Progress
   const progressSection = document.getElementById("progressSection");
@@ -34,6 +38,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const resStatus = document.getElementById("resStatus");
   const resBusinessType = document.getElementById("resBusinessType");
   const resProductCount = document.getElementById("resProductCount");
+  const modelExecutionText = document.getElementById("modelExecutionText");
   const copyJsonBtn = document.getElementById("copyJsonBtn");
   const downloadCsvBtn = document.getElementById("downloadCsvBtn");
   const downloadJsonBtn = document.getElementById("downloadJsonBtn");
@@ -43,6 +48,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   const closeSettingsBtn = document.getElementById("closeSettingsBtn");
   const apiKeyInput = document.getElementById("apiKeyInput");
   const modelSelect = document.getElementById("modelSelect");
+  const fallbackModelSelect = document.getElementById("fallbackModelSelect");
+  const backendProxyUrlInput = document.getElementById("backendProxyUrl");
   const saveSettingsBtn = document.getElementById("saveSettingsBtn");
   const testApiKeyBtn = document.getElementById("testApiKeyBtn");
   const settingsMessage = document.getElementById("settingsMessage");
@@ -53,7 +60,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   let initialPageData = null;
   let lastExtractedResult = null;
   let apiKey = "";
-  let geminiModel = "gemini-3.1-flash-lite";
+  let geminiModel = "gemini-2.5-flash";
+  let fallbackModel = "gemini-1.5-flash";
+  let backendProxyUrl = "";
+
+  // Initialize Queue Manager
+  const queueManager = new CrawlerQueueManager({
+    concurrency: 1,
+    interRequestDelayMs: 1000
+  });
+
+  await queueManager.init();
+  updateQueueUI();
 
   // 1. Load Settings from chrome.storage
   await loadSettings();
@@ -76,11 +94,22 @@ document.addEventListener("DOMContentLoaded", async () => {
   downloadJsonBtn.addEventListener("click", downloadJsonFile);
   downloadCsvBtn.addEventListener("click", downloadCsvFile);
 
+  if (retryFailedBtn) {
+    retryFailedBtn.addEventListener("click", handleRetryFailed);
+  }
+
   startCrawlBtn.addEventListener("click", startCrawlAndAnalyze);
 
   // Settings Handlers
   async function loadSettings() {
-    const data = await chrome.storage.local.get(["geminiApiKey", "geminiModel", "crawlDepth"]);
+    const data = await chrome.storage.local.get([
+      "geminiApiKey",
+      "geminiModel",
+      "fallbackModel",
+      "backendProxyUrl",
+      "crawlDepth"
+    ]);
+
     if (data.geminiApiKey) {
       apiKey = data.geminiApiKey;
       apiKeyInput.value = apiKey;
@@ -90,9 +119,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     if (data.geminiModel) {
-      geminiModel = data.geminiModel;
+      // Migrate away from invalid/overloaded 3.5-flash-lite / 3.1-flash-lite
+      if (data.geminiModel.includes("3.5") || data.geminiModel.includes("3.1")) {
+        geminiModel = "gemini-2.5-flash";
+        chrome.storage.local.set({ geminiModel });
+      } else {
+        geminiModel = data.geminiModel;
+      }
       modelSelect.value = geminiModel;
     }
+
+    if (data.fallbackModel) {
+      fallbackModel = data.fallbackModel;
+      if (fallbackModelSelect) fallbackModelSelect.value = fallbackModel;
+    }
+
+    if (data.backendProxyUrl) {
+      backendProxyUrl = data.backendProxyUrl;
+      if (backendProxyUrlInput) backendProxyUrlInput.value = backendProxyUrl;
+    }
+
     if (data.crawlDepth) {
       crawlDepthSelect.value = data.crawlDepth;
     }
@@ -114,21 +160,28 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function saveSettings() {
     const key = apiKeyInput.value.trim();
     const model = modelSelect.value;
+    const fallback = fallbackModelSelect ? fallbackModelSelect.value : "gemini-1.5-flash";
+    const proxyUrl = backendProxyUrlInput ? backendProxyUrlInput.value.trim() : "";
     const depth = crawlDepthSelect.value;
 
-    if (!key) {
-      showSettingsMessage("Please enter a valid Gemini API Key", "error");
+    if (!key && !proxyUrl) {
+      showSettingsMessage("Please enter a Gemini API Key or a Backend Proxy URL.", "error");
       return;
     }
 
     await chrome.storage.local.set({
       geminiApiKey: key,
       geminiModel: model,
+      fallbackModel: fallback,
+      backendProxyUrl: proxyUrl,
       crawlDepth: depth
     });
 
     apiKey = key;
     geminiModel = model;
+    fallbackModel = fallback;
+    backendProxyUrl = proxyUrl;
+
     apiKeyWarning.classList.add("hidden");
     showSettingsMessage("Settings saved successfully!", "success");
     setTimeout(() => closeSettings(), 1000);
@@ -137,18 +190,37 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function testConnection() {
     const key = apiKeyInput.value.trim();
     const model = modelSelect.value;
-    if (!key) {
-      showSettingsMessage("Enter an API key first.", "error");
+    const proxyUrl = backendProxyUrlInput ? backendProxyUrlInput.value.trim() : "";
+
+    if (!key && !proxyUrl) {
+      showSettingsMessage("Enter an API key or Backend Proxy URL first.", "error");
       return;
     }
 
-    showSettingsMessage("Testing Gemini API connection...", "success");
+    showSettingsMessage("Testing API connection...", "success");
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`;
+      if (proxyUrl) {
+        // Test backend proxy health
+        const healthUrl = proxyUrl.replace(/\/api\/analyze$/, "/api/health");
+        const res = await fetch(healthUrl);
+        const data = await res.json();
+        if (res.ok && data.status === "ok") {
+          showSettingsMessage(`Backend Proxy connected! Key configured: ${data.keyConfigured}`, "success");
+        } else {
+          showSettingsMessage(`Proxy error: ${data.error || "Cannot reach proxy"}`, "error");
+        }
+        return;
+      }
+
+      // Test Direct API with secure header (x-goog-api-key)
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": key
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: "Ping. Respond with 'OK'." }] }]
         })
@@ -156,9 +228,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const json = await res.json();
       if (res.ok && json.candidates && json.candidates.length > 0) {
-        showSettingsMessage("Connection successful! API Key is valid.", "success");
+        showSettingsMessage("Connection successful! API Key is valid and active.", "success");
       } else {
-        const errMsg = json.error?.message || "Invalid API response";
+        const errMsg = json.error?.message || `HTTP ${res.status}: ${res.statusText}`;
         showSettingsMessage(`API Error: ${errMsg}`, "error");
       }
     } catch (err) {
@@ -170,6 +242,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     settingsMessage.textContent = msg;
     settingsMessage.className = `settings-message ${type}`;
     settingsMessage.classList.remove("hidden");
+  }
+
+  function updateQueueUI() {
+    const status = queueManager.getStatus();
+    if (queueCountLabel) {
+      if (status.activeCount > 0 || status.pendingCount > 0) {
+        queueCountLabel.textContent = `⏳ Processing (${status.activeCount} active, ${status.pendingCount} pending)`;
+      } else if (status.failedCount > 0) {
+        queueCountLabel.textContent = `⚠️ Queue: ${status.completedCount} completed, ${status.failedCount} failed`;
+      } else {
+        queueCountLabel.textContent = `⚡ Ready (${status.completedCount} processed)`;
+      }
+    }
+
+    if (retryFailedBtn) {
+      if (status.failedCount > 0) {
+        retryFailedBtn.classList.remove("hidden");
+        retryFailedBtn.textContent = `Retry (${status.failedCount}) Failed`;
+      } else {
+        retryFailedBtn.classList.add("hidden");
+      }
+    }
+  }
+
+  async function handleRetryFailed() {
+    const count = await queueManager.retryAllFailed();
+    updateQueueUI();
+    alert(`Re-enqueued ${count} failed tasks for processing.`);
   }
 
   // Active Tab Inspection
@@ -187,6 +287,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       const urlObj = new URL(tab.url);
       siteDomainEl.textContent = urlObj.hostname;
       siteUrlEl.textContent = tab.url;
+
+      // Check if we already have a successfully processed result for this website
+      const cached = queueManager.getCompletedResult(tab.url);
+      if (cached && cached.data) {
+        lastExtractedResult = cached.data;
+        renderResults(cached.data, cached.meta || { modelUsed: geminiModel, isFallback: false, retriesUsed: 0, cached: true });
+      }
 
       // Ensure content script is injected
       try {
@@ -217,7 +324,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   function updatePills(links = []) {
     const categories = new Set(links.map(l => l.category));
-    // Also include current page path heuristics
     if (currentTab?.url) {
       const path = new URL(currentTab.url).pathname.toLowerCase();
       if (path === "/" || path === "") categories.add("home");
@@ -234,9 +340,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Main Crawl & Analysis Flow
   async function startCrawlAndAnalyze() {
-    if (!apiKey) {
+    if (!apiKey && !backendProxyUrl) {
       openSettings();
-      showSettingsMessage("Please provide your Gemini API key before starting.", "error");
+      showSettingsMessage("Please provide your Gemini API key or Backend Proxy URL before starting.", "error");
       return;
     }
 
@@ -264,7 +370,6 @@ document.addEventListener("DOMContentLoaded", async () => {
           baseData = res.data;
           initialPageData = baseData;
         } else {
-          // Fallback basic info
           baseData = {
             url: tab.url,
             origin: new URL(tab.url).origin,
@@ -343,18 +448,64 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       );
 
-      // Step 5: Send to Gemini API with strict structured JSON schema
+      const systemInstruction = buildSystemInstruction();
+      const userPrompt = buildUserPrompt(aggregatedContext);
+
+      // Step 5: Send to Gemini API with robust retries, jitter, and model fallback
       updateProgress(85, "Analyzing with Gemini AI...", `Running model ${geminiModel}...`);
-      const extractedJson = await callGeminiApi(aggregatedContext);
+
+      const extractionResult = await GeminiClient.callGeminiWithRetryAndFallback({
+        context: aggregatedContext,
+        userPrompt: userPrompt,
+        systemInstruction: systemInstruction,
+        apiKey: apiKey,
+        primaryModel: geminiModel,
+        fallbackModel: fallbackModel,
+        backendProxyUrl: backendProxyUrl,
+        onProgress: (p) => {
+          if (p.status === "retrying" || p.status === "backed_off" || p.status === "network_retry") {
+            updateProgress(88, "Retrying AI Request...", p.message);
+          } else if (p.status === "fallback") {
+            updateProgress(90, "Fallback Model Engaged", p.message);
+          } else if (p.message) {
+            progressLog.textContent = p.message;
+          }
+        }
+      });
+
+      const extractedJson = extractionResult.data;
+
+      // Save to queue completed map so it persists
+      const cleanKey = currentTab.url.toLowerCase();
+      queueManager.completedMap[cleanKey] = {
+        data: extractedJson,
+        meta: extractionResult.meta,
+        completedAt: new Date().toISOString()
+      };
+      await queueManager.saveState();
+      updateQueueUI();
 
       // Step 6: Render results
       updateProgress(100, "Done!", "Intelligence extraction complete.");
       lastExtractedResult = extractedJson;
-      renderResults(extractedJson);
+      renderResults(extractedJson, extractionResult.meta);
 
     } catch (err) {
       console.error("Crawl error:", err);
       updateProgress(0, "Extraction Error", err.message);
+
+      // Record in failed queue
+      if (currentTab?.url) {
+        queueManager.failedQueue.push({
+          id: "task_err_" + Date.now(),
+          url: currentTab.url,
+          error: err.message,
+          failedAt: new Date().toISOString()
+        });
+        await queueManager.saveState();
+        updateQueueUI();
+      }
+
       alert(`Error during crawl/analysis: ${err.message}`);
     } finally {
       startCrawlBtn.disabled = false;
@@ -373,7 +524,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const products = links.filter(l => l.category === "product");
     const others = links.filter(l => l.category === "other" || l.category === "home");
 
-    // Helper to add unique
     const addLink = (item) => {
       const clean = item.url.split("#")[0].split("?")[0].replace(/\/$/, "");
       if (!added.has(clean) && list.length < maxPages) {
@@ -382,18 +532,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     };
 
-    // 1. Pick About/Company page
     if (abouts.length > 0) addLink(abouts[0]);
-    // 2. Pick Contact page
     if (contacts.length > 0) addLink(contacts[0]);
-    // 3. Pick 1-2 Product pages
     if (products.length > 0) addLink(products[0]);
     if (products.length > 1) addLink(products[1]);
-    // 4. Second about or contact if available
     if (abouts.length > 1) addLink(abouts[1]);
     if (contacts.length > 1) addLink(contacts[1]);
 
-    // Fill remaining slots
     for (const l of products.slice(2)) addLink(l);
     for (const l of others) addLink(l);
 
@@ -402,13 +547,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function fetchAndParseSubpage(url) {
     try {
-      // Use chrome.runtime background fetch or direct fetch
       let html = "";
       try {
         const resp = await fetch(url, { headers: { "Accept": "text/html" } });
         if (resp.ok) html = await resp.text();
       } catch (e) {
-        // Fallback to background worker
         const bgRes = await new Promise(resolve => {
           chrome.runtime.sendMessage({ action: "fetchUrl", url: url }, resolve);
         });
@@ -420,7 +563,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
 
-      // Strip noise
       ["script", "style", "noscript", "svg", "canvas", "iframe", "nav", "footer"].forEach(tag => {
         doc.querySelectorAll(tag).forEach(el => el.remove());
       });
@@ -442,7 +584,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       return {
         title,
-        textSnippet: text.slice(0, 5000), // First 5000 chars of each page
+        textSnippet: text.slice(0, 5000),
         emails,
         phones,
         productCount,
@@ -480,10 +622,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     };
   }
 
-  async function callGeminiApi(context) {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
-
-    const systemInstruction = `You are an expert web crawler and business intelligence data extraction agent.
+  function buildSystemInstruction() {
+    return `You are an expert web crawler and business intelligence data extraction agent.
 Your task is to analyze content gathered from crawling a website (Home, About Us, Company Profile, Contact Us, and Product pages) and extract structured corporate intelligence.
 
 You MUST respond strictly with a valid JSON object matching this exact schema:
@@ -495,8 +635,8 @@ You MUST respond strictly with a valid JSON object matching this exact schema:
   "companyName": "Exact Company Name",
   "countryName": "Country of company",
   "companyAddress": "Full physical or registered address",
-  "state": "State / Province or 'Available' / 'Not Available'",
-  "city": "City name or 'Available' / 'Not Available'",
+  "state": "Available",
+  "city": "Available",
   "emailId": "primary_email@domain.com",
   "secondaryEmailId": "secondary_email@domain.com or empty string",
   "phoneNumber": "Main contact phone number",
@@ -575,6 +715,7 @@ Field extraction guidelines:
    - Select "Available" ONLY if a City, Town, District, or Municipality is explicitly present in the address.
    - Select "Not Available" if no City, Town, District, or Municipality is present.
    - Note: ONLY (Town, District, Municipality) should be considered as City. Do NOT take any suburb, neighborhood, locality, or village as City.
+
 10. "emailId": Primary contact email address.
 11. "secondaryEmailId": Alternative email if present, else "".
 12. "phoneNumber": Primary contact phone number strictly formatted according to these rules:
@@ -595,8 +736,10 @@ Field extraction guidelines:
 15. "numberOfProductDescriptions": String representation of product descriptions present (e.g. "0").
 
 Return ONLY the raw JSON object. Do not enclose in markdown code blocks like \`\`\`json.`;
+  }
 
-    const userPrompt = `Analyze the following crawled website data and extract all corporate details according to the required schema:
+  function buildUserPrompt(context) {
+    return `Analyze the following crawled website data and extract all corporate details according to the required schema:
 
 Website Domain: ${context.domain}
 Active URL: ${context.url}
@@ -606,145 +749,19 @@ Heuristically detected product indicators: products=${context.heuristicProducts}
 
 CRAWLED PAGES TEXT CONTENT:
 ${context.crawledText}`;
-
-    const requestBody = {
-      contents: [
-        {
-          role: "user",
-          parts: [{ text: userPrompt }]
-        }
-      ],
-      systemInstruction: {
-        parts: [{ text: systemInstruction }]
-      },
-      generationConfig: {
-        response_mime_type: "application/json",
-        temperature: 0.1
-      }
-    };
-
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      let errorMsg = `HTTP ${response.status}: ${response.statusText}`;
-      try {
-        const errJson = JSON.parse(errText);
-        if (errJson.error?.message) errorMsg = errJson.error.message;
-      } catch (e) { }
-      throw new Error(`Gemini API error: ${errorMsg}`);
-    }
-
-    const resJson = await response.json();
-    const candidate = resJson.candidates?.[0];
-    if (!candidate || !candidate.content?.parts?.[0]?.text) {
-      throw new Error("No response generated by Gemini model.");
-    }
-
-    const rawText = candidate.content.parts[0].text.trim();
-    // Clean if wrapped in backticks
-    const cleaned = rawText.replace(/^```json\s*/i, "").replace(/^```\s*/, "").replace(/```$/, "").trim();
-    const parsed = JSON.parse(cleaned);
-
-    // Guaranteed post-processing: remove country code, spaces, special chars, leading zeros, toll-free
-    if (parsed.phoneNumber) {
-      parsed.phoneNumber = sanitizePhoneNumber(parsed.phoneNumber, parsed.countryName);
-    }
-
-    return parsed;
   }
 
-  function sanitizePhoneNumber(rawPhone, countryName = "") {
-    if (!rawPhone) return "";
-    let phone = String(rawPhone).trim();
-
-    // Check toll-free prefixes (US 1800/800/888/877/866/855/844, China 400, etc.)
-    if (/^(?:\+?1[-.\s]?)?(?:800|888|877|866|855|844)/.test(phone) || /^400[-.\s]?\d/.test(phone)) {
-      return "";
-    }
-
-    // Common international calling codes
-    const COUNTRY_CODES = [
-      { name: "china", code: "86" },
-      { name: "united states", code: "1" },
-      { name: "usa", code: "1" },
-      { name: "us", code: "1" },
-      { name: "canada", code: "1" },
-      { name: "india", code: "91" },
-      { name: "united kingdom", code: "44" },
-      { name: "uk", code: "44" },
-      { name: "germany", code: "49" },
-      { name: "france", code: "33" },
-      { name: "italy", code: "39" },
-      { name: "spain", code: "34" },
-      { name: "australia", code: "61" },
-      { name: "japan", code: "81" },
-      { name: "south korea", code: "82" },
-      { name: "korea", code: "82" },
-      { name: "russia", code: "7" },
-      { name: "brazil", code: "55" },
-      { name: "mexico", code: "52" },
-      { name: "turkey", code: "90" },
-      { name: "indonesia", code: "62" },
-      { name: "malaysia", code: "60" },
-      { name: "singapore", code: "65" },
-      { name: "united arab emirates", code: "971" },
-      { name: "uae", code: "971" },
-      { name: "saudi arabia", code: "966" },
-      { name: "vietnam", code: "84" },
-      { name: "thailand", code: "66" },
-      { name: "philippines", code: "63" },
-      { name: "taiwan", code: "886" },
-      { name: "hong kong", code: "852" },
-      { name: "netherlands", code: "31" },
-      { name: "poland", code: "48" },
-      { name: "south africa", code: "27" }
-    ];
-
-    const lowerCountry = (countryName || "").toLowerCase();
-    const matchedCountry = COUNTRY_CODES.find(c => lowerCountry.includes(c.name));
-
-    // If starts with +, strip + and then country code
-    if (phone.startsWith("+")) {
-      phone = phone.replace(/^\+/, "");
-      if (matchedCountry && phone.startsWith(matchedCountry.code)) {
-        phone = phone.slice(matchedCountry.code.length);
-      } else {
-        const sortedCodes = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
-        for (const item of sortedCodes) {
-          if (phone.startsWith(item.code) && (phone.length - item.code.length) >= 7) {
-            phone = phone.slice(item.code.length);
-            break;
-          }
-        }
-      }
-    }
-
-    // Strip all non-digits
-    phone = phone.replace(/\D/g, "");
-
-    // If country code is still attached at the beginning of digit string
-    if (matchedCountry && phone.startsWith(matchedCountry.code) && (phone.length - matchedCountry.code.length) >= 7) {
-      phone = phone.slice(matchedCountry.code.length);
-    }
-
-    // Strip leading zeros so it never starts with zero
-    phone = phone.replace(/^0+/, "");
-
-    // Final toll-free check on cleaned digits
-    if (/^(?:800|888|877|866|855|844|400)/.test(phone)) {
-      return "";
-    }
-
-    return phone;
-  }
-
-  function renderResults(data) {
+  function renderResults(data, meta = {}) {
     resultsSection.classList.remove("hidden");
+
+    // Display model execution metadata badge
+    if (modelExecutionText) {
+      const modelLabel = meta.modelUsed || geminiModel;
+      const isFb = meta.isFallback ? " (Fallback Model Used)" : "";
+      const retries = meta.retriesUsed ? ` · ${meta.retriesUsed} retries` : "";
+      const time = meta.durationMs ? ` · ${(meta.durationMs / 1000).toFixed(1)}s` : "";
+      modelExecutionText.textContent = `Engine: ${modelLabel}${isFb}${retries}${time}`;
+    }
 
     // Badges
     resStatus.textContent = data.websiteStatus || "Working";
