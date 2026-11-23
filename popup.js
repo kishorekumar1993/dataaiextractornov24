@@ -674,7 +674,12 @@ Field extraction guidelines:
    - Preserve officially recognized brand acronyms (e.g., IBM, BMW) unless their full form is explicitly stated as part of the legal name.
    - First letter in each word must be capitalized only (Title Case), NOT all the characters. Example: "Zhejiang Jiangnan Steel Structure Company, Limited".
 
-6. "countryName": Country where company is based or registered. First letter in each word must be capitalized only, NOT all characters. Example: "China", "United States", "Germany".
+6. "countryName": Country where company is based or registered, strictly following these rules:
+   - You must write the country name in full form.
+   - First letter in each word must be capitalized only, NOT all characters (e.g., "China", "United States", "Germany").
+   - If the country name is not available directly on the site, check social media links/profiles, or infer it using the city and state name from the address. Locality must be considered for the country name.
+   - Special Rule for United Kingdom:
+     * For United Kingdom (England, Wales, Scotland, Northern Ireland): If "England" and "United Kingdom" both are mentioned, you must take England as the country name (prioritize the specific constituent country/locality: England, Wales, Scotland, Northern Ireland).
 
 7. "companyAddress": Complete address in full form preserving the original template and punctuation:
    - First letter in each word must be capitalized only (Title Case), NOT all the characters.
