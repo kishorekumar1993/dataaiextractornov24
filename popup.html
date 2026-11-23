@@ -106,7 +106,7 @@
         <!-- Model Execution Meta Badge -->
         <div id="modelExecutionBadge" class="model-badge">
           <span class="badge-dot"></span>
-          <span id="modelExecutionText">Model: gemini-2.5-flash</span>
+          <span id="modelExecutionText">Model: gemini-3.5-flash-lite</span>
         </div>
 
         <!-- Top Summary Badges -->
@@ -173,7 +173,8 @@
               <option value="gemini-3.5-flash-lite">Gemini 3.5 Flash-Lite</option>
             </select>
             <p class="form-hint">
-              Automatically used if the primary model exhausts retry attempts during high demand (503) or rate limits (429).
+              Automatically used if the primary model exhausts retry attempts during high demand (503) or rate limits
+              (429).
             </p>
           </div>
 
@@ -181,7 +182,8 @@
             <label for="backendProxyUrl">Secure Backend Proxy URL (Optional)</label>
             <input type="text" id="backendProxyUrl" class="form-input" placeholder="http://localhost:3000/api/analyze">
             <p class="form-hint">
-              Leave blank for Direct Client Mode. If set, AI requests go through your secure server where API keys reside in <code style="color:#60a5fa">.env</code>.
+              Leave blank for Direct Client Mode. If set, AI requests go through your secure server where API keys
+              reside in <code style="color:#60a5fa">.env</code>.
             </p>
           </div>
 

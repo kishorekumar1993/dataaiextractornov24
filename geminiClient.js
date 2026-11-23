@@ -249,20 +249,23 @@
           }
         };
 
-        // Note: Use x-goog-api-key header instead of query parameter to prevent leaking key in URL
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
+        // Send key via both URL parameter and x-goog-api-key header for maximum reliability
+        const keyParam = apiKey ? `?key=${encodeURIComponent(apiKey)}` : "";
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent${keyParam}`;
 
         abortController = typeof AbortController !== "undefined" ? new AbortController() : null;
         if (abortController) {
           timer = setTimeout(() => abortController.abort(), timeoutMs);
         }
 
+        const headers = { "Content-Type": "application/json" };
+        if (apiKey) {
+          headers["x-goog-api-key"] = apiKey;
+        }
+
         response = await fetchImpl(endpoint, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey
-          },
+          headers: headers,
           body: JSON.stringify(requestBody),
           signal: abortController ? abortController.signal : undefined
         });
@@ -604,6 +607,17 @@
     // Sanitize phone number (strip country code, leading zeros, toll-free, spaces)
     if (clean.phoneNumber) {
       clean.phoneNumber = sanitizePhoneNumber(clean.phoneNumber, clean.countryName);
+    }
+
+    // All words come in CAPS ONLY for Company Name, Address, and Country
+    if (clean.companyName) {
+      clean.companyName = clean.companyName.toUpperCase();
+    }
+    if (clean.companyAddress) {
+      clean.companyAddress = clean.companyAddress.toUpperCase();
+    }
+    if (clean.countryName) {
+      clean.countryName = clean.countryName.toUpperCase();
     }
 
     return clean;

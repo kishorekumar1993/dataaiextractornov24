@@ -211,8 +211,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
 
-      // Test Direct API with secure header (x-goog-api-key)
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      // Test Direct API with key in param and header
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
       const res = await fetch(url, {
         method: "POST",
         headers: {
@@ -338,6 +338,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Main Crawl & Analysis Flow
   async function startCrawlAndAnalyze() {
+    if (!apiKey && apiKeyInput && apiKeyInput.value.trim()) {
+      apiKey = apiKeyInput.value.trim();
+    }
+
     if (!apiKey && !backendProxyUrl) {
       openSettings();
       showSettingsMessage("Please provide your Gemini API key or Backend Proxy URL before starting.", "error");
@@ -668,32 +672,33 @@ Field extraction guidelines:
    - Remove brackets (parentheses, square brackets) and bracketed supplementary notes.
    - Remove leading/trailing symbols and unnecessary special characters.
    - Preserve officially recognized brand acronyms (e.g., IBM, BMW) unless their full form is explicitly stated as part of the legal name.
-   - Apply Title Case formatting.
+   - ALL WORDS MUST BE IN CAPS ONLY (ALL CAPITAL LETTERS / UPPERCASE). Every letter of every word must be uppercase. Example: "ZHEJIANG JIANGNAN STEEL STRUCTURE COMPANY, LIMITED".
 
-6. "countryName": Country where company is based or registered.
+6. "countryName": Country where company is based or registered. ALL WORDS MUST BE IN CAPS ONLY (ALL CAPITAL LETTERS / UPPERCASE). Example: "CHINA", "UNITED STATES", "GERMANY".
 
 7. "companyAddress": Complete address in full form preserving the original template and punctuation:
+   - ALL WORDS IN THE ADDRESS MUST BE IN CAPS ONLY (ALL CAPITAL LETTERS / UPPERCASE). Every letter of every word must be uppercase.
    - Preserve Original Template and Punctuation:
      * Keep the original address structure, sequence, and internal commas EXACTLY as shown on the website.
      * DO NOT add any extra commas, and DO NOT remove commas from the middle of the address. Put it as it is.
      * DO NOT insert artificial linking words like "in" or "of" that are not present in the original website address.
      * ONLY remove special characters, symbols, and punctuation at the START and END of the address (e.g., remove leading ":", "-", bullets at the beginning, and remove trailing commas, periods, hyphens at the very end).
    - Mandatory Abbreviation Expansion to Full Form:
-     * "Rd." / "Rd" -> "Road"
-     * "St." / "St" -> "Street"
-     * "Ave." / "Ave" -> "Avenue"
-     * "Blvd." / "Blvd" -> "Boulevard"
-     * "Bldg." / "Bldg" -> "Building"
-     * "Dist." / "Dist" -> "District"
-     * "Prov." / "Prov" -> "Province"
-     * "Ind." / "Ind" -> "Industrial"
-     * "Fl." / "Fl" / "F" -> "Floor"
-     * "Rm." / "Rm" -> "Room"
-     * "No." / "No" -> "Number"
-     * "Ste." / "Ste" -> "Suite"
-     * "Hwy." / "Hwy" -> "Highway"
-     * "Dr." / "Dr" -> "Drive"
-     * "Ln." / "Ln" -> "Lane"
+     * "Rd." / "Rd" -> "ROAD"
+     * "St." / "St" -> "STREET"
+     * "Ave." / "Ave" -> "AVENUE"
+     * "Blvd." / "Blvd" -> "BOULEVARD"
+     * "Bldg." / "Bldg" -> "BUILDING"
+     * "Dist." / "Dist" -> "DISTRICT"
+     * "Prov." / "Prov" -> "PROVINCE"
+     * "Ind." / "Ind" -> "INDUSTRIAL"
+     * "Fl." / "Fl" / "F" -> "FLOOR"
+     * "Rm." / "Rm" -> "ROOM"
+     * "No." / "No" -> "NUMBER"
+     * "Ste." / "Ste" -> "SUITE"
+     * "Hwy." / "Hwy" -> "HIGHWAY"
+     * "Dr." / "Dr" -> "DRIVE"
+     * "Ln." / "Ln" -> "LANE"
    - Cleanup Rules:
      * Remove the postal code / zip code.
      * Remove the country name.
@@ -701,7 +706,7 @@ Field extraction guidelines:
      * Remove brackets (parentheses, square brackets, curly brackets).
      * Priority: Always select the Headquarters (HQ) or Registered Head Office.
      * Select only one address (do NOT combine multiple branches).
-     * Example: If website shows "Headquarters: Yashan Rd., Zhapu, Jiaxing City, Zhejiang Prov., 314201, China", output: "Yashan Road, Zhapu, Jiaxing City, Zhejiang Province".
+     * Example: If website shows "Headquarters: Yashan Rd., Zhapu, Jiaxing City, Zhejiang Prov., 314201, China", output: "YASHAN ROAD, ZHAPU, JIAXING CITY, ZHEJIANG PROVINCE".
 
 8. "state": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the state name itself):
    - Select "Available" ONLY if an actual State, County, Province, or Prefecture is explicitly present in the address.
