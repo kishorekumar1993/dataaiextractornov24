@@ -133,6 +133,79 @@ body {
   color: #fbbf24;
 }
 
+.banner-portal {
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.4);
+  color: #38bdf8;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.portal-banner-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.portal-badge-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: #38bdf8;
+}
+
+.portal-target-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #cbd5e1;
+}
+
+.portal-label {
+  color: #94a3b8;
+  font-size: 10px;
+}
+
+.portal-target-val {
+  font-weight: 600;
+  color: #f1f5f9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 250px;
+}
+
+.portal-action-btn {
+  background: #0284c7;
+  color: #fff;
+  border: none;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.portal-action-btn:hover {
+  background: #0369a1;
+}
+
+.highlight-btn {
+  background: rgba(16, 185, 129, 0.2) !important;
+  color: #34d399 !important;
+  border: 1px solid rgba(16, 185, 129, 0.4) !important;
+}
+
+.highlight-btn:hover {
+  background: rgba(16, 185, 129, 0.35) !important;
+}
+
 .text-link {
   background: none;
   border: none;

@@ -1,5 +1,5 @@
 // Background Service Worker for Manifest V3
-importScripts("geminiClient.js", "requestQueue.js");
+importScripts("geminiClient.js", "requestQueue.js", "crawlerEngine.js");
 
 const queueManager = new CrawlerQueueManager({
   concurrency: 1,
@@ -88,6 +88,54 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     GeminiClient.callGeminiWithRetryAndFallback(request.options)
       .then(result => sendResponse({ success: true, ...result }))
       .catch(err => sendResponse({ success: false, error: err.message, isPermanent: err.isPermanent }));
+    return true;
+  }
+
+  // 6. Crawl & Extract for Portal Autofill (orchestrated in background)
+  if (request.action === "crawlAndExtractForPortal") {
+    (async () => {
+      try {
+        const stored = await chrome.storage.local.get([
+          "geminiApiKey",
+          "geminiModel",
+          "fallbackModel",
+          "backendProxyUrl",
+          "crawlDepth"
+        ]);
+
+        const apiKey = stored.geminiApiKey || "";
+        const primaryModel = stored.geminiModel || "gemini-3.5-flash-lite";
+        const fallbackModel = stored.fallbackModel || "gemini-3.1-flash-lite";
+        const backendProxyUrl = stored.backendProxyUrl || "";
+        const crawlDepth = parseInt(stored.crawlDepth, 10) || 5;
+
+        if (!apiKey && !backendProxyUrl) {
+          throw new Error("Gemini API key is not configured. Please open extension settings and provide an API key.");
+        }
+
+        const result = await CrawlerEngine.crawlAndExtractUrl(request.targetUrl, {
+          apiKey,
+          primaryModel,
+          fallbackModel,
+          backendProxyUrl,
+          crawlDepth
+        });
+
+        // Cache completed result
+        const cleanKey = request.targetUrl.toLowerCase().split("#")[0].split("?")[0].replace(/\/$/, "");
+        queueManager.completedMap[cleanKey] = {
+          data: result.data,
+          meta: result.meta,
+          completedAt: new Date().toISOString()
+        };
+        await queueManager.saveState();
+
+        sendResponse({ success: true, data: result.data, meta: result.meta });
+      } catch (err) {
+        console.error("Portal crawl error in service worker:", err);
+        sendResponse({ success: false, error: err.message });
+      }
+    })();
     return true;
   }
 });

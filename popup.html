@@ -28,6 +28,18 @@
       <button id="openSettingsLink" class="text-link">Configure now</button>
     </div>
 
+    <!-- QC Portal Form Detected Banner -->
+    <div id="portalBanner" class="banner banner-portal hidden">
+      <div class="portal-banner-content">
+        <div class="portal-badge-title">🎯 QC PORTAL DETECTED</div>
+        <div class="portal-target-row">
+          <span class="portal-label">Target URL:</span>
+          <span id="portalTargetUrlText" class="portal-target-val">Reading form...</span>
+        </div>
+      </div>
+      <button id="quickAutofillBtn" class="portal-action-btn" title="Crawl Target Site and Autofill Form">⚡ Autofill</button>
+    </div>
+
     <!-- Active Site Info -->
     <div class="card current-site-card">
       <div class="card-label">CURRENT TARGET</div>
@@ -95,6 +107,7 @@
           <button id="tabJsonBtn" class="tab-btn">{ } JSON</button>
         </div>
         <div class="actions">
+          <button id="autofillPortalBtn" class="icon-action-btn highlight-btn" title="Autofill Portal Form with this Data">📝 Fill Form</button>
           <button id="copyJsonBtn" class="icon-action-btn" title="Copy JSON">📋 Copy</button>
           <button id="downloadCsvBtn" class="icon-action-btn" title="Download CSV">📥 CSV</button>
           <button id="downloadJsonBtn" class="icon-action-btn" title="Download JSON">💾 JSON</button>
@@ -200,6 +213,7 @@
   <!-- Scripts -->
   <script src="geminiClient.js"></script>
   <script src="requestQueue.js"></script>
+  <script src="crawlerEngine.js"></script>
   <script src="popup.js"></script>
 </body>
 

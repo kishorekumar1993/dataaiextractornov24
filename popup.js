@@ -42,6 +42,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const copyJsonBtn = document.getElementById("copyJsonBtn");
   const downloadCsvBtn = document.getElementById("downloadCsvBtn");
   const downloadJsonBtn = document.getElementById("downloadJsonBtn");
+  const autofillPortalBtn = document.getElementById("autofillPortalBtn");
+
+  // Portal Form Banner Elements
+  const portalBanner = document.getElementById("portalBanner");
+  const portalTargetUrlText = document.getElementById("portalTargetUrlText");
+  const quickAutofillBtn = document.getElementById("quickAutofillBtn");
 
   // Settings Modal
   const settingsModal = document.getElementById("settingsModal");
@@ -63,6 +69,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   let geminiModel = "gemini-3.5-flash-lite";
   let fallbackModel = "gemini-3.1-flash-lite";
   let backendProxyUrl = "";
+  let isPortalDetected = false;
+  let portalTargetUrl = "";
 
   // Initialize Queue Manager
   const queueManager = new CrawlerQueueManager({
@@ -93,6 +101,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   copyJsonBtn.addEventListener("click", copyJsonToClipboard);
   downloadJsonBtn.addEventListener("click", downloadJsonFile);
   downloadCsvBtn.addEventListener("click", downloadCsvFile);
+  if (autofillPortalBtn) {
+    autofillPortalBtn.addEventListener("click", autofillActivePortalTab);
+  }
+  if (quickAutofillBtn) {
+    quickAutofillBtn.addEventListener("click", startCrawlAndAnalyze);
+  }
 
   if (retryFailedBtn) {
     retryFailedBtn.addEventListener("click", handleRetryFailed);
@@ -303,7 +317,28 @@ document.addEventListener("DOMContentLoaded", async () => {
         // Content script might already be injected, continue
       }
 
-      // Query content script for initial scan
+      // Query content script for initial scan and portal detection
+      chrome.tabs.sendMessage(tab.id, { action: "detectPortalForm" }, (portalRes) => {
+        if (!chrome.runtime.lastError && portalRes && portalRes.isPortal) {
+          isPortalDetected = true;
+          portalTargetUrl = portalRes.targetUrl || "";
+          portalBanner.classList.remove("hidden");
+          portalTargetUrlText.textContent = portalTargetUrl || "(No URL in form yet)";
+          startCrawlBtnText.textContent = "⚡ Crawl Target & Autofill Portal";
+          if (portalTargetUrl) {
+            try {
+              const pUrl = new URL(portalTargetUrl.startsWith("http") ? portalTargetUrl : "http://" + portalTargetUrl);
+              siteDomainEl.textContent = pUrl.hostname + " (QC Portal Target)";
+              siteUrlEl.textContent = portalTargetUrl;
+            } catch (e) {}
+          }
+        } else {
+          isPortalDetected = false;
+          portalBanner.classList.add("hidden");
+          startCrawlBtnText.textContent = "Start Crawl & Analyze";
+        }
+      });
+
       chrome.tabs.sendMessage(tab.id, { action: "extractCurrentPageData" }, (response) => {
         if (chrome.runtime.lastError || !response || !response.success) {
           console.warn("Could not extract initial page data directly:", chrome.runtime.lastError);
@@ -353,9 +388,25 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
+    // If on a portal form, get the target URL from the portal form input
+    if (isPortalDetected) {
+      const urlRes = await new Promise(resolve => {
+        chrome.tabs.sendMessage(currentTab.id, { action: "getPortalTargetUrl" }, resolve);
+      });
+      if (urlRes && urlRes.targetUrl) {
+        portalTargetUrl = urlRes.targetUrl.trim();
+        portalTargetUrlText.textContent = portalTargetUrl;
+      }
+
+      if (!portalTargetUrl) {
+        alert("Please enter a website URL in the 'Website Name' field of the portal form first.");
+        return;
+      }
+    }
+
     // UI state
     startCrawlBtn.disabled = true;
-    startCrawlBtnText.textContent = "Crawling & Analyzing...";
+    startCrawlBtnText.textContent = isPortalDetected ? "Crawling Target & Filling Form..." : "Crawling & Analyzing...";
     progressSection.classList.remove("hidden");
     resultsSection.classList.add("hidden");
     updateProgress(5, "Scanning page DOM...", "Extracting base page content and discovery tree...");
@@ -363,7 +414,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       // Step 1: Ensure initial page data
       let baseData = initialPageData;
-      if (!baseData) {
+
+      if (isPortalDetected) {
+        let activeCrawlUrl = portalTargetUrl;
+        if (!/^https?:\/\//i.test(activeCrawlUrl)) {
+          activeCrawlUrl = "http://" + activeCrawlUrl;
+        }
+
+        updateProgress(10, "Fetching Target Site...", activeCrawlUrl);
+        const urlObj = new URL(activeCrawlUrl);
+        const mainResp = await fetchAndParseSubpage(activeCrawlUrl);
+        let internalLinks = [];
+        try {
+          const rawHtml = await fetchRawHtml(activeCrawlUrl);
+          if (rawHtml) {
+            internalLinks = CrawlerEngine.extractLinks(rawHtml, urlObj.origin);
+          }
+        } catch (e) {}
+
+        baseData = {
+          url: activeCrawlUrl,
+          origin: urlObj.origin,
+          hostname: urlObj.hostname,
+          title: mainResp ? mainResp.title : urlObj.hostname,
+          cleanText: mainResp ? mainResp.textSnippet : "",
+          internalLinks: internalLinks,
+          detectedEmails: mainResp ? mainResp.emails : [],
+          detectedPhones: mainResp ? mainResp.phones : [],
+          productData: {
+            numberOfProducts: mainResp ? mainResp.productCount : 0,
+            productImages: mainResp ? mainResp.imgCount : 0,
+            numberOfProductDescriptions: mainResp ? mainResp.descCount : 0
+          }
+        };
+        updatePills(baseData.internalLinks);
+      } else if (!baseData) {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         const res = await new Promise(resolve => {
           chrome.tabs.sendMessage(tab.id, { action: "extractCurrentPageData" }, resolve);
@@ -487,8 +572,26 @@ document.addEventListener("DOMContentLoaded", async () => {
       await queueManager.saveState();
       updateQueueUI();
 
-      // Step 6: Render results
-      updateProgress(100, "Done!", "Intelligence extraction complete.");
+      // Step 6: Autofill if on Portal Form, then render results
+      if (isPortalDetected && currentTab) {
+        updateProgress(95, "Prefilling Portal Form...", "Transferring AI data to form fields...");
+        try {
+          const fillRes = await new Promise(resolve => {
+            chrome.tabs.sendMessage(currentTab.id, { action: "autofillPortalForm", data: extractedJson }, resolve);
+          });
+          if (fillRes && fillRes.success) {
+            updateProgress(100, "Done!", `Portal form autofilled (${fillRes.filledCount} fields populated)!`);
+          } else {
+            updateProgress(100, "Done!", "Intelligence extraction complete.");
+          }
+        } catch (fillErr) {
+          console.warn("Autofill messaging error:", fillErr);
+          updateProgress(100, "Done!", "Intelligence extracted (portal prefill skipped).");
+        }
+      } else {
+        updateProgress(100, "Done!", "Intelligence extraction complete.");
+      }
+
       lastExtractedResult = extractedJson;
       renderResults(extractedJson, extractionResult.meta);
 
@@ -511,8 +614,38 @@ document.addEventListener("DOMContentLoaded", async () => {
       alert(`Error during crawl/analysis: ${err.message}`);
     } finally {
       startCrawlBtn.disabled = false;
-      startCrawlBtnText.textContent = "Start Crawl & Analyze";
+      startCrawlBtnText.textContent = isPortalDetected ? "⚡ Crawl Target & Autofill Portal" : "Start Crawl & Analyze";
     }
+  }
+
+  async function autofillActivePortalTab() {
+    if (!lastExtractedResult) {
+      alert("No extracted intelligence data available yet. Please crawl a website first.");
+      return;
+    }
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) return;
+    chrome.tabs.sendMessage(tab.id, { action: "autofillPortalForm", data: lastExtractedResult }, (res) => {
+      if (res && res.success) {
+        const orig = autofillPortalBtn.textContent;
+        autofillPortalBtn.textContent = `✓ Filled (${res.filledCount})`;
+        setTimeout(() => { autofillPortalBtn.textContent = orig; }, 2000);
+      } else {
+        alert("Failed to prefill form: " + (res?.error || "Make sure you are on the portal form tab."));
+      }
+    });
+  }
+
+  async function fetchRawHtml(url) {
+    try {
+      const resp = await fetch(url, { headers: { "Accept": "text/html" } });
+      if (resp.ok) return await resp.text();
+    } catch (e) {}
+    const bgRes = await new Promise(resolve => {
+      chrome.runtime.sendMessage({ action: "fetchUrl", url: url }, resolve);
+    });
+    if (bgRes && bgRes.success) return bgRes.text;
+    return "";
   }
 
   function selectPriorityPages(baseData, maxPages) {
