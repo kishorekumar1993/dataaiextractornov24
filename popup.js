@@ -1136,7 +1136,7 @@ Field extraction guidelines:
    - Always prioritize the Headquarters (HQ) or Corporate Office address. HQ / Corporate Office address is always first priority over Registered Office, Branch Office, Factory, or Plant.
    - When a company lists both a "Corporate Office" and a "Registered Office", ALWAYS select the Corporate Office as the headquarters.
    - Primary Location Priority: If the Contact Page or Footer designates a Corporate Office or Headquarters, that address is the primary source of truth.
-   - Corresponding Phone Number: The extracted phone number MUST correspond to the selected Corporate Office / Headquarters address, not to a secondary branch or registered office.
+   - Corresponding Phone Number: The extracted phone number MUST correspond to the selected Corporate Office / Headquarters address, not to a secondary branch or registered office. If the main contact number is a toll-free number, take the second phone or direct local contact number instead.
    - Select only one address. Never combine multiple branch addresses.
    - Use only information available on the official website.
    - Current Active Address Priority (CRITICAL): Always select the CURRENT active headquarters or operational address. NEVER select former, historical, or previous addresses (e.g., text stating "prior to [date] was located at...", "formerly located at...", "previous address", or "relocated from...").
@@ -1280,15 +1280,19 @@ Before returning companyAddress:
     - Take the complete phone number, but ALWAYS REMOVE the international country code for ANY country (e.g., strip +1 for USA/Canada, +44 for UK, +91 for India, +86 for China, +49 for Germany, +33 for France, +81 for Japan, +61 for Australia, +971 for UAE, +65 for Singapore, or ANY other country calling code).
     - Remove all special characters, hyphens, plus signs, brackets, dots, and slashes.
     - Remove all spaces (digits only).
-    - Do NOT take toll-free numbers (e.g., numbers starting with 1800, 800, 888, 877, 866, 855, 844, 400).
+    - TOLL-FREE NUMBERS & SECONDARY PHONE SELECTION (MANDATORY RULE):
+      * Do NOT take toll-free numbers (e.g., numbers starting with 1800, 800, 888, 877, 866, 855, 844, 400).
+      * IF MAIN CONTACT NUMBER IS TOLL-FREE: If the main or primary contact number displayed on the website / contact page is a toll-free number, YOU MUST TAKE THE SECOND PHONE OR CONTACT NUMBER INSTEAD (such as the second telephone number, secondary office phone, direct local landline, or mobile contact number).
+      * Never output a toll-free number. Always check for a second contact number or local line.
     - Do NOT take numbers starting with zero. Strip any leading zeros so the phone number never starts with 0.
     - Examples:
       * USA: "+1 (555) 234-5678" -> "5552345678"
+      * Main is toll-free, second is local: "1-800-555-0199 / (212) 555-0144" -> take the second phone: "2125550144"
       * UK: "+44 20 7946 0958" -> "2079460958"
       * India: "+91 98765 43210" -> "9876543210"
       * China: "+86-573-85127888" -> "57385127888"
       * Domestic with 0: "0573-85127888" -> "57385127888" (leading 0 removed)
-    - If no valid non-toll-free phone number exists, return "".
+    - If no valid non-toll-free phone number exists across all sources, return "".
 13. "numberOfProducts": String representation of number of products or services offered: Set using "One" (for 1) or "Three" (for more than 3)—never "0" (default "3" or "Three").
 14. "productImages": String representation of number of product images identified: Set using "One" (for 1) or "Three" (for more than 3)—never "0". If all images on the site belong to prohibited categories, set "productImages" to "0". Otherwise default "3" (or "Three").
     - CRITICAL IMAGE EXCLUSION RULE (Rule 15): Images related to the following categories are STRICTLY PROHIBITED and MUST NEVER be counted as product images:
