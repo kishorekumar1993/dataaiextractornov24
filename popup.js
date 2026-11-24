@@ -412,15 +412,62 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateProgress(5, "Scanning page DOM...", "Extracting base page content and discovery tree...");
 
     try {
+      // Step 0: Pipeline Protection & Status Verification
+      let activeCrawlUrl = isPortalDetected ? portalTargetUrl : (currentTab ? currentTab.url : "");
+      if (!/^https?:\/\//i.test(activeCrawlUrl)) {
+        activeCrawlUrl = "http://" + activeCrawlUrl;
+      }
+
+      updateProgress(8, "Verifying Website Status & Redirects...", activeCrawlUrl);
+      const statusResult = await CrawlerEngine.detectRedirectAndClassifyStatus(activeCrawlUrl);
+
+      if (statusResult.websiteStatus !== "Working") {
+        updateProgress(100, `Pipeline Stopped: ${statusResult.websiteStatus}`, statusResult.nonWorkingReason);
+        const nonWorkingData = {
+          websiteStatus: statusResult.websiteStatus,
+          notWorkingReason: statusResult.nonWorkingReason,
+          websiteName: activeCrawlUrl,
+          businessType: "Not Available",
+          companyProfile: "Not Available",
+          companyName: "Not Available",
+          countryName: "Not Available",
+          companyAddress: "Not Available",
+          state: "Not Available",
+          city: "Not Available",
+          emailId: "Not Available",
+          secondaryEmailId: "Not Available",
+          phoneNumber: "Not Available",
+          numberOfProducts: "Not Available",
+          productImages: "Not Available",
+          numberOfProductDescriptions: "Not Available"
+        };
+        lastExtractedResult = nonWorkingData;
+        renderResults(nonWorkingData, {
+          qcValidation: statusResult,
+          modelUsed: "Pipeline Protection (AI Skipped)",
+          isFallback: false
+        });
+
+        if (isPortalDetected && currentTab) {
+          chrome.tabs.sendMessage(currentTab.id, {
+            action: "autofillPortalForm",
+            data: nonWorkingData,
+            meta: { qcValidation: statusResult }
+          });
+        }
+
+        startCrawlBtn.disabled = false;
+        startCrawlBtnText.textContent = isPortalDetected ? "⚡ Crawl Target & Autofill Portal" : "Start Crawl & Analyze";
+        return;
+      }
+
+      // Final verified working URL
+      activeCrawlUrl = statusResult.finalUrl;
+
       // Step 1: Ensure initial page data
       let baseData = initialPageData;
 
       if (isPortalDetected) {
-        let activeCrawlUrl = portalTargetUrl;
-        if (!/^https?:\/\//i.test(activeCrawlUrl)) {
-          activeCrawlUrl = "http://" + activeCrawlUrl;
-        }
-
         updateProgress(10, "Fetching Target Site...", activeCrawlUrl);
         const urlObj = new URL(activeCrawlUrl);
         const mainResp = await fetchAndParseSubpage(activeCrawlUrl);
@@ -980,8 +1027,26 @@ ${context.crawledText}`;
       dataTableBody.appendChild(tr);
     });
 
-    // Populate JSON Viewer
-    jsonViewer.textContent = JSON.stringify(data, null, 2);
+    // Populate JSON Viewer with QC validation and extracted data
+    const fullOutput = meta.qcValidation ? {
+      qcOutput: {
+        originalUrl: meta.qcValidation.originalUrl,
+        finalUrl: meta.qcValidation.finalUrl,
+        originalDomain: meta.qcValidation.originalDomain,
+        finalDomain: meta.qcValidation.finalDomain,
+        redirectDetected: meta.qcValidation.redirectDetected,
+        redirectType: meta.qcValidation.redirectType,
+        redirectChain: meta.qcValidation.redirectChain,
+        httpStatus: meta.qcValidation.httpStatus,
+        websiteStatus: meta.qcValidation.websiteStatus,
+        nonWorkingReason: meta.qcValidation.nonWorkingReason,
+        isEligibleForExtraction: meta.qcValidation.isEligibleForExtraction,
+        manualReviewRequired: meta.qcValidation.manualReviewRequired
+      },
+      extractedCorporateData: data
+    } : data;
+
+    jsonViewer.textContent = JSON.stringify(fullOutput, null, 2);
   }
 
   function updateProgress(percent, status, log) {

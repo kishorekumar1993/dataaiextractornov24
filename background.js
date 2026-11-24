@@ -53,12 +53,26 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
         const text = await response.text();
-        sendResponse({ success: true, text: text, status: response.status });
+        sendResponse({
+          success: true,
+          text: text,
+          status: response.status,
+          finalUrl: response.url || request.url,
+          redirected: Boolean(response.redirected)
+        });
       })
       .catch((error) => {
         sendResponse({ success: false, error: error.message });
       });
     return true; // Keep message channel open
+  }
+
+  // 1b. Website Redirect Detection & Status Classification
+  if (request.action === "detectRedirectAndClassifyStatus") {
+    CrawlerEngine.detectRedirectAndClassifyStatus(request.url, request.options || {})
+      .then(res => sendResponse({ success: true, result: res }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
   }
 
   // 2. Queue Enqueue
