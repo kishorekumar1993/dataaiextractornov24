@@ -1071,7 +1071,8 @@ Extract the complete Headquarters (HQ) or Registered Head Office address from th
 
 **E. Mandatory Cleanup**
 1. Remove pincode, postal codes, and ZIP codes completely from the address:
-   - ONLY remove the postal code/zip code/pincode numbers (e.g., in "Jackson, WI 53037", remove ONLY "53037").
+   - CRITICAL PINCODE / POSTAL CODE REMOVAL: All postal codes, ZIP codes, and pincodes (e.g. 5-digit US ZIPs like 53037 or 90210, 6-digit pincodes, UK alphanumeric postal codes, Canadian alphanumeric postal codes, etc.) MUST BE 100% REMOVED from the address. Under NO circumstances should any postal code or pincode numbers remain in companyAddress!
+   - ONLY remove the postal code/zip code/pincode numbers themselves.
    - CRITICAL: DO NOT remove the state or province abbreviation (such as "WI") when removing the pincode! The state abbreviation "WI" MUST NOT be removed—it MUST be expanded to "Wisconsin" (e.g. "Jackson, WI 53037" -> "Jackson, Wisconsin").
 2. Remove unwanted text at the initial (start) of the address (e.g., remove leading labels like "Address:", "Location:", "HQ:", "Registered Office:", bullet points, colons, hyphens, and company name prefixes).
 3. Remove unwanted text and punctuation at the end of the address (e.g., remove trailing periods, commas, colons, hyphens, phone/fax numbers, email, or trailing notes).
@@ -1102,9 +1103,10 @@ Before returning companyAddress:
    - DO NOT consider a general City, Town, District, Municipality, Suburb, or Country as a State unless it is an official first-level province/state division or the country's national capital.
 
 9. "city": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the city name itself):
-   - Select "Available" ONLY if a City, Town, District, or Municipality is explicitly present in the address.
-   - Select "Not Available" if no City, Town, District, or Municipality is present.
-   - Note: ONLY (Town, District, Municipality) should be considered as City. Do NOT take any suburb, neighborhood, locality, or village as City.
+   - Select "Available" ONLY if an actual official City, Town, District, or Municipality is explicitly present in the address.
+   - CRITICAL SUBURB RULE (SUBURB IS NOT A CITY): A suburb is NOT a city! Suburbs, neighborhoods, residential areas, communities, localities, and villages MUST NEVER be considered as City. If an address contains only a suburb, neighborhood, or village (or if the only locality is a suburb), "city" MUST BE MARKED AS "Not Available".
+   - Select "Not Available" if no official City, Town, District, or Municipality is present.
+   - Note: ONLY an official (Town, District, Municipality, or incorporated City) should be considered as City. Do NOT take any suburb, neighborhood, locality, or village as City.
 
 10. "emailId": Primary contact email address.
 11. "secondaryEmailId": Alternative email if present, else "".
