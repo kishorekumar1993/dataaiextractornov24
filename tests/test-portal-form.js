@@ -539,6 +539,29 @@ async function runPortalTests() {
     assert(prompt.includes("Section"), "Prompt must instruct Section expansion");
   });
 
+  // Test 11: Protocol-agnostic same-registered-domain link extraction & active HQ address rule
+  test("Protocol-agnostic link extraction & active HQ priority (handles http to https redirect sites like reinkeandschomann.com)", () => {
+    const sampleHtml = `
+      <html>
+        <body>
+          <a href="https://www.reinkeandschomann.com/contact-us/">Contact Us</a>
+          <a href="/about/">About Us</a>
+          <a href="https://other-domain.com/">External</a>
+        </body>
+      </html>
+    `;
+    // Pass HTTP origin with trailing slash, links on page are HTTPS
+    const links = CrawlerEngine.extractLinks(sampleHtml, "http://www.reinkeandschomann.com/");
+    assert(links.some(l => l.category === "contact"), "Must extract contact link even when baseOrigin is HTTP and link is HTTPS");
+    assert(links.some(l => l.category === "about"), "Must extract relative links");
+    assert(!links.some(l => l.url.includes("other-domain.com")), "Must exclude external domain links");
+
+    const prompt = CrawlerEngine.buildSystemInstruction();
+    assert(prompt.includes("Current Active Address Priority (CRITICAL)"), "Prompt must instruct Current Active Address Priority rule");
+    assert(prompt.includes("NEVER select former, historical, or previous addresses"), "Prompt must instruct never selecting historical or previous addresses");
+    assert(prompt.includes("alphanumeric coordinate grid designations"), "Prompt must preserve alphanumeric coordinate grid numbers");
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");
