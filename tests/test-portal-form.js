@@ -566,6 +566,38 @@ async function runPortalTests() {
     assert(prompt.includes("pincode"), "Prompt must instruct removing pincode");
   });
 
+  // Test 12: Contact Page, Footer and Map Address Comparison & Embedded Map extraction
+  test("Contact Page, Footer and Map Address Comparison framework & Map extraction", () => {
+    // 1. Map URL & iframe extraction
+    const sampleHtml = `
+      <html>
+        <body>
+          <iframe src="https://maps.google.com/maps?q=130+Pennsylvania+Avenue%2C+Unit+%238%2C+Concord%2C+Ontario&output=embed"></iframe>
+          <a href="https://maps.google.com/?q=N173+W21640+Northwest+Passage+Way%2C+Jackson%2C+WI">View on Google Maps</a>
+          <div data-address="100 Industrial Parkway, Austin, Texas"></div>
+        </body>
+      </html>
+    `;
+    const mapAddrs = CrawlerEngine.extractMapAddresses(sampleHtml);
+    assert(mapAddrs.length >= 2, "Must extract at least 2 map addresses from iframes and links");
+    assert(mapAddrs.some(a => a.includes("130 Pennsylvania Avenue")), "Must extract iframe map address");
+    assert(mapAddrs.some(a => a.includes("Northwest Passage")), "Must extract map link address");
+
+    // 2. Prompt instructions for Contact Page, Footer and Map Address Comparison
+    const prompt = CrawlerEngine.buildSystemInstruction();
+    assert(prompt.includes("Contact Page, Footer and Map Address Comparison"), "Prompt must include Three-Source Address Comparison header");
+    assert(prompt.includes("Contact Page – Primary Source"), "Prompt must specify Contact Page as Primary Source");
+    assert(prompt.includes("Website Footer – Secondary Source"), "Prompt must specify Website Footer as Secondary Source");
+    assert(prompt.includes("Embedded Map – Additional Address Verification Source"), "Prompt must specify Embedded Map as Verification Source");
+    assert(prompt.includes("Scenario 1: All Three Addresses Are Identical"), "Prompt must specify Scenario 1");
+    assert(prompt.includes("Scenario 2: Contact Page Address Is Incomplete"), "Prompt must specify Scenario 2");
+    assert(prompt.includes("Scenario 3: Contact Page and Footer Are Different"), "Prompt must specify Scenario 3");
+    assert(prompt.includes("Scenario 4: Contact Page and Map Are Different"), "Prompt must specify Scenario 4");
+    assert(prompt.includes("Scenario 5: All Three Addresses Are Different"), "Prompt must specify Scenario 5");
+    assert(prompt.includes("Scenario 6: Contact Page Address Is Not Available"), "Prompt must specify Scenario 6");
+    assert(prompt.includes("Address Completion Rules"), "Prompt must specify Address Completion Rules");
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");

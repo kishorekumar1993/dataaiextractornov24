@@ -780,6 +780,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
 
+      // Extract Map Addresses before removing iframes
+      const mapAddresses = typeof CrawlerEngine !== "undefined" && CrawlerEngine.extractMapAddresses
+        ? CrawlerEngine.extractMapAddresses(html)
+        : [];
+
       ["script", "style", "noscript", "svg", "canvas", "iframe", "nav"].forEach(tag => {
         doc.querySelectorAll(tag).forEach(el => el.remove());
       });
@@ -815,7 +820,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         phones,
         productCount,
         imgCount,
-        descCount
+        descCount,
+        mapAddresses
       };
     } catch (e) {
       console.warn("Error parsing subpage:", e);
@@ -830,10 +836,23 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (baseData.ogSiteName) pagesText += `Site Name: ${baseData.ogSiteName}\n`;
     pagesText += `Content:\n${baseData.cleanText.slice(0, 8000)}\n\n`;
 
+    const mainMapAddresses = typeof CrawlerEngine !== "undefined" && CrawlerEngine.extractMapAddresses
+      ? CrawlerEngine.extractMapAddresses(baseData.html || "")
+      : [];
+    if (mainMapAddresses.length > 0) {
+      pagesText += `\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: ${mainMapAddresses.join(" | ")}\n\n`;
+    }
+
     crawledPages.forEach((p, idx) => {
-      pagesText += `--- CRAWLED SUBPAGE ${idx + 1}: [${p.category.toUpperCase()}] ${p.url} ---\n`;
+      const isContact = p.category === "contact";
+      const categoryTag = isContact ? "CONTACT PAGE (PRIMARY SOURCE)" : p.category.toUpperCase();
+      pagesText += `--- CRAWLED SUBPAGE ${idx + 1}: [${categoryTag}] ${p.url} ---\n`;
       pagesText += `Title: ${p.title}\n`;
-      pagesText += `Content:\n${p.textSnippet}\n\n`;
+      pagesText += `Content:\n${p.textSnippet}\n`;
+      if (p.mapAddresses && p.mapAddresses.length > 0) {
+        pagesText += `\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: ${p.mapAddresses.join(" | ")}\n`;
+      }
+      pagesText += "\n";
     });
 
     return {
@@ -936,14 +955,62 @@ Field extraction guidelines:
      * For United Kingdom (England, Wales, Scotland, Northern Ireland): If "England" and "United Kingdom" both are mentioned, you must take England as the country name (prioritize the specific constituent country/locality: England, Wales, Scotland, Northern Ireland).
 ### 7. companyAddress – Complete Address Extraction, Full-Form Expansion and Title Case Normalization
 
-Extract the complete Headquarters (HQ) or Registered Head Office address from the official website and normalize it according to the following mandatory rules.
+**Contact Page, Footer and Map Address Comparison – Complete Address Extraction**
 
-**A. Address Selection Rules**
-1. Always prioritize the Headquarters (HQ) or Registered Head Office address. HQ (Headquarters) address is always first priority.
-2. If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
-3. Select only one address. Never combine multiple branch addresses.
-4. Use only information available on the official website.
-5. Current Active Address Priority (CRITICAL): Always select the CURRENT active headquarters or operational address. NEVER select former, historical, or previous addresses (e.g., text stating "prior to [date] was located at...", "formerly located at...", "previous address", or "relocated from...").
+**A. Three-Source Address Comparison Framework**
+1. Objective:
+   Extract the most complete Headquarters (HQ) address by comparing three official website sources:
+   - Contact Page – Primary Source
+   - Website Footer – Secondary Source
+   - Embedded Map – Additional Address Verification Source
+2. Address Extraction Rules:
+   - Extract the address separately from the Contact Page, Footer, and Embedded Map.
+   - Compare all three addresses component by component.
+   - Identify missing address components in the Contact Page.
+   - Check whether the Footer or Map provides additional information belonging to the same physical location.
+3. Strict Address Selection Logic:
+   - Scenario 1: All Three Addresses Are Identical
+     * Select the Contact Page address.
+   - Scenario 2: Contact Page Address Is Incomplete
+     * Check the Footer and Map for additional address components.
+     * If the Map provides a more complete address for the exact same location, use it to supplement the Contact Page address.
+     * Preserve all valid Contact Page information.
+   - Scenario 3: Contact Page and Footer Are Different
+     * Contact Page remains the primary source.
+     * Use Footer information only when it verifies or completes missing components of the same address.
+   - Scenario 4: Contact Page and Map Are Different
+     * Compare building number, street, locality, city and state.
+     * If the Map contains additional verified components of the same location, supplement the Contact Page address.
+     * If the Map points to a different location, ignore it.
+   - Scenario 5: All Three Addresses Are Different
+     * Do not automatically select the longest address.
+     * Do not merge different locations.
+     * Select the Contact Page address as the base.
+     * Supplement it only when additional components are verified as belonging to the same physical HQ location.
+     * If the difference cannot be resolved, flag "websiteStatus": "Manual Review", with reason "Manual Review Required: Conflicting addresses across Contact, Footer, and Map that cannot be reconciled".
+   - Scenario 6: Contact Page Address Is Not Available
+     * Flag "websiteStatus": "Manual Review", with reason "Manual Review Required: Contact Page Address Is Not Available".
+     * Do not automatically assume the Footer or Map represents the HQ.
+4. Address Completion Rules:
+   Compare these components:
+   - Building / House Number
+   - Street Number and Street Name
+   - Road / Avenue
+   - Area / Locality
+   - City
+   - State / Province
+   - Other meaningful address details
+   Additional information can be included ONLY when:
+   - It belongs to the same physical address.
+   - It does not contradict the Contact Page.
+   - It is verified using the official website or its embedded map.
+   - Never add unrelated branch addresses, nearby landmarks, or guessed geographic details.
+5. Headquarters & Active Address Priority:
+   - Always prioritize the Headquarters (HQ) or Registered Head Office address. HQ (Headquarters) address is always first priority.
+   - If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
+   - Select only one address. Never combine multiple branch addresses.
+   - Use only information available on the official website.
+   - Current Active Address Priority (CRITICAL): Always select the CURRENT active headquarters or operational address. NEVER select former, historical, or previous addresses (e.g., text stating "prior to [date] was located at...", "formerly located at...", "previous address", or "relocated from...").
 
 **B. Universal Abbreviation Expansion (MANDATORY)**
 1. Identify and expand all recognizable abbreviations, shortened words, and directional references into their complete standard English full forms:
@@ -995,7 +1062,7 @@ Extract the complete Headquarters (HQ) or Registered Head Office address from th
 
 **F. Final Validation**
 Before returning companyAddress:
-- Verify that the selected address is the HQ or Registered Head Office.
+- Verify that the selected address is the HQ or Registered Head Office using Contact, Footer, and Map comparison.
 - Verify that all recognizable abbreviations have been expanded.
 - Verify that state/province abbreviations (e.g., WI -> Wisconsin) are expanded into their full names and NOT removed.
 - Verify that directional prefixes have been expanded when their meaning is clear, including prefixes attached to numerical identifiers.

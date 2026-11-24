@@ -1091,6 +1091,22 @@
 
   function extractCleanText(rootNode) {
     if (!rootNode) return "";
+
+    // Extract Embedded Map addresses before removing iframes
+    const mapAddresses = [];
+    const iframes = rootNode.querySelectorAll("iframe[src*='maps.google'], iframe[src*='google.com/maps'], iframe[src*='openstreetmap'], iframe[src*='bing.com/maps']");
+    iframes.forEach(iframe => {
+      const src = iframe.getAttribute("src") || "";
+      const qMatch = src.match(/[?&]q=([^&]+)/i) || src.match(/\/place\/([^/@?]+)/i) || src.match(/!2s([^!]+)/i);
+      if (qMatch) {
+        try {
+          mapAddresses.push(decodeURIComponent(qMatch[1]).replace(/\+/g, " ").trim());
+        } catch (e) {
+          mapAddresses.push(qMatch[1].replace(/\+/g, " ").trim());
+        }
+      }
+    });
+
     const clone = rootNode.cloneNode(true);
 
     const dropTags = ["script", "style", "noscript", "svg", "canvas", "iframe", "template", "nav"];
@@ -1104,9 +1120,14 @@
     if (footerEl) {
       const footerText = (footerEl.innerText || footerEl.textContent || "").trim();
       if (footerText && !text.includes(footerText)) {
-        text += "\n\n--- FOOTER (CONTACT / ADDRESS INFO) ---\n" + footerText;
+        text += "\n\n--- FOOTER (SECONDARY SOURCE) ---\n" + footerText;
       }
     }
+
+    if (mapAddresses.length > 0) {
+      text += "\n\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: " + Array.from(new Set(mapAddresses)).join(" | ");
+    }
+
     text = text.replace(/[\r\n]+/g, "\n")
                .replace(/[ \t]+/g, " ")
                .replace(/\n\s*\n/g, "\n\n")

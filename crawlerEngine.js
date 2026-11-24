@@ -802,8 +802,12 @@ const CrawlerEngine = (() => {
     return data;
   }
 
-  function cleanHtmlToText(html) {
+  function cleanHtmlToText(html, preserveFooter = true) {
     if (!html) return "";
+    let footerText = "";
+    if (preserveFooter) {
+      footerText = extractFooterText(html);
+    }
     let text = html.replace(SCRIPT_STYLE_REGEX, " ");
     text = text.replace(HTML_TAG_REGEX, " ");
     text = text.replace(/&nbsp;/g, " ")
@@ -812,10 +816,98 @@ const CrawlerEngine = (() => {
       .replace(/&gt;/g, ">")
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'");
-    return text.replace(/[\r\n]+/g, "\n")
+    let result = text.replace(/[\r\n]+/g, "\n")
       .replace(/[ \t]+/g, " ")
       .replace(/\n\s*\n/g, "\n\n")
       .trim();
+
+    if (footerText && !result.includes(footerText)) {
+      result += "\n\n--- FOOTER (SECONDARY SOURCE) ---\n" + footerText;
+    }
+    return result;
+  }
+
+    function extractMapAddresses(html) {
+    if (!html) return [];
+    const mapAddresses = [];
+
+    // 1. Check iframes with map sources (Google Maps, OpenStreetMap, Bing, etc.)
+    const iframeRegex = /<iframe\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
+    let match;
+    while ((match = iframeRegex.exec(html)) !== null) {
+      const src = match[1];
+      if (/maps\.google|google\.com\/maps|openstreetmap|bing\.com\/maps/i.test(src)) {
+        try {
+          const u = new URL(src.startsWith("//") ? "https:" + src : src);
+          const q = u.searchParams.get("q") || u.searchParams.get("query");
+          if (q) {
+            mapAddresses.push(decodeURIComponent(q).replace(/\+/g, " ").trim());
+          } else {
+            const placeMatch = src.match(/\/place\/([^/@?]+)/i);
+            if (placeMatch) {
+              mapAddresses.push(decodeURIComponent(placeMatch[1]).replace(/\+/g, " ").trim());
+            } else {
+              const pbMatch = src.match(/!2s([^!]+)/i);
+              if (pbMatch) {
+                mapAddresses.push(decodeURIComponent(pbMatch[1]).replace(/\+/g, " ").trim());
+              }
+            }
+          }
+        } catch (e) {
+          const qMatch = src.match(/[?&]q=([^&]+)/i);
+          if (qMatch) {
+            mapAddresses.push(decodeURIComponent(qMatch[1]).replace(/\+/g, " ").trim());
+          }
+        }
+      }
+    }
+
+    // 2. Check <a> links to Google Maps
+    const aRegex = /<a\b[^>]*\bhref=["']([^"']*(?:maps\.google|google\.com\/maps|goo\.gl\/maps)[^"']*)["'][^>]*>/gi;
+    while ((match = aRegex.exec(html)) !== null) {
+      const href = match[1];
+      try {
+        const u = new URL(href.startsWith("//") ? "https:" + href : href);
+        const q = u.searchParams.get("q") || u.searchParams.get("query");
+        if (q) {
+          mapAddresses.push(decodeURIComponent(q).replace(/\+/g, " ").trim());
+        } else {
+          const placeMatch = href.match(/\/place\/([^/@?]+)/i);
+          if (placeMatch) {
+            mapAddresses.push(decodeURIComponent(placeMatch[1]).replace(/\+/g, " ").trim());
+          }
+        }
+      } catch (e) {
+        const qMatch = href.match(/[?&]q=([^&]+)/i);
+        if (qMatch) {
+          mapAddresses.push(decodeURIComponent(qMatch[1]).replace(/\+/g, " ").trim());
+        }
+      }
+    }
+
+    // 3. Check data-address or data-map-address attributes
+    const dataAddrRegex = /\bdata-(?:map-)?address=["']([^"']+)["']/gi;
+    while ((match = dataAddrRegex.exec(html)) !== null) {
+      const addr = match[1].trim();
+      if (addr.length > 5) {
+        mapAddresses.push(addr);
+      }
+    }
+
+    return Array.from(new Set(mapAddresses.filter(Boolean)));
+  }
+
+  function extractFooterText(html) {
+    if (!html) return "";
+    const footerMatch = html.match(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i) ||
+                        html.match(/<div\b[^>]*\b(?:id|class)=["'][^"']*\bfooter\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+    if (footerMatch && footerMatch[1]) {
+      const rawFooter = cleanHtmlToText(footerMatch[1]);
+      if (rawFooter && rawFooter.length > 10 && rawFooter.length < 2000) {
+        return rawFooter;
+      }
+    }
+    return "";
   }
 
   function extractLinks(html, baseOrigin) {
@@ -1025,14 +1117,62 @@ Field extraction guidelines:
 
 ### 7. companyAddress – Complete Address Extraction, Full-Form Expansion and Title Case Normalization
 
-Extract the complete Headquarters (HQ) or Registered Head Office address from the official website and normalize it according to the following mandatory rules.
+**Contact Page, Footer and Map Address Comparison – Complete Address Extraction**
 
-**A. Address Selection Rules**
-1. Always prioritize the Headquarters (HQ) or Registered Head Office address. HQ (Headquarters) address is always first priority.
-2. If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
-3. Select only one address. Never combine multiple branch addresses.
-4. Use only information available on the official website.
-5. Current Active Address Priority (CRITICAL): Always select the CURRENT active headquarters or operational address. NEVER select former, historical, or previous addresses (e.g., text stating "prior to [date] was located at...", "formerly located at...", "previous address", or "relocated from...").
+**A. Three-Source Address Comparison Framework**
+1. Objective:
+   Extract the most complete Headquarters (HQ) address by comparing three official website sources:
+   - Contact Page – Primary Source
+   - Website Footer – Secondary Source
+   - Embedded Map – Additional Address Verification Source
+2. Address Extraction Rules:
+   - Extract the address separately from the Contact Page, Footer, and Embedded Map.
+   - Compare all three addresses component by component.
+   - Identify missing address components in the Contact Page.
+   - Check whether the Footer or Map provides additional information belonging to the same physical location.
+3. Strict Address Selection Logic:
+   - Scenario 1: All Three Addresses Are Identical
+     * Select the Contact Page address.
+   - Scenario 2: Contact Page Address Is Incomplete
+     * Check the Footer and Map for additional address components.
+     * If the Map provides a more complete address for the exact same location, use it to supplement the Contact Page address.
+     * Preserve all valid Contact Page information.
+   - Scenario 3: Contact Page and Footer Are Different
+     * Contact Page remains the primary source.
+     * Use Footer information only when it verifies or completes missing components of the same address.
+   - Scenario 4: Contact Page and Map Are Different
+     * Compare building number, street, locality, city and state.
+     * If the Map contains additional verified components of the same location, supplement the Contact Page address.
+     * If the Map points to a different location, ignore it.
+   - Scenario 5: All Three Addresses Are Different
+     * Do not automatically select the longest address.
+     * Do not merge different locations.
+     * Select the Contact Page address as the base.
+     * Supplement it only when additional components are verified as belonging to the same physical HQ location.
+     * If the difference cannot be resolved, flag "websiteStatus": "Manual Review", with reason "Manual Review Required: Conflicting addresses across Contact, Footer, and Map that cannot be reconciled".
+   - Scenario 6: Contact Page Address Is Not Available
+     * Flag "websiteStatus": "Manual Review", with reason "Manual Review Required: Contact Page Address Is Not Available".
+     * Do not automatically assume the Footer or Map represents the HQ.
+4. Address Completion Rules:
+   Compare these components:
+   - Building / House Number
+   - Street Number and Street Name
+   - Road / Avenue
+   - Area / Locality
+   - City
+   - State / Province
+   - Other meaningful address details
+   Additional information can be included ONLY when:
+   - It belongs to the same physical address.
+   - It does not contradict the Contact Page.
+   - It is verified using the official website or its embedded map.
+   - Never add unrelated branch addresses, nearby landmarks, or guessed geographic details.
+5. Headquarters & Active Address Priority:
+   - Always prioritize the Headquarters (HQ) or Registered Head Office address. HQ (Headquarters) address is always first priority.
+   - If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
+   - Select only one address. Never combine multiple branch addresses.
+   - Use only information available on the official website.
+   - Current Active Address Priority (CRITICAL): Always select the CURRENT active headquarters or operational address. NEVER select former, historical, or previous addresses (e.g., text stating "prior to [date] was located at...", "formerly located at...", "previous address", or "relocated from...").
 
 **B. Universal Abbreviation Expansion (MANDATORY)**
 1. Identify and expand all recognizable abbreviations, shortened words, and directional references into their complete standard English full forms:
@@ -1084,7 +1224,7 @@ Extract the complete Headquarters (HQ) or Registered Head Office address from th
 
 **F. Final Validation**
 Before returning companyAddress:
-- Verify that the selected address is the HQ or Registered Head Office.
+- Verify that the selected address is the HQ or Registered Head Office using Contact, Footer, and Map comparison.
 - Verify that all recognizable abbreviations have been expanded.
 - Verify that state/province abbreviations (e.g., WI -> Wisconsin) are expanded into their full names and NOT removed.
 - Verify that directional prefixes have been expanded when their meaning is clear, including prefixes attached to numerical identifiers.
@@ -1092,7 +1232,6 @@ Before returning companyAddress:
 - Verify that the original numbers and meaningful punctuation are preserved.
 - Verify that postal codes, country names, company names, and brackets are removed.
 - Verify that only one complete address is returned.
-
 
 8. "state": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the state name itself):
    - What Qualifies as State = "Available":
@@ -1256,10 +1395,12 @@ ${context.crawledText}`;
         if (resp.ok) {
           const subHtml = await resp.text();
           const subText = cleanHtmlToText(subHtml);
+          const subMapAddresses = extractMapAddresses(subHtml);
           crawledPages.push({
             url: link.url,
             category: link.category,
-            textSnippet: subText.slice(0, 5000)
+            textSnippet: subText.slice(0, 5000),
+            mapAddresses: subMapAddresses
           });
 
           const subContacts = extractContactsAndProducts(subText, subHtml);
@@ -1274,13 +1415,24 @@ ${context.crawledText}`;
       }
     }
 
-    // 5. Build text compilation
+    // 5. Build text compilation with Contact (Primary), Footer (Secondary), and Map (Verification) tags
+    const mainMapAddresses = extractMapAddresses(mainHtml);
     let pagesText = `MAIN / INITIAL PAGE (${cleanUrl}):\n`;
-    pagesText += `Content:\n${mainText.slice(0, 8000)}\n\n`;
+    pagesText += `Content:\n${mainText.slice(0, 8000)}\n`;
+    if (mainMapAddresses.length > 0) {
+      pagesText += `\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: ${mainMapAddresses.join(" | ")}\n`;
+    }
+    pagesText += "\n";
 
     crawledPages.forEach((p, idx) => {
-      pagesText += `--- CRAWLED SUBPAGE ${idx + 1}: [${p.category.toUpperCase()}] ${p.url} ---\n`;
-      pagesText += `Content:\n${p.textSnippet}\n\n`;
+      const isContact = p.category === "contact";
+      const categoryTag = isContact ? "CONTACT PAGE (PRIMARY SOURCE)" : p.category.toUpperCase();
+      pagesText += `--- CRAWLED SUBPAGE ${idx + 1}: [${categoryTag}] ${p.url} ---\n`;
+      pagesText += `Content:\n${p.textSnippet}\n`;
+      if (p.mapAddresses && p.mapAddresses.length > 0) {
+        pagesText += `\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: ${p.mapAddresses.join(" | ")}\n`;
+      }
+      pagesText += "\n";
     });
 
     const context = {
@@ -1359,6 +1511,8 @@ ${context.crawledText}`;
     extractLinks,
     selectPriorityPages,
     extractContactsAndProducts,
+    extractMapAddresses,
+    extractFooterText,
     buildSystemInstruction,
     buildUserPrompt,
     crawlAndExtractUrl
