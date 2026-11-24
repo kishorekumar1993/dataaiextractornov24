@@ -392,10 +392,10 @@ const CrawlerEngine = (() => {
       manualReviewRequired = true;
       nonWorkingReason = `Original website redirects to an unavailable destination (HTTP ${httpStatus || "dead/unreachable"}).`;
     }
-    // 2. Redirect loop
+    // 2. Redirect loop -> Not Working
     else if (isRedirectLoop) {
-      websiteStatus = "Manual Review";
-      manualReviewRequired = true;
+      websiteStatus = "Not Working";
+      manualReviewRequired = false;
       nonWorkingReason = `Redirect loop detected: ${finalUrl}`;
     }
     // 3. Excessive redirects (> 5 hops)

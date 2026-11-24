@@ -163,8 +163,8 @@ async function runTestSuite() {
     assert.strictEqual(res.isEligibleForExtraction, false);
   });
 
-  // 7. Redirect loop (A -> B -> A -> Manual Review)
-  await test(7, "Redirect loop detection (A -> B -> A -> Manual Review)", async () => {
+  // 7. Redirect loop (A -> B -> A -> Not Working)
+  await test(7, "Redirect loop detection (A -> B -> A -> Not Working)", async () => {
     const fetchFn = async (url) => {
       if (url.includes("/page-a")) {
         return createMockResponse({ status: 302, location: "https://example.com/page-b", url });
@@ -176,9 +176,9 @@ async function runTestSuite() {
     };
 
     const res = await CrawlerEngine.detectRedirectAndClassifyStatus("https://example.com/page-a", { fetchFn });
-    assert.strictEqual(res.websiteStatus, "Manual Review");
+    assert.strictEqual(res.websiteStatus, "Not Working");
     assert.strictEqual(res.redirectType, "REDIRECT_LOOP");
-    assert.strictEqual(res.manualReviewRequired, true);
+    assert.strictEqual(res.manualReviewRequired, false);
     assert.strictEqual(res.isEligibleForExtraction, false);
     assert(res.nonWorkingReason.includes("Redirect loop"));
   });
