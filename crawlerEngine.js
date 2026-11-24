@@ -1165,26 +1165,27 @@ Field extraction guidelines:
    - The address displayed on the Contact Page (under Location / Contact Us / Office Address) MUST ALWAYS be taken as the primary base address!
    - You MUST NEVER override, discard, or replace the Contact Page address with the Footer address.
    - The Footer address is ONLY used if the Contact Page is completely missing or contains no address.
-3. MAP COMPARISON RULE (MERGING ADDITIONAL / EXTRA ITEMS):
+3. MAP COMPARISON RULE (MAP PROVIDES COMPLETE VERIFIED ADDRESS):
    - Compare the Contact Page address with the Contact Page Embedded Map:
-     * Check if both represent the same physical location.
+     * Check if both represent the exact same physical location.
      * If both the Contact Page address and the Map have the exact same components: That is fine; take the Contact Page address.
-     * If the Map has Additional / Extra items (e.g. Map provides an extra road/street name like "Shashi Park Road", building name, complex/plaza name, unit number, or floor that the Contact Page text omitted or shortened for the exact same location): WE MUST TAKE THAT ADDITIONAL EXTRA ITEM FROM THE MAP AND MERGE IT INTO THE CONTACT PAGE ADDRESS!
-     * Example: If Contact Page has "B-14, Shashi Gardens, Mayur Vihar - I, Delhi" and Map has "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi", take the extra road from Map and merge -> "B-14, Shashi Gardens, Shashi Park Road, Mayur Vihar - I, New Delhi" (or Delhi).
+     * If the Map provides the more complete, verified official address for that exact location (e.g. Map provides the verified official street name, phase/block/unit, locality, city, and state details): USE THE COMPLETE VERIFIED ADDRESS FROM THE MAP!
+     * DO NOT concatenate or duplicate conflicting or redundant locality/street names together (e.g., if the Contact text has a neighborhood/garden/enclave name and the Map provides the official road/street name for that exact plot/building number, do NOT concatenate both into "Enclave Gardens, Enclave Park Road"—use the verified Map address formulation directly!).
      * If the Map points to a completely different location: Completely ignore the Map and take the Contact Page address.
 4. Strict Address Selection Logic (All 6 Scenarios):
    - Scenario 1: All Three Addresses Are Identical
      * Select the Contact Page address.
-   - Scenario 2: Contact Page Address Is Incomplete (Map Has Additional Extra Items)
-     * Take the Contact Page address as the primary base.
-     * Compare with Map and Footer: If the Map has additional extra items (e.g. missing road name, plaza/building name, unit number, suite, floor, sector, or street detail for the exact same location), WE MUST TAKE THAT ADDITIONAL EXTRA ITEM FROM THE MAP AND MERGE IT INTO THE ADDRESS to make it complete.
+   - Scenario 2: Contact Page Address Is Incomplete
+     * Check the Footer and Map for additional address components.
+     * If the Map provides a more complete address for the exact same location, use it to supplement or supply the verified complete address for the Contact Page location.
+     * Adopt the verified complete address from the Map rather than duplicating or awkwardly concatenating redundant names.
      * Preserve all valid Contact Page information.
    - Scenario 3: Contact Page and Footer Are Different
      * Contact Page remains the primary source.
      * Take the Contact Page address ONLY! Do NOT replace the Contact Page address with the Footer address.
    - Scenario 4: Contact Page and Map Are Different
      * Compare building number, street, locality, city and state.
-     * If the Map contains additional verified components of the same location, supplement the Contact Page address with those extra items.
+     * If the Map contains additional verified components of the same location, supplement the Contact Page address with those extra items or adopt the verified Map address for that exact location.
      * If the Map points to a different location, ignore it and take the Contact Page address.
    - Scenario 5: All Three Addresses Are Different
      * Do not automatically select the longest address.
