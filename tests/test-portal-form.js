@@ -530,6 +530,15 @@ async function runPortalTests() {
     assert(prompt.includes("Disregard State Names in Street Lines"), "Prompt must instruct disregarding state names in street lines while checking the rest for province");
   });
 
+  // Test 10: Country Capital & Floor expansion in AI Prompt
+  test("Country Capital in address (e.g. Taipei City for Taiwan) instructed as State Available and 3f. floor expansion", () => {
+    const prompt = CrawlerEngine.buildSystemInstruction();
+    assert(prompt.includes("Country Capitals (CRITICAL RULE)"), "Prompt must instruct Country Capitals rule");
+    assert(prompt.includes("Taipei / Taipei City for Taiwan"), "Prompt must explicitly mention Taipei City for Taiwan");
+    assert(prompt.includes("3f.-6"), "Prompt must instruct floor expansion for 3f.-6 to 3rd Floor");
+    assert(prompt.includes("Sec."), "Prompt must instruct Section expansion");
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");

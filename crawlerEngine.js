@@ -985,13 +985,19 @@ Field extraction guidelines:
      * "Dist." / "Dist" -> "District"
      * "Prov." / "Prov" -> "Province"
      * "Ind." / "Ind" -> "Industrial"
-     * "Fl." / "Fl" / "F" -> "Floor"
+     * "Fl." / "Fl" / "F." / "F" / "[Number]f." / "[Number]F." / "[Number]F" -> "Floor" (e.g., "3f." / "3F." / "3F" MUST be expanded to "3rd Floor" or "3 Floor"; "3f.-6" -> "3rd Floor - 6" or "3rd Floor-6"; "4F" -> "4th Floor"; "1F" -> "1st Floor")
+     * "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" / "Sec 3" -> "Section 3")
      * "Rm." / "Rm" -> "Room"
      * "No." / "No" -> "Number"
      * "Ste." / "Ste" -> "Suite"
      * "Hwy." / "Hwy" -> "Highway"
      * "Dr." / "Dr" -> "Drive"
      * "Ln." / "Ln" -> "Lane"
+     * "Blk." / "Blk" -> "Block"
+     * "Sq." / "Sq" -> "Square"
+     * "Ctr." / "Ctr" -> "Center"
+     * "Plz." / "Plz" -> "Plaza"
+     * "Apt." / "Apt" -> "Apartment"
    - Cleanup Rules:
      * Remove the postal code / zip code.
      * Remove the country name.
@@ -1010,6 +1016,8 @@ Field extraction guidelines:
        IMPORTANT NOTE FOR CANADIAN ADDRESSES: In Canadian addresses such as "130 Pennsylvania Avenue, Unit #8 Concord, Ontario", "Ontario" is an official Canadian Province, so "state" MUST be "Available". Even when the word "Province" is not written out (e.g., "Concord, Ontario" or "Richmond, British Columbia"), the province name itself makes state "Available".
      * Official Counties: Any recognized county (e.g., UK/US counties like Yorkshire, Lancashire, Orange County, etc.).
      * Official Prefectures: Any recognized prefecture (e.g., Japanese prefectures like Tokyo, Osaka, Aichi, etc.).
+     * Country Capitals (CRITICAL RULE): If the address contains the Country's Capital city (e.g., Taipei / Taipei City for Taiwan, Washington D.C. for USA, Beijing for China, Tokyo for Japan, London for United Kingdom / England, Seoul for South Korea, Ottawa for Canada, Canberra for Australia, New Delhi for India, or ANY national capital city), "state" MUST be marked as "Available" (national capitals act as federal capital districts / special municipalities at the primary state level).
+       Example: In "3rd Floor - 6, Number 106, Section 3, Xinyi Road, Da'an District, Taipei City" (Country: Taiwan), "Taipei City" is the Capital of Taiwan, so "state" MUST be marked as "Available".
    - Disregard State Names in Street Lines:
      * If a state name appears only as part of a street name (e.g., "Pennsylvania Avenue", "Texas Street", "Washington Boulevard"), do NOT consider it as a state. However, always check the rest of the address for an actual state or province (e.g., in "130 Pennsylvania Avenue, Unit #8 Concord, Ontario", Pennsylvania is part of the street address, but "Ontario" is the Province, so state is "Available").
    - Select "Not Available" if no State, County, Province, or Prefecture is present in the address (e.g., an address with only a street and city like "100 Oxford Street, London" where London is a city and no county/state/province is stated).
