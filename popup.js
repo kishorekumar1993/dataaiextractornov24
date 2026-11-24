@@ -607,7 +607,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       });
 
-      const extractedJson = extractionResult.data;
+      let extractedJson = extractionResult.data;
+      if (typeof CrawlerEngine !== "undefined" && CrawlerEngine.applyBusinessTypeEligibilityRule) {
+        extractedJson = CrawlerEngine.applyBusinessTypeEligibilityRule(extractedJson);
+      }
+
+      if (statusResult) {
+        statusResult.websiteStatus = extractedJson.websiteStatus;
+        if (extractedJson.notWorkingReason) {
+          statusResult.nonWorkingReason = extractedJson.notWorkingReason;
+        }
+        extractionResult.meta.qcValidation = statusResult;
+      }
 
       // Save to queue completed map so it persists
       const cleanKey = currentTab.url.toLowerCase();
@@ -848,9 +859,23 @@ You MUST respond strictly with a valid JSON object matching this exact schema:
 }
 
 Field extraction guidelines:
-1. "websiteStatus": "Working" if the site loaded and provided business content. If it was down, broken, parked, or under construction, set accordingly.
-2. "notWorkingReason": Empty string "" if working, otherwise specify reason.
-3. "businessType": e.g. "Manufacturer", "Exporter", "Wholesaler", "Trader", "Service Provider", "Retailer", or combination.
+1. "websiteStatus": "Working" ONLY IF the site loaded AND its Business Type is an eligible category from "Manufacturer" to "Wholesaler" (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler).
+   - CRITICAL ELIGIBILITY RULE: If the business type is anything outside Manufacturer to Wholesaler (such as Service Provider, Online Shopping, Restricted Site, Other, Retailer), "websiteStatus" MUST be marked as "Not Working", and state the reason in "notWorkingReason".
+   - If the site is down, broken, parked, or under construction, mark accordingly.
+2. "notWorkingReason": Empty string "" if working, otherwise specify the exact reason (e.g., "Ineligible Business Type: Service Provider (Only Manufacturer to Wholesaler are eligible)", or DNS/HTTP error).
+3. "businessType": Select strictly from the portal dropdown options:
+   - "Manufacturer"
+   - "Industrial Services"
+   - "Exporter"
+   - "Trader"
+   - "Distributer"
+   - "Supplier"
+   - "Wholesaler"
+   - "Service Provider"
+   - "Online Shopping"
+   - "Restricted Site"
+   - "Other"
+   NOTE ON ELIGIBILITY: Only "Manufacturer" through "Wholesaler" qualify as "Working" sites. All other business types (Service Provider, Online Shopping, Restricted Site, Other) MUST be marked "Not Working" in websiteStatus.
 4. "companyProfile": "Available" if company description/about information was found, or "Not Available".
 5. "companyName": Complete official legal or operational company name with all abbreviations expanded into their full forms:
    - Mandatory Abbreviation Expansion to Full Form:

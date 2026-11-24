@@ -566,6 +566,38 @@ const CrawlerEngine = (() => {
     return classifyWebsiteStatus(traceResult);
   }
 
+  // Eligible Business Types for "Working" website status (Manufacturer to Wholesaler only)
+  const ELIGIBLE_WORKING_BUSINESS_TYPES = [
+    "manufacturer",
+    "industrial services",
+    "exporter",
+    "trader",
+    "distributer",
+    "distributor",
+    "supplier",
+    "wholesaler"
+  ];
+
+  function isEligibleWorkingBusinessType(businessType) {
+    if (!businessType) return false;
+    const b = String(businessType).toLowerCase().trim();
+    return ELIGIBLE_WORKING_BUSINESS_TYPES.some(eligible => b.includes(eligible));
+  }
+
+  function applyBusinessTypeEligibilityRule(data) {
+    if (!data) return data;
+    const currentStatus = data.websiteStatus || "Working";
+    if (currentStatus === "Working") {
+      if (!isEligibleWorkingBusinessType(data.businessType)) {
+        data.websiteStatus = "Not Working";
+        const reason = `Ineligible Business Type: "${data.businessType || 'Other'}". Only businesses from Manufacturer to Wholesaler (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler) are eligible Working sites; other business types are marked Not Working.`;
+        data.notWorkingReason = reason;
+        data.nonWorkingReason = reason;
+      }
+    }
+    return data;
+  }
+
   function cleanHtmlToText(html) {
     if (!html) return "";
     let text = html.replace(SCRIPT_STYLE_REGEX, " ");
@@ -718,9 +750,23 @@ You MUST respond strictly with a valid JSON object matching this exact schema:
 }
 
 Field extraction guidelines:
-1. "websiteStatus": "Working" if the site loaded and provided business content. If it was down, broken, parked, or under construction, set accordingly.
-2. "notWorkingReason": Empty string "" if working, otherwise specify reason.
-3. "businessType": e.g. "Manufacturer", "Exporter", "Wholesaler", "Trader", "Service Provider", "Retailer", or combination.
+1. "websiteStatus": "Working" ONLY IF the site loaded AND its Business Type is an eligible category from "Manufacturer" to "Wholesaler" (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler).
+   - CRITICAL ELIGIBILITY RULE: If the business type is anything outside Manufacturer to Wholesaler (such as Service Provider, Online Shopping, Restricted Site, Other, Retailer), "websiteStatus" MUST be marked as "Not Working", and state the reason in "notWorkingReason".
+   - If the site is down, broken, parked, or under construction, mark accordingly.
+2. "notWorkingReason": Empty string "" if working, otherwise specify the exact reason (e.g., "Ineligible Business Type: Service Provider (Only Manufacturer to Wholesaler are eligible)", or DNS/HTTP error).
+3. "businessType": Select strictly from the portal dropdown options:
+   - "Manufacturer"
+   - "Industrial Services"
+   - "Exporter"
+   - "Trader"
+   - "Distributer"
+   - "Supplier"
+   - "Wholesaler"
+   - "Service Provider"
+   - "Online Shopping"
+   - "Restricted Site"
+   - "Other"
+   NOTE ON ELIGIBILITY: Only "Manufacturer" through "Wholesaler" qualify as "Working" sites. All other business types (Service Provider, Online Shopping, Restricted Site, Other) MUST be marked "Not Working" in websiteStatus.
 4. "companyProfile": "Available" if company description/about information was found, or "Not Available".
 5. "companyName": Complete official legal or operational company name with all abbreviations expanded into their full forms:
    - Mandatory Abbreviation Expansion to Full Form:
@@ -965,6 +1011,14 @@ ${context.crawledText}`;
       fetchFn: fetchFn
     });
 
+    // Apply Business Type eligibility condition: Manufacturer to Wholesaler only are Working, others Not Working
+    if (aiResult && aiResult.data) {
+      aiResult.data = applyBusinessTypeEligibilityRule(aiResult.data);
+    }
+
+    const finalStatus = aiResult.data?.websiteStatus || statusResult.websiteStatus;
+    const finalReason = aiResult.data?.notWorkingReason || aiResult.data?.nonWorkingReason || statusResult.nonWorkingReason;
+
     aiResult.qcValidation = {
       originalUrl: statusResult.originalUrl,
       finalUrl: statusResult.finalUrl,
@@ -974,9 +1028,9 @@ ${context.crawledText}`;
       redirectType: statusResult.redirectType,
       redirectChain: statusResult.redirectChain,
       httpStatus: statusResult.httpStatus,
-      websiteStatus: statusResult.websiteStatus,
-      nonWorkingReason: statusResult.nonWorkingReason,
-      isEligibleForExtraction: statusResult.isEligibleForExtraction,
+      websiteStatus: finalStatus,
+      nonWorkingReason: finalReason,
+      isEligibleForExtraction: finalStatus === "Working",
       manualReviewRequired: statusResult.manualReviewRequired
     };
 
@@ -985,6 +1039,9 @@ ${context.crawledText}`;
 
   return {
     MULTI_PART_TLDS,
+    ELIGIBLE_WORKING_BUSINESS_TYPES,
+    isEligibleWorkingBusinessType,
+    applyBusinessTypeEligibilityRule,
     getHostname,
     parseDomain,
     getRegisteredDomain,

@@ -258,6 +258,17 @@
   // ==========================================
   // 3. Form Prefilling Engine
   // ==========================================
+  const ELIGIBLE_WORKING_BUSINESS_TYPES = [
+    "manufacturer",
+    "industrial services",
+    "exporter",
+    "trader",
+    "distributer",
+    "distributor",
+    "supplier",
+    "wholesaler"
+  ];
+
   function prefillPortalForm(data) {
     if (!data) return { filledCount: 0, errors: ["No data provided"] };
 
@@ -266,9 +277,19 @@
     const filledFields = [];
     const errors = [];
 
+    // Condition: Only Manufacturer to Wholesaler are Working sites. Other business types are marked Not Working.
+    let finalWebsiteStatus = data.websiteStatus || "Working";
+    if (finalWebsiteStatus === "Working" && data.businessType) {
+      const bType = String(data.businessType).toLowerCase().trim();
+      const isEligible = ELIGIBLE_WORKING_BUSINESS_TYPES.some(e => bType.includes(e));
+      if (!isEligible) {
+        finalWebsiteStatus = "Not Working";
+      }
+    }
+
     // Map extracted JSON to portal fields
     const fillPlan = [
-      { key: "websiteStatus", value: data.websiteStatus || "Working" },
+      { key: "websiteStatus", value: finalWebsiteStatus },
       { key: "businessType", value: data.businessType || "" },
       { key: "companyProfile", value: data.companyProfile || "Available" },
       { key: "companyName", value: data.companyName || "" },

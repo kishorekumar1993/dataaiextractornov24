@@ -2,6 +2,7 @@
 // Tests the exact portal form layout from user screenshot (media_1795483319524_435a6f96.png)
 
 const assert = require("assert");
+const CrawlerEngine = require("../crawlerEngine.js");
 
 // Mock a lightweight DOM environment in Node.js
 class MockEvent {
@@ -459,6 +460,44 @@ async function runPortalTests() {
     expectedKeys.forEach(k => {
       assert(typeof k === "string" && k.length > 0, `Field key ${k} must be valid`);
     });
+  });
+
+  // Test 7: Business Type Eligibility (Manufacturer to Wholesaler only are Working, others Not Working)
+  test("Business Type condition: Manufacturer to Wholesaler only are Working, others marked Not Working", () => {
+    // 1. Check eligible types
+    const eligibleTypes = [
+      "Manufacturer",
+      "Industrial Services",
+      "Exporter",
+      "Trader",
+      "Distributer",
+      "Supplier",
+      "Wholesaler"
+    ];
+    for (const type of eligibleTypes) {
+      assert.strictEqual(CrawlerEngine.isEligibleWorkingBusinessType(type), true, `${type} must be eligible as Working`);
+      const checked = CrawlerEngine.applyBusinessTypeEligibilityRule({ websiteStatus: "Working", businessType: type });
+      assert.strictEqual(checked.websiteStatus, "Working", `${type} must retain Working status`);
+    }
+
+    // 2. Check ineligible types (must become Not Working)
+    const ineligibleTypes = [
+      "Service Provider",
+      "Online Shopping",
+      "Restricted Site",
+      "Other",
+      "Retailer"
+    ];
+    for (const type of ineligibleTypes) {
+      assert.strictEqual(CrawlerEngine.isEligibleWorkingBusinessType(type), false, `${type} must NOT be eligible as Working`);
+      const checked = CrawlerEngine.applyBusinessTypeEligibilityRule({ websiteStatus: "Working", businessType: type });
+      assert.strictEqual(checked.websiteStatus, "Not Working", `${type} must be converted to Not Working`);
+      assert(checked.notWorkingReason.includes("Ineligible Business Type"), `${type} must have notWorkingReason populated`);
+    }
+
+    // 3. Verify Prompt includes the rule
+    const prompt = CrawlerEngine.buildSystemInstruction();
+    assert(prompt.includes("Manufacturer to Wholesaler"), "Prompt must instruct that only Manufacturer to Wholesaler are eligible Working sites");
   });
 
   console.log("==========================================================");
