@@ -1332,7 +1332,7 @@ Field extraction guidelines:
    Apply the existing address formatting rules:
    - Expand abbreviated words into their full forms.
    - Use Title Case (first letter of each word capitalized).
-   - Remove postal codes / ZIP codes / pincode.
+   - Remove postal codes / ZIP codes / pincode ONLY (CRITICAL: P.O. Box is a mailing address line, NOT a postal code! NEVER remove P.O. Box / Post Office Box; always retain and expand P.O. Box into "Post Office Box [Number]").
    - Remove country names.
    - Remove company names.
    - Remove brackets.
@@ -1353,7 +1353,7 @@ Field extraction guidelines:
    - Current Active Address Priority (CRITICAL): Always select the CURRENT active headquarters or operational address. NEVER select former, historical, or previous addresses (e.g., text stating "prior to [date] was located at...", "formerly located at...", "previous address", or "relocated from...").
 
 **B. Universal & Contextual Abbreviation Expansion (MANDATORY)**
-Expand every recognizable abbreviation, shortened word, postal/box abbreviation (such as P.O. Box, PBS, Post Bag), directional token, floor/unit token, and administrative/street term into its full form in Title Case according to the surrounding geographic and business context—without hardcoding specific companies or sites.
+Expand every recognizable abbreviation, shortened word, delivery and box abbreviation (such as P.O. Box, PBS, Post Bag), directional token, floor/unit token, and administrative/street term into its full form in Title Case according to the surrounding geographic and business context—without hardcoding specific companies or sites.
 - Contextual & Regional Expansion: Use surrounding city, district, state/province, and country context to resolve shortened locality or street tokens (for example, expanding "Kb" to "Kampung Baru" in a Balakong / Seri Kembangan context, or expanding regional street/estate/district abbreviations when clear from context).
 - What Stays Unexpanded: Keep pure lot/plot/unit/house numbers, numeric coordinates, and non-abbreviated proper names or established brand acronyms as-is. Only leave a token unexpanded when it is genuinely an ambiguous code/reference with no clear geographic or domain expansion.
 
@@ -1362,8 +1362,9 @@ Expand every recognizable abbreviation, shortened word, postal/box abbreviation 
      * "Rd." / "Rd" -> "Road", "St." / "St" -> "Street", "Ave." / "Ave" -> "Avenue", "Blvd." / "Blvd" -> "Boulevard", "Hwy." / "Hwy" -> "Highway", "Dr." / "Dr" -> "Drive", "Ln." / "Ln" -> "Lane", "Way", "Ct." / "Ct" -> "Court", "Pl." / "Pl" -> "Place", "Cir." / "Cir" -> "Circle", "Pkwy." / "Pkwy" -> "Parkway", "Ter." / "Terr." -> "Terrace"
    - Universal Divisions, Units & Buildings:
      * "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" -> "Section 3"), "Dist." / "Dist" -> "District", "Prov." / "Prov" -> "Province", "Ind." / "Ind" -> "Industrial", "Bldg." / "Bldg" -> "Building", "Rm." / "Rm" -> "Room", "No." / "No" / "No.2" -> "Number" (MANDATORY EXPANSION: Always expand "No." or "No" or "No.2" or "No. 2" into "Number", e.g. "No. 2" -> "Number 2", "No.2" -> "Number 2", "No. 45" -> "Number 45", "No. 2號" -> "Number 2". NEVER leave "No." or "No" unexpanded!), "Ste." / "Ste" -> "Suite", "Apt." / "Apt" -> "Apartment", "Blk." / "Blk" -> "Block", "Sq." / "Sq" -> "Square", "Ctr." / "Ctr" -> "Center", "Plz." / "Plz" -> "Plaza"
-   - Postal, Delivery & Administrative Abbreviations:
-     * "P.O. Box" / "PO Box" -> "Post Office Box"
+   - Box, Delivery & Administrative Abbreviations (MANDATORY RETENTION & EXPANSION):
+     * "P.O. Box" / "PO Box" -> MUST ALWAYS BE KEPT AND EXPANDED to "Post Office Box" (e.g. "P.O. Box 450" -> "Post Office Box 450", "PO Box 123" -> "Post Office Box 123", "P.O. Box" -> "Post Office Box").
+       CRITICAL RULE: NEVER REMOVE P.O. BOX! P.O. Box is an essential mailing and delivery address line, NOT a postal code. ONLY postal/ZIP code numbers (e.g. 53037, 90210, 201010) are removed—P.O. Box itself MUST ALWAYS BE PRESERVED!
      * "P.O." / "P.O" -> "Post Office" (e.g. "P.O. Mayur Vihar" -> "Post Office Mayur Vihar")
      * "P.B." / "PB" -> "Post Bag" (e.g. "P.B. No." -> "Post Bag Number")
      * "C/O" / "c/o" -> "Care Of"
@@ -1434,7 +1435,11 @@ Expand every recognizable abbreviation, shortened word, postal/box abbreviation 
 
 **E. Mandatory Cleanup**
 1. Remove pincode, postal codes, and ZIP codes completely from the address:
-   - CRITICAL PINCODE / POSTAL CODE REMOVAL: All postal codes, ZIP codes, and pincodes (e.g. 5-digit US ZIPs like 53037 or 90210, 6-digit pincodes, UK alphanumeric postal codes, Canadian alphanumeric postal codes, etc.) MUST BE 100% REMOVED from the address. Under NO circumstances should any postal code or pincode numbers remain in companyAddress!
+   - CRITICAL: POSTAL CODE ONLY TO BE REMOVED — NEVER REMOVE P.O. BOX!
+     * "P.O. Box" (Post Office Box) is a PHYSICAL DELIVERY & MAILING ADDRESS, NOT a postal code!
+     * ONLY postal code / ZIP code / pincode numbers (e.g. 5-digit US ZIP like 53037 or 90210, 6-digit pincode like 201010, Canadian or international postal numbers) are to be removed.
+     * UNDER NO CIRCUMSTANCES should "P.O. Box", "PO Box", "Post Office Box", "P.O.", "Box [Number]", "Post Bag", or "Kotak Berkunci" be deleted or removed when cleaning postal codes!
+     * You MUST ALWAYS PRESERVE and EXPAND "P.O. Box [Number]" into "Post Office Box [Number]" (e.g. in "P.O. Box 450, 100 Main Street, Springfield, IL 62701", remove ONLY "62701", and RETAIN "Post Office Box 450, 100 Main Street, Springfield, Illinois").
    - ONLY remove the postal code/zip code/pincode numbers themselves.
    - CRITICAL: DO NOT remove the state or province abbreviation (such as "WI" or "Vic") when removing the pincode! The state abbreviation MUST NOT be removed—it MUST be expanded to its full name (e.g. "WI" -> "Wisconsin", "Vic" -> "Victoria").
    - Comma preservation when removing pincodes: If the original address wrote "Jackson, WI 53037" (with a comma), expand to "Jackson, Wisconsin". If the original address wrote "Bayswater Vic 3153" or "Jackson WI 53037" (WITHOUT a comma), expand to "Bayswater Victoria" or "Jackson Wisconsin" with NO comma added! Never inject an extra comma before the state!
@@ -1452,7 +1457,7 @@ Before returning companyAddress:
 - Verify that directional prefixes have been expanded when their meaning is clear, including prefixes attached to numerical identifiers.
 - Verify that all expanded words follow Title Case, not ALL CAPS.
 - Verify that the original numbers and meaningful punctuation are preserved, and that NO commas or special characters have been added (provide only if available in original address, else do not provide; never add an artificial comma before state/province if missing in the original text).
-- Verify that postal codes, country names, company names, and brackets are removed.
+- Verify that postal codes, country names, company names, and brackets are removed (and verify that Post Office Box / P.O. Box is RETAINED and NOT removed).
 - Verify that only one complete address is returned.
 
 8. "state": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the state name itself):
