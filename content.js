@@ -999,6 +999,38 @@
     const phones = Array.from(new Set(cleanText.match(/(?:\+?\d{1,4}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5}/g) || []))
       .filter(p => p.replace(/\D/g, "").length >= 7 && p.replace(/\D/g, "").length <= 15);
 
+    // 7. Extract Map Addresses and Footer from main page DOM
+    const mapAddresses = [];
+    const iframes = document.querySelectorAll("iframe[src*='maps.google'], iframe[src*='google.com/maps'], iframe[src*='openstreetmap'], iframe[src*='bing.com/maps']");
+    iframes.forEach(iframe => {
+      const src = iframe.getAttribute("src") || "";
+      const qMatch = src.match(/[?&]q=([^&]+)/i) || src.match(/\/place\/([^/@?]+)/i) || src.match(/!2s([^!]+)/i);
+      if (qMatch) {
+        try {
+          mapAddresses.push(decodeURIComponent(qMatch[1]).replace(/\+/g, " ").trim());
+        } catch (e) {
+          mapAddresses.push(qMatch[1].replace(/\+/g, " ").trim());
+        }
+      }
+    });
+
+    const mapLinks = document.querySelectorAll("a[href*='maps.google'], a[href*='google.com/maps'], a[href*='goo.gl/maps']");
+    mapLinks.forEach(a => {
+      const href = a.getAttribute("href") || "";
+      const qMatch = href.match(/[?&]q=([^&]+)/i) || href.match(/\/place\/([^/@?]+)/i);
+      if (qMatch) {
+        try {
+          mapAddresses.push(decodeURIComponent(qMatch[1]).replace(/\+/g, " ").trim());
+        } catch (e) {
+          mapAddresses.push(qMatch[1].replace(/\+/g, " ").trim());
+        }
+      }
+    });
+
+    const footerEl = document.querySelector("footer, [class*='footer' i], [id*='footer' i]");
+    const footerText = footerEl ? (footerEl.innerText || footerEl.textContent || "").trim() : "";
+    const htmlSnippet = document.documentElement ? document.documentElement.outerHTML.slice(0, 50000) : "";
+
     return {
       url: window.location.href,
       origin: origin,
@@ -1011,7 +1043,10 @@
       productData: productData,
       cleanText: cleanText.slice(0, 15000),
       detectedEmails: emails.slice(0, 5),
-      detectedPhones: phones.slice(0, 5)
+      detectedPhones: phones.slice(0, 5),
+      mapAddresses: Array.from(new Set(mapAddresses)),
+      footerText: footerText,
+      html: htmlSnippet
     };
   }
 

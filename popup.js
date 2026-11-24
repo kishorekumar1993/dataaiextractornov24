@@ -553,7 +553,14 @@ document.addEventListener("DOMContentLoaded", async () => {
               url: item.url,
               category: item.category,
               title: pageResult.title,
-              textSnippet: pageResult.textSnippet
+              textSnippet: pageResult.textSnippet,
+
+              // Preserve separately extracted address sources
+              mapAddresses: pageResult.mapAddresses || [],
+              footerText: pageResult.footerText || "",
+              sourceType: item.category === "contact"
+                ? "CONTACT_PAGE"
+                : item.category.toUpperCase()
             });
 
             // Merge detected contacts & products
@@ -821,9 +828,16 @@ document.addEventListener("DOMContentLoaded", async () => {
       const imgCount = doc.querySelectorAll('img[src*="product"], img[alt*="product"], .product img').length;
       const descCount = doc.querySelectorAll('.product-desc, .product-description, [itemprop="description"]').length;
 
+      let extractedFooter = "";
+      const footerElement = doc.querySelector("footer, [class*='footer' i], [id*='footer' i]");
+      if (footerElement) {
+        extractedFooter = (footerElement.innerText || footerElement.textContent || "").trim();
+      }
+
       return {
         title,
         textSnippet: text.slice(0, 5000),
+        footerText: extractedFooter,
         emails,
         phones,
         productCount,
@@ -844,21 +858,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (baseData.ogSiteName) pagesText += `Site Name: ${baseData.ogSiteName}\n`;
     pagesText += `Content:\n${baseData.cleanText.slice(0, 8000)}\n\n`;
 
-    const mainMapAddresses = typeof CrawlerEngine !== "undefined" && CrawlerEngine.extractMapAddresses
-      ? CrawlerEngine.extractMapAddresses(baseData.html || "")
-      : [];
+    let mainMapAddresses = (baseData.mapAddresses && baseData.mapAddresses.length > 0)
+      ? baseData.mapAddresses
+      : (typeof CrawlerEngine !== "undefined" && CrawlerEngine.extractMapAddresses
+          ? CrawlerEngine.extractMapAddresses(baseData.html || "")
+          : []);
     if (mainMapAddresses.length > 0) {
-      pagesText += `\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: ${mainMapAddresses.join(" | ")}\n\n`;
+      pagesText += `\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: ${mainMapAddresses.join(" | ")}\n`;
     }
+    if (baseData.footerText && baseData.footerText.length > 10) {
+      pagesText += `\n--- FOOTER (SECONDARY SOURCE) ---\n${baseData.footerText}\n`;
+    }
+    pagesText += "\n";
 
     crawledPages.forEach((p, idx) => {
-      const isContact = p.category === "contact";
+      const isContact = p.category === "contact" || p.sourceType === "CONTACT_PAGE";
       const categoryTag = isContact ? "CONTACT PAGE (PRIMARY SOURCE)" : p.category.toUpperCase();
       pagesText += `--- CRAWLED SUBPAGE ${idx + 1}: [${categoryTag}] ${p.url} ---\n`;
       pagesText += `Title: ${p.title}\n`;
       pagesText += `Content:\n${p.textSnippet}\n`;
       if (p.mapAddresses && p.mapAddresses.length > 0) {
         pagesText += `\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: ${p.mapAddresses.join(" | ")}\n`;
+      }
+      if (p.footerText && p.footerText.length > 10) {
+        pagesText += `\n--- FOOTER (SECONDARY SOURCE) ---\n${p.footerText}\n`;
       }
       pagesText += "\n";
     });

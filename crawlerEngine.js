@@ -1488,11 +1488,14 @@ ${context.crawledText}`;
             const embedAddrs = await resolveMapEmbedAddress(subHtml, fetchFn);
             if (embedAddrs.length > 0) subMapAddresses = Array.from(new Set([...subMapAddresses, ...embedAddrs]));
           }
+          const subFooter = extractFooterText(subHtml);
           crawledPages.push({
             url: link.url,
             category: link.category,
+            sourceType: link.category === "contact" ? "CONTACT_PAGE" : link.category.toUpperCase(),
             textSnippet: subText.slice(0, 5000),
-            mapAddresses: subMapAddresses
+            mapAddresses: subMapAddresses,
+            footerText: subFooter
           });
 
           const subContacts = extractContactsAndProducts(subText, subHtml);
@@ -1517,12 +1520,15 @@ ${context.crawledText}`;
     pagesText += "\n";
 
     crawledPages.forEach((p, idx) => {
-      const isContact = p.category === "contact";
+      const isContact = p.category === "contact" || p.sourceType === "CONTACT_PAGE";
       const categoryTag = isContact ? "CONTACT PAGE (PRIMARY SOURCE)" : p.category.toUpperCase();
       pagesText += `--- CRAWLED SUBPAGE ${idx + 1}: [${categoryTag}] ${p.url} ---\n`;
       pagesText += `Content:\n${p.textSnippet}\n`;
       if (p.mapAddresses && p.mapAddresses.length > 0) {
         pagesText += `\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: ${p.mapAddresses.join(" | ")}\n`;
+      }
+      if (p.footerText && p.footerText.length > 10) {
+        pagesText += `\n--- FOOTER (SECONDARY SOURCE) ---\n${p.footerText}\n`;
       }
       pagesText += "\n";
     });
