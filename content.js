@@ -343,7 +343,25 @@
     const filledFields = [];
     const errors = [];
 
-    function resolveProductCountDefault(val) {
+    function normalizeCountryName(country) {
+    if (!country) return "";
+    let c = String(country).trim();
+    if (/^(?:united\s+states(?:\s+of\s+america)?|usa|u\.s\.a\.?|u\.s\.?|us)$/i.test(c)) {
+      return "United States Of America";
+    }
+    if (/^(?:uae|u\.a\.e\.?|united\s+arab\s+emirates)$/i.test(c)) {
+      return "United Arab Emirates";
+    }
+    if (/^(?:uk|u\.k\.?)$/i.test(c)) {
+      return "United Kingdom";
+    }
+    if (/^(?:ksa|k\.s\.a\.?)$/i.test(country)) {
+      return "Saudi Arabia";
+    }
+    return c;
+  }
+
+  function resolveProductCountDefault(val) {
       if (val === undefined || val === null || val === "" || val === "Not Available") {
         return "3";
       }
@@ -359,7 +377,7 @@
       { key: "companyProfile", value: data.companyProfile || "Available" },
       { key: "companyName", value: (typeof CompanyNormalizer !== "undefined" && CompanyNormalizer.normalizeCompanyName) ? CompanyNormalizer.normalizeCompanyName(data.companyName) : (data.companyName || "") },
       { key: "companyAddress", value: data.companyAddress || "" },
-      { key: "countryName", value: data.countryName || "" },
+      { key: "countryName", value: normalizeCountryName(data.countryName || "") },
       { key: "state", value: data.state || "Available" },
       { key: "city", value: data.city || "Available" },
       { key: "emailId", value: data.emailId || "" },

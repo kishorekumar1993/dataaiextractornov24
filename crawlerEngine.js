@@ -1263,8 +1263,10 @@ Field extraction guidelines:
    - First letter in each word must be capitalized only (Title Case), NOT all the characters. Example: "Zhejiang Jiangnan Steel Structure Company, Limited".
 
 6. "countryName": Country where company is based or registered, strictly following these rules:
-   - You must write the country name in full form.
-   - First letter in each word must be capitalized only, NOT all characters (e.g., "China", "United States Of America", "Germany").
+   - MANDATORY FULL OFFICIAL ORIGINAL NAME RULE: You must ALWAYS write the complete, full official original name of the country. Never use abbreviations, acronyms, or shortened forms.
+   - CRITICAL MANDATORY RULE FOR UNITED STATES: Always output the full official name "United States Of America"! NEVER output "United States", "USA", "U.S.", or "U.S.A.". If the company is located in the US, "countryName" MUST ALWAYS BE "United States Of America"!
+   - CRITICAL RULE FOR ALL COUNTRIES: All countries must be written in their complete, original, full official names in Title Case (e.g., "United States Of America", "United Arab Emirates", "United Kingdom", "Germany", "China", "Australia", "Canada", "Saudi Arabia").
+   - First letter in each word must be capitalized only, NOT all characters (Title Case).
    - If the country name is not available directly on the site, check social media links/profiles, or infer it using the city and state name from the address. Locality must be considered for the country name.
    - Special Rule for United Kingdom:
      * For United Kingdom (England, Wales, Scotland, Northern Ireland): If "England" and "United Kingdom" both are mentioned, you must take England as the country name (prioritize the specific constituent country/locality: England, Wales, Scotland, Northern Ireland).
@@ -1748,6 +1750,11 @@ ${context.crawledText}`;
         }
       }
       aiResult.data = applyBusinessTypeEligibilityRule(aiResult.data, mainHtml, crawledPages);
+      if (aiResult.data.countryName && aiResult.data.countryName !== "Not Available") {
+        if (typeof GeminiClient !== "undefined" && GeminiClient.normalizeCountryName) {
+          aiResult.data.countryName = GeminiClient.normalizeCountryName(aiResult.data.countryName);
+        }
+      }
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
         if (typeof CompanyNormalizer !== "undefined" && CompanyNormalizer.normalizeCompanyName) {
           aiResult.data.companyName = CompanyNormalizer.normalizeCompanyName(aiResult.data.companyName);

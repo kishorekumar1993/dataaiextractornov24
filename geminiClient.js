@@ -628,7 +628,7 @@
       clean.companyAddress = toTitleCase(clean.companyAddress);
     }
     if (clean.countryName) {
-      clean.countryName = toTitleCase(clean.countryName);
+      clean.countryName = normalizeCountryName(clean.countryName);
     }
 
     return clean;
@@ -642,6 +642,24 @@
     return String(str).replace(/[A-Za-zÀ-ÖØ-öø-ÿ0-9]+(?:'[A-Za-z]+)?/g, (word) => {
       return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     });
+  }
+
+  function normalizeCountryName(rawCountry) {
+    if (!rawCountry) return "";
+    let country = toTitleCase(String(rawCountry).trim());
+    if (/^(?:united\s+states(?:\s+of\s+america)?|usa|u\.s\.a\.?|u\.s\.?|us)$/i.test(country)) {
+      return "United States Of America";
+    }
+    if (/^(?:uae|u\.a\.e\.?|united\s+arab\s+emirates)$/i.test(country)) {
+      return "United Arab Emirates";
+    }
+    if (/^(?:uk|u\.k\.?)$/i.test(country)) {
+      return "United Kingdom";
+    }
+    if (/^(?:ksa|k\.s\.a\.?)$/i.test(country)) {
+      return "Saudi Arabia";
+    }
+    return country;
   }
 
   /**
@@ -728,6 +746,7 @@
     callGeminiWithRetryAndFallback,
     validateAndParseGeminiResponse,
     validateExtractedJson,
+    normalizeCountryName,
     sanitizePhoneNumber,
     calculateBackoffDelay,
     RETRYABLE_STATUS_CODES,
