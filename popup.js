@@ -1028,12 +1028,15 @@ Field extraction guidelines:
        - NEVER concatenate both colony and road names together into an artificial combined address (e.g. never output "Shashi Gardens, Shashi Park Road").
        - Preserve the original commas present in that verified Map address.
      * Preserve all valid Contact Page information.
-   - Scenario 3: Contact Page and Footer Are Different
-     * Contact Page remains the primary source (ABSOLUTE PRIORITY OVER FOOTER: both Contact Page text and Contact Page Embedded Map override Footer).
-     * If the Contact Page body (under Location, Contact Us, or Registered Office) or its Embedded Map display an address, you MUST ALWAYS select that Contact Page / Map address!
-     * If Contact Page text has no address or only an inquiry form, but has an Embedded Map, you MUST take the Contact Map address!
-     * You MUST NEVER override, discard, or replace the Contact Page / Map address with a different facility, development branch, secondary office, or corporate office address found in the website footer or footer widgets (e.g., if Contact Page Location & Map are in Delhi, NEVER replace it with a secondary facility or corporate office in Ghaziabad from the footer!).
-     * Use Footer information ONLY when it verifies or completes missing components of the exact same physical address, or when the Contact Page contains NO address and NO embedded map at all.
+   - Scenario 3: Contact Page and Footer Are Different (Corporate Office / Headquarters vs. Registered Office / Branch Priority - MANDATORY QC RULE)
+     * Always prioritize HEADQUARTERS (HQ) / CORPORATE OFFICE / MAIN OFFICE over Registered Office, Branch Office, Sales Office, Plant, or Factory.
+     * When a website or contact page lists multiple offices or both a "Corporate Office" / "Headquarters" (e.g. "Corporate Office: 3rd Floor, Mahalaxmi Plaza, VC-2 Sector-3, Vaishali, Ghaziabad") and a "Registered Office" (e.g. "Registered Office: B-14, Shashi Gardens, Mayur Vihar - I, Delhi"), you MUST ALWAYS select the CORPORATE OFFICE / HEADQUARTERS address!
+     * A Registered Office is merely a legal registration address. The Corporate Office / Headquarters is the active physical location of executive operations.
+     * The Phone Number MUST match the selected Headquarters / Corporate Office (e.g. "1202770608" for Corporate Office in Ghaziabad, NOT the Registered Office phone/mobile "99532...").
+     * If both Contact Page body and Footer are present:
+       - If Footer contains the designated "CORPORATE OFFICE" or "HEADQUARTERS", and the Contact Page body only lists a "REGISTERED OFFICE" or secondary branch, SELECT THE CORPORATE OFFICE / HEADQUARTERS and its corresponding telephone number!
+       - If Contact Page text has no address or only an inquiry form, but has an Embedded Map, you MUST take the Contact Map address!
+       - Use Footer information when it provides the verified Corporate Office / Headquarters, or completes missing components of the exact same physical address, or when the Contact Page contains NO address and NO embedded map at all.
    - Scenario 4: Contact Page and Map Are Different (Compare Which One Has Full Details)
      * Compare building number, street, locality, village, district, city and state to check which address has full details.
      * If the Map contains additional verified components or MORE COMPLETE / FULL DETAILS of the same location (e.g. verified street/road name like "Shashi Park Rd", or village/locality like "Beiliu Village", unit, phase, locality, city, state), ADOPT THE VERIFIED FULL DETAIL MAP ADDRESS FORMULATION DIRECTLY for that exact location (e.g. "Number 2, Wugong 2nd Road, Beiliu Village, Wufeng District, Taichung City" or "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi").
@@ -1089,9 +1092,10 @@ Field extraction guidelines:
      * Do NOT invent or insert artificial commas where none existed in the source text (e.g., do not insert a comma before a state abbreviation if no comma was in the original text).
 
 6. Headquarters & Active Address Priority:
-   - Always prioritize the Headquarters (HQ) or Registered Head Office address. HQ (Headquarters) address is always first priority.
-   - Primary Location Priority: The primary address displayed in the Contact Page body (under Location, Contact Us, or Registered Office) and confirmed by its Embedded Map is ALWAYS the primary Headquarters address. NEVER override it with a secondary facility or branch listed in the footer.
-   - If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
+   - Always prioritize the Headquarters (HQ) or Corporate Office address. HQ / Corporate Office address is always first priority over Registered Office, Branch Office, Factory, or Plant.
+   - When a company lists both a "Corporate Office" and a "Registered Office", ALWAYS select the Corporate Office as the headquarters.
+   - Primary Location Priority: If the Contact Page or Footer designates a Corporate Office or Headquarters, that address is the primary source of truth.
+   - Corresponding Phone Number: The extracted phone number MUST correspond to the selected Corporate Office / Headquarters address, not to a secondary branch or registered office.
    - Select only one address. Never combine multiple branch addresses.
    - Use only information available on the official website.
    - Current Active Address Priority (CRITICAL): Always select the CURRENT active headquarters or operational address. NEVER select former, historical, or previous addresses (e.g., text stating "prior to [date] was located at...", "formerly located at...", "previous address", or "relocated from...").
