@@ -1065,7 +1065,7 @@ Field extraction guidelines:
        - YOU MUST SELECT AND PUT THE FULL DETAIL MAP ADDRESS AS THE FINAL COMPANY ADDRESS!
        - NEVER discard or omit the extra verified locality, village, or street details from the Map.
        - USE THE VERIFIED MAP ADDRESS FORMULATION DIRECTLY (e.g. "Number 2, Wugong 2nd Road, Beiliu Village, Wufeng District, Taichung City" or "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi")!
-       - ALWAYS expand "No." or "No.2" to "Number" (e.g. "Number 2").
+       - "No." / "Number" Availability: Expand "No." or "No.2" to "Number" ONLY if "No." or "No" or "Number" was present in the original source address (e.g. "No.2, Wugong 2nd Rd." -> "Number 2, Wugong 2nd Road"). If "No." or "Number" was NOT available in the source address (e.g. "2, Wugong 2nd Rd." or "45 Main Street"), DO NOT put or add "Number" or "No." — keep pure numbers as-is!
        - NEVER concatenate both colony and road names together into an artificial combined address (e.g. never output "Shashi Gardens, Shashi Park Road").
        - Preserve the original commas present in that verified Map address.
      * Preserve all valid Contact Page information.
@@ -1081,7 +1081,7 @@ Field extraction guidelines:
    - Scenario 4: Contact Page and Map Are Different (Compare Which One Has Full Details)
      * Compare building number, street, locality, village, district, city and state to check which address has full details.
      * If the Map contains additional verified components or MORE COMPLETE / FULL DETAILS of the same location (e.g. verified street/road name like "Shashi Park Rd", or village/locality like "Beiliu Village", unit, phase, locality, city, state), ADOPT THE VERIFIED FULL DETAIL MAP ADDRESS FORMULATION DIRECTLY for that exact location (e.g. "Number 2, Wugong 2nd Road, Beiliu Village, Wufeng District, Taichung City" or "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi").
-     * Always expand "No." / "No.2" into "Number" (e.g. "Number 2").
+     * "No." / "Number" Availability: Expand "No." or "No.2" to "Number" ONLY if "No." or "No" or "Number" was present in the original source address. If "No." or "Number" was NOT available in the original address, do NOT add or put "Number" or "No."!
      * Preserve the verified commas present in the Map address.
      * If the Map points to a completely different location/city, ignore it.
    - Scenario 5: All Three Addresses Are Different
@@ -1094,7 +1094,7 @@ Field extraction guidelines:
      * CRITICAL CONTACT MAP PRIORITY (MANDATORY): If in the Contact Page the address is not available in text (e.g. the contact page body only contains an inquiry/contact form, or has no text address block), but the Contact Page includes an Embedded Map, YOU MUST TAKE THE CONTACT MAP ADDRESS! The Contact Page Map is located directly on the Contact Page and represents the verified physical headquarters address of the company.
      * COMPARE WHICH ONE HAS FULL DETAILS: Compare the Contact Map address and Footer address:
        - If the Map address provides fuller / more complete details (e.g. includes village/locality like "Beiliu Village", building number, road, district, city), YOU MUST PUT THE FULL DETAIL MAP ADDRESS!
-       - Always expand "No." / "No.2" into "Number" (e.g. "Number 2, Wugong 2nd Road, Beiliu Village, Wufeng District, Taichung City").
+       - "No." / "Number" Availability: If "No." or "No" or "Number" is available in the original source address, expand it to "Number" (e.g. "No.2, Wugong 2nd Rd." -> "Number 2, Wugong 2nd Road, Beiliu Village, Wufeng District, Taichung City"). If "No." or "Number" is NOT available in the source address (e.g. "45 Main St." or "Unit B3"), DO NOT add or put "Number" or "No." — keep pure numbers as-is, and if not available, remove/do not include "Number"!
        - Clean and remove any trailing company name, Chinese corporate name, or slash-separated business registration name appended to the map address (e.g., strip "安頌液壓工業股份有限公司/ANSON Hydraulics Industrial Co., Ltd." or "/Company Name").
        - Remove country name (e.g., "Taiwan") and postal/ZIP codes (e.g., "413", "41353").
        - Clean native building/lot numbers (e.g., convert "No. 2號" or "2號" to "Number 2" or "2").
@@ -1144,13 +1144,16 @@ Field extraction guidelines:
 **B. Universal & Contextual Abbreviation Expansion (MANDATORY)**
 Expand every recognizable abbreviation, shortened word, delivery and box abbreviation (such as P.O. Box, PBS, Post Bag), directional token, floor/unit token, and administrative/street term into its full form in Title Case according to the surrounding geographic and business context—without hardcoding specific companies or sites.
 - Contextual & Regional Expansion: Use surrounding city, district, state/province, and country context to resolve shortened locality or street tokens (for example, expanding "Kb" to "Kampung Baru" in a Balakong / Seri Kembangan context, or expanding regional street/estate/district abbreviations when clear from context).
-- What Stays Unexpanded: Keep pure lot/plot/unit/house numbers, numeric coordinates, and non-abbreviated proper names or established brand acronyms as-is. Only leave a token unexpanded when it is genuinely an ambiguous code/reference with no clear geographic or domain expansion.
+- What Stays Unexpanded: Keep pure lot/plot/unit/house numbers, numeric coordinates, and non-abbreviated proper names or established brand acronyms as-is. NEVER artificially add "Number" or "No." before numbers unless "No." or "No" or "Number" was explicitly present in the original text. Only leave a token unexpanded when it is genuinely an ambiguous code/reference with no clear geographic or domain expansion.
 
 1. Universal Abbreviation Mappings (expand abbreviations into their complete, grammatically standard English or native equivalents):
    - Universal / International Thoroughfares:
      * "Rd." / "Rd" -> "Road", "St." / "St" -> "Street", "Ave." / "Ave" -> "Avenue", "Blvd." / "Blvd" -> "Boulevard", "Hwy." / "Hwy" -> "Highway", "Dr." / "Dr" -> "Drive", "Ln." / "Ln" -> "Lane", "Way", "Ct." / "Ct" -> "Court", "Pl." / "Pl" -> "Place", "Cir." / "Cir" -> "Circle", "Pkwy." / "Pkwy" -> "Parkway", "Ter." / "Terr." -> "Terrace"
    - Universal Divisions, Units & Buildings:
-     * "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" -> "Section 3"), "Dist." / "Dist" -> "District", "Prov." / "Prov" -> "Province", "Ind." / "Ind" -> "Industrial", "Bldg." / "Bldg" -> "Building", "Rm." / "Rm" -> "Room", "No." / "No" / "No.2" -> "Number" (MANDATORY EXPANSION: Always expand "No." or "No" or "No.2" or "No. 2" into "Number", e.g. "No. 2" -> "Number 2", "No.2" -> "Number 2", "No. 45" -> "Number 45", "No. 2號" -> "Number 2". NEVER leave "No." or "No" unexpanded!), "Ste." / "Ste" -> "Suite", "Apt." / "Apt" -> "Apartment", "Blk." / "Blk" -> "Block", "Sq." / "Sq" -> "Square", "Ctr." / "Ctr" -> "Center", "Plz." / "Plz" -> "Plaza"
+     * "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" -> "Section 3"), "Dist." / "Dist" -> "District", "Prov." / "Prov" -> "Province", "Ind." / "Ind" -> "Industrial", "Bldg." / "Bldg" -> "Building", "Rm." / "Rm" -> "Room", "Ste." / "Ste" -> "Suite", "Apt." / "Apt" -> "Apartment", "Blk." / "Blk" -> "Block", "Sq." / "Sq" -> "Square", "Ctr." / "Ctr" -> "Center", "Plz." / "Plz" -> "Plaza"
+     * "No." / "No" / "No.2" -> "Number" (CRITICAL SOURCE AVAILABILITY RULE: ONLY PUT IF AVAILABLE IN ORIGINAL ADDRESS; IF NOT AVAILABLE, REMOVE / DO NOT ADD):
+       - If "No." or "No" or "No.2" or "No 2" or "Number" is AVAILABLE in the original source address, expand it to "Number" in Title Case (e.g., "No. 2" -> "Number 2", "No.2" -> "Number 2", "No. 45" -> "Number 45", "No. 2號" -> "Number 2", "H.No. 12" -> "House Number 12").
+       - If "No." or "Number" is NOT AVAILABLE in the original source address (e.g. the text merely says "45 Main Street", "Unit B3", "100 Industrial Parkway", "Plot 14", "B-14 Shashi Gardens"), DO NOT PUT OR ADD "Number" or "No."! Keep pure numbers/identifiers as-is without prepending "Number". If "No." / "Number" was not in the source text, remove / do not inject it!
    - Box, Delivery & Administrative Abbreviations (MANDATORY RETENTION & EXPANSION):
      * "P.O. Box" / "PO Box" -> MUST ALWAYS BE KEPT AND EXPANDED to "Post Office Box" (e.g. "P.O. Box 450" -> "Post Office Box 450", "PO Box 123" -> "Post Office Box 123", "P.O. Box" -> "Post Office Box").
        CRITICAL RULE: NEVER REMOVE P.O. BOX! P.O. Box is an essential mailing and delivery address line, NOT a postal code. ONLY postal/ZIP code numbers (e.g. 53037, 90210, 201010) are removed—P.O. Box itself MUST ALWAYS BE PRESERVED!
@@ -1225,6 +1228,7 @@ Expand every recognizable abbreviation, shortened word, delivery and box abbrevi
 5. DO NOT change or expand special characters into words (e.g., NEVER replace "&" with "and", NEVER replace "@" with "at"). Keep special characters always as it is.
 6. Do not add artificial linking words such as "in" or "of".
 7. Strict rule: If available in the original address, then provide; else do NOT provide any added comma or special character.
+8. "No." or "Number" Source Availability: Put "Number" ONLY if "No." or "Number" was available in the original source address. If NOT available in the source address, do NOT put or add "Number" or "No." (remove / omit any artificial "Number" prefix and keep pure numbers as originally written).
 
 **E. Mandatory Cleanup**
 1. Remove pincode, postal codes, and ZIP codes completely from the address:
@@ -1251,6 +1255,7 @@ Before returning companyAddress:
 - Verify that all expanded words follow Title Case, not ALL CAPS.
 - Verify that the original numbers and meaningful punctuation are preserved, and that NO commas or special characters have been added (provide only if available in original address, else do not provide; never add an artificial comma before state/province if missing in the original text).
 - Verify that postal codes, country names, company names, and brackets are removed (and verify that Post Office Box / P.O. Box is RETAINED and NOT removed).
+- Verify that "Number" is included ONLY if "No." or "Number" was present in the original source address (if "No." or "Number" was not available in the original text, verify that "Number" was NOT added and pure numbers remain as originally written).
 - Verify that only one complete address is returned.
 
 8. "state": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the state name itself):
