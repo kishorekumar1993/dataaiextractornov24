@@ -2,6 +2,10 @@
 // Compatible with Service Worker (MV3), Popup, Content Script, and Node.js
 
 const CrawlerEngine = (() => {
+  const AddressNormalizer = (typeof require !== "undefined")
+    ? (function() { try { return require("./addressNormalizer.js"); } catch (e) { return null; } })()
+    : (typeof window !== "undefined" && window.AddressNormalizer ? window.AddressNormalizer : null);
+
   // Regex patterns for HTML processing in environments without DOM
   const SCRIPT_STYLE_REGEX = /<(?:script|style|noscript|svg|canvas|iframe|template|nav)\b[^<]*(?:(?!<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>)<[^<]*)*<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>/gi;
   const HTML_TAG_REGEX = /<[^>]+>/g;
@@ -1569,6 +1573,11 @@ ${context.crawledText}`;
     // Apply Business Type eligibility & Unpaid Category conditions (Manufacturer to Wholesaler only are Working, non-manufacturer cart options marked Not Working)
     if (aiResult && aiResult.data) {
       aiResult.data = applyBusinessTypeEligibilityRule(aiResult.data, mainHtml);
+      if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
+        if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
+          aiResult.data.companyAddress = AddressNormalizer.normalizeAddress(aiResult.data.companyAddress);
+        }
+      }
     }
 
     const finalStatus = aiResult.data?.websiteStatus || statusResult.websiteStatus;
@@ -1620,6 +1629,7 @@ ${context.crawledText}`;
     extractFooterText,
     buildSystemInstruction,
     buildUserPrompt,
+    normalizeAddress: (raw) => (AddressNormalizer && AddressNormalizer.normalizeAddress ? AddressNormalizer.normalizeAddress(raw) : raw),
     resolveMapEmbedAddress,
     crawlAndExtractUrl
   };
