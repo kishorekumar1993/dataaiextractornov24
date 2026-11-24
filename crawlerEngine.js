@@ -1083,18 +1083,29 @@ Field extraction guidelines:
 4. "companyProfile": "Available" if company description/about information was found, or "Not Available".
 5. "companyName": Complete official legal or operational company name with all abbreviations expanded into their full forms:
    - Mandatory Abbreviation Expansion to Full Form:
-     * "Co." / "Co" -> "Company"
-     * "Ltd." / "Ltd" -> "Limited"
-     * "Pvt." / "Pvt" -> "Private" (e.g., "Pvt. Ltd." -> "Private Limited")
-     * "Corp." / "Corp" -> "Corporation"
-     * "Inc." / "Inc" -> "Incorporated"
-     * "Mfg." / "Mfg" -> "Manufacturing"
-     * "Intl." / "Int'l" -> "International"
-     * "Tech." / "Tech" -> "Technology"
-     * "Grp." / "Grp" -> "Group"
-     * "LLC" -> "Limited Liability Company"
-     * "LLP" -> "Limited Liability Partnership"
-     * Example: "Zhejiang Jiangnan Steel Structure Co., Ltd." MUST be expanded to "Zhejiang Jiangnan Steel Structure Company, Limited".
+     * General / English Legal & Corporate Types:
+       - "Co." / "Co" -> "Company"
+       - "Ltd." / "Ltd" -> "Limited"
+       - "Pvt." / "Pvt" -> "Private" (e.g., "Pvt. Ltd." -> "Private Limited")
+       - "Corp." / "Corp" -> "Corporation"
+       - "Inc." / "Inc" -> "Incorporated"
+       - "Mfg." / "Mfg" -> "Manufacturing"
+       - "Intl." / "Int'l" -> "International"
+       - "Tech." / "Tech" -> "Technology"
+       - "Grp." / "Grp" -> "Group"
+       - "LLC" -> "Limited Liability Company"
+       - "LLP" -> "Limited Liability Partnership"
+       - Example: "Zhejiang Jiangnan Steel Structure Co., Ltd." MUST be expanded to "Zhejiang Jiangnan Steel Structure Company, Limited".
+     * Country-Specific Company Name & Legal Entity Expansions:
+       - United States & Canada: "Inc." -> "Incorporated", "Corp." -> "Corporation", "LLC" / "L.L.C." -> "Limited Liability Company", "LP" -> "Limited Partnership", "LLP" -> "Limited Liability Partnership", "PLLC" -> "Professional Limited Liability Company".
+       - United Kingdom, Australia, New Zealand, South Africa, India, Singapore, Malaysia, Hong Kong (Commonwealth): "Ltd." -> "Limited", "Pvt. Ltd." -> "Private Limited", "Pte. Ltd." (Singapore/Southeast Asia) -> "Private Limited", "Pty. Ltd." (Australia/South Africa) -> "Proprietary Limited", "PLC" / "Plc" -> "Public Limited Company", "LLP" -> "Limited Liability Partnership", "Sdn. Bhd." (Malaysia) -> "Sendirian Berhad", "Bhd." -> "Berhad".
+       - Germany, Austria, Switzerland (DACH): "GmbH" -> "Gesellschaft Mit Beschränkter Haftung", "AG" -> "Aktiengesellschaft", "KG" -> "Kommanditgesellschaft", "GmbH & Co. KG" -> "Gesellschaft Mit Beschränkter Haftung & Co. KG", "e.K." / "e.Kfm." -> "Eingetragener Kaufmann".
+       - France, Belgium, Luxembourg, Switzerland (Romandy): "SARL" / "S.A.R.L." -> "Société À Responsabilité Limitée", "SA" / "S.A." -> "Société Anonyme", "SAS" / "S.A.S." -> "Société Par Actions Simplifiée", "SNC" -> "Société En Nom Collectif".
+       - Italy: "S.p.A." / "SpA" -> "Società Per Azioni", "S.r.l." / "Srl" -> "Società A Responsabilità Limitata".
+       - Spain, Mexico & Latin America: "S.A." / "SA" -> "Sociedad Anónima", "S.L." / "SL" -> "Sociedad Limitada", "S.A. de C.V." -> "Sociedad Anónima De Capital Variable", "S.R.L." -> "Sociedad De Responsabilidad Limitada", "Ltda." -> "Limitada".
+       - Netherlands & Belgium (Flanders): "B.V." / "BV" -> "Besloten Vennootschap", "N.V." / "NV" -> "Naamloze Vennootschap".
+       - Nordics (Sweden, Norway, Denmark, Finland): "AB" (Sweden) -> "Aktiebolag", "AS" / "A/S" (Norway/Denmark) -> "Aksjeselskap", "Oy" (Finland) -> "Osakeyhtiö", "Oyj" -> "Julkinen Osakeyhtiö".
+       - China, Taiwan, Japan, Korea: "Co., Ltd." -> "Company, Limited", "Corp." -> "Corporation", "Mfg." -> "Manufacturing", "Ind." -> "Industrial", "Tech." -> "Technology", "Intl." -> "International", "Grp." -> "Group", "K.K." (Japan) -> "Kabushiki Kaisha", "Y.K." (Japan) -> "Yugen Kaisha".
    - Extract exclusively from the official website content.
    - Prioritize the official legal name over trade/operational name.
    - Special Character Preservation Rule:
@@ -1174,22 +1185,43 @@ Field extraction guidelines:
    - Use only information available on the official website.
    - Current Active Address Priority (CRITICAL): Always select the CURRENT active headquarters or operational address. NEVER select former, historical, or previous addresses (e.g., text stating "prior to [date] was located at...", "formerly located at...", "previous address", or "relocated from...").
 
-**B. Universal Abbreviation Expansion (MANDATORY)**
-1. Identify and expand all recognizable abbreviations, shortened words, and directional references into their complete standard English full forms:
-   - Thoroughfares: "Rd." / "Rd" -> "Road", "St." / "St" -> "Street", "Ave." / "Ave" -> "Avenue", "Blvd." / "Blvd" -> "Boulevard", "Hwy." / "Hwy" -> "Highway", "Dr." / "Dr" -> "Drive", "Ln." / "Ln" -> "Lane"
-   - Divisions & Units: "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" -> "Section 3"), "Dist." / "Dist" -> "District", "Prov." / "Prov" -> "Province", "Ind." / "Ind" -> "Industrial", "Bldg." / "Bldg" -> "Building", "Rm." / "Rm" -> "Room", "No." / "No" -> "Number", "Ste." / "Ste" -> "Suite", "Apt." / "Apt" -> "Apartment", "Blk." / "Blk" -> "Block", "Sq." / "Sq" -> "Square", "Ctr." / "Ctr" -> "Center", "Plz." / "Plz" -> "Plaza"
+**B. Universal & Country-Specific Abbreviation Expansion (MANDATORY)**
+1. Identify and expand all recognizable abbreviations, shortened words, and directional references into their complete standard full forms according to country context:
+   - Universal / International Thoroughfares:
+     * "Rd." / "Rd" -> "Road", "St." / "St" -> "Street", "Ave." / "Ave" -> "Avenue", "Blvd." / "Blvd" -> "Boulevard", "Hwy." / "Hwy" -> "Highway", "Dr." / "Dr" -> "Drive", "Ln." / "Ln" -> "Lane", "Way", "Ct." / "Ct" -> "Court", "Pl." / "Pl" -> "Place", "Cir." / "Cir" -> "Circle", "Pkwy." / "Pkwy" -> "Parkway", "Ter." / "Terr." -> "Terrace"
+   - Universal Divisions, Units & Buildings:
+     * "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" -> "Section 3"), "Dist." / "Dist" -> "District", "Prov." / "Prov" -> "Province", "Ind." / "Ind" -> "Industrial", "Bldg." / "Bldg" -> "Building", "Rm." / "Rm" -> "Room", "No." / "No" -> "Number", "Ste." / "Ste" -> "Suite", "Apt." / "Apt" -> "Apartment", "Blk." / "Blk" -> "Block", "Sq." / "Sq" -> "Square", "Ctr." / "Ctr" -> "Center", "Plz." / "Plz" -> "Plaza"
    - Floor Designations: Expand any floor abbreviation into "Floor":
      * Universal floor pattern: Any number directly attached to or followed by "f", "F", "fl", "Fl", or "fl." (e.g. "1F", "2F", "3f.", "3f.-6", "3F-6", "4F-1", "5FL", "10F", "1st F", "2nd Fl.") MUST be expanded with "Floor":
        - When attached directly to a number without ordinal suffix: "1F" -> "1Floor", "2F" -> "2Floor", "3f." / "3F" -> "3Floor", "3f.-6" -> "3Floor - 6" (or "3Floor.-6").
        - When ordinal suffix is present: "1st F" / "1st Fl." -> "1st Floor", "2nd F" / "2nd Fl." -> "2nd Floor", "3rd F" / "3rd Fl." -> "3rd Floor".
        - NEVER leave raw single-letter "f" or "F" unexpanded when referring to floors! Retain any sub-unit hyphenated numbers intact.
-   - State & Province Abbreviations (MANDATORY EXPANSION): Always expand 2-letter or shortened state, province, and territory abbreviations into their complete official names (e.g., "WI" MUST be expanded to "Wisconsin", "CA" -> "California", "TX" -> "Texas", "NY" -> "New York", "IL" -> "Illinois", "PA" -> "Pennsylvania", "OH" -> "Ohio", "ON" -> "Ontario", "BC" -> "British Columbia", etc.). State abbreviations MUST NEVER be deleted or removed from the address—they MUST be expanded to their full form.
-   - Directional Prefixes Attached to Numbers: Expand directional letters attached directly to numerical identifiers or grid coordinates into their full form:
-     * "N173" -> "North173"
-     * "W21640" -> "West21640"
-     * "S[Number]" -> "South[Number]" (e.g., "S100" -> "South100")
-     * "E[Number]" -> "East[Number]" (e.g., "E200" -> "East200")
-   - Standalone Directional Words: "N." / "N" -> "North", "S." / "S" -> "South", "E." / "E" -> "East", "W." / "W" -> "West", "NW" -> "Northwest", "NE" -> "Northeast", "SW" -> "Southwest", "SE" -> "Southeast".
+   - Country-Specific Address & Region Expansions:
+     * United States & Canada:
+       - State & Province Abbreviations (MANDATORY EXPANSION): Always expand 2-letter or shortened state, province, and territory abbreviations into their complete official names (e.g., "WI" MUST be expanded to "Wisconsin", "CA" -> "California", "TX" -> "Texas", "NY" -> "New York", "IL" -> "Illinois", "PA" -> "Pennsylvania", "OH" -> "Ohio", "FL" -> "Florida", "MI" -> "Michigan", "GA" -> "Georgia", "NC" -> "North Carolina", "NJ" -> "New Jersey", "VA" -> "Virginia", "WA" -> "Washington", "ON" -> "Ontario", "BC" -> "British Columbia", "QC" -> "Quebec", "AB" -> "Alberta", etc.). State abbreviations MUST NEVER be deleted or removed from the address—they MUST be expanded to their full form.
+       - Directional Prefixes Attached to Numbers: Expand directional letters attached directly to numerical identifiers or grid coordinates into their full form:
+         * "N173" -> "North173"
+         * "W21640" -> "West21640"
+         * "S[Number]" -> "South[Number]" (e.g., "S100" -> "South100")
+         * "E[Number]" -> "East[Number]" (e.g., "E200" -> "East200")
+       - Standalone Directional Words: "N." / "N" -> "North", "S." / "S" -> "South", "E." / "E" -> "East", "W." / "W" -> "West", "NW" -> "Northwest", "NE" -> "Northeast", "SW" -> "Southwest", "SE" -> "Southeast".
+       - Thoroughfares: "Expwy" / "Expy" -> "Expressway", "Fwy" -> "Freeway", "Pkwy" -> "Parkway", "Tpke" -> "Turnpike".
+     * United Kingdom & Ireland:
+       - Counties: "Co." -> "County" (e.g., "Co. Durham" -> "County Durham"), "Yorks" -> "Yorkshire", "Lancs" -> "Lancashire", "Hants" -> "Hampshire", "Berks" -> "Berkshire", "Staffs" -> "Staffordshire".
+       - Thoroughfares & Units: "Cres." -> "Crescent", "Cl." -> "Close", "Sq." -> "Square", "Ter." -> "Terrace", "Grv." -> "Grove", "Prom." -> "Promenade", "Pde." -> "Parade", "Gdns." -> "Gardens", "Ind. Est." -> "Industrial Estate", "Bus. Pk." -> "Business Park", "Trading Est." -> "Trading Estate", "Bldgs." -> "Buildings", "Hse." -> "House".
+     * Australia & New Zealand:
+       - States & Territories: "NSW" -> "New South Wales", "VIC" -> "Victoria", "QLD" -> "Queensland", "WA" -> "Western Australia", "SA" -> "South Australia", "TAS" -> "Tasmania", "ACT" -> "Australian Capital Territory", "NT" -> "Northern Territory".
+       - Thoroughfares: "Hwy" -> "Highway", "Esp" / "Espl" -> "Esplanade", "Pde" -> "Parade", "Tce" / "Ter" -> "Terrace", "Cct" -> "Circuit".
+     * Germany, Austria, Switzerland:
+       - "Str." / "Str" -> "Strasse" (or "Straße"), "Weg" -> "Way", "Pl." / "Plz." -> "Platz", "Gasse" -> "Lane", "Ind.-Gebiet" / "Gewerbegebiet" -> "Industrial Area" / "Commercial Area".
+     * France, Belgium, Switzerland:
+       - "Av." / "Ave" -> "Avenue", "Bd" / "Blvd" -> "Boulevard", "All." -> "Allée", "Imp." -> "Impasse", "Pl." -> "Place", "Z.I." / "ZI" -> "Zone Industrielle", "Z.A." / "ZA" -> "Zone D'activité", "Bât." -> "Bâtiment", "Étg." -> "Étage".
+     * Spain, Mexico & Latin America:
+       - "C/" / "C." / "Cl." -> "Calle", "Av." / "Avda." -> "Avenida", "Pº" / "P.º" -> "Paseo", "Pza." -> "Plaza", "Ctra." -> "Carretera", "Pol. Ind." / "P.I." -> "Polígono Industrial", "Edif." -> "Edificio", "Piso" -> "Floor", "Dpto." / "Depto." -> "Departamento".
+     * Italy:
+       - "V." / "Vle" -> "Viale", "C.so" -> "Corso", "P.za" -> "Piazza", "L.go" -> "Largo", "Z.I." -> "Zona Industriale", "Pal." -> "Palazzo", "P." / "P.no" -> "Piano".
+     * China, Taiwan, Hong Kong, Singapore, East Asia:
+       - "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" -> "Section 3"), "Dist." / "Dist" -> "District" (e.g., "Da'an Dist." -> "Da'an District"), "Prov." -> "Province", "Rd." -> "Road", "St." -> "Street", "Ln." -> "Lane", "Aly." -> "Alley", "No." -> "Number", "Ind. Park" / "Ind. Zone" -> "Industrial Park" / "Industrial Zone", "Bldg." -> "Building", "Rm." -> "Room", "Fl." / "F" / "f." -> "Floor" (e.g., "3f.-6" -> "3Floor - 6").
 2. Apply expansion throughout the entire address, including street names, building names, directional references, administrative divisions, floor designations, and other address components.
 3. Expand recognizable abbreviations even when they are attached directly to numbers, provided their meaning is clear from the address context.
 4. Use contextual understanding to identify the correct full form. Do not restrict expansion to a predefined abbreviation list.
