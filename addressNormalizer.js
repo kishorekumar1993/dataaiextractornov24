@@ -103,6 +103,11 @@ const AddressNormalizer = (() => {
       }).join("-");
     }
 
+    // UK postal code components: outward codes (e.g. "NR6", "SW1A", "EC1A") and inward codes (e.g. "6NN", "1AA"), excluding ordinals (1st, 2nd, 3rd, 4th)
+    if ((/^[A-Za-z]{1,2}\d[A-Za-z0-9]?$/i.test(token) || /^\d[A-Za-z]{2}$/i.test(token)) && !/^\d+(?:st|nd|rd|th)$/i.test(token)) {
+      return token.toUpperCase();
+    }
+
     // If alphanumeric starting with letter followed by number (e.g. "N173", "W21640", "Unit8", "#8")
     if (/^[A-Za-z]\d+$/.test(token)) {
       return token.charAt(0).toUpperCase() + token.slice(1);
@@ -180,9 +185,8 @@ const AddressNormalizer = (() => {
     addr = addr.replace(/\/[a-zA-Z0-9\s.,&\-]+(?:Co\.|Ltd\.|Inc\.|Corp\.|Limited|Company)[^,]*$/i, "").trim();
     addr = addr.replace(/[\u4e00-\u9fa5]{2,}[^,]*$/i, "").trim();
 
-    // 5. Remove UK, Canadian, Dutch, US, and international postal codes
-    // UK postcodes (e.g. NR6 6NN, SW1A 1AA, EC1A 1BB, B33 8TH)
-    addr = addr.replace(/(?:,\s*|\s+)\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b/gi, "");
+    // 5. Ensure UK postcodes are strictly uppercase (e.g. NR6 6NN, SW1A 1AA)
+    addr = addr.replace(/\b([a-zA-Z]{1,2}\d[a-zA-Z0-9]?)\s*(\d[a-zA-Z]{2})\b/gi, (m, p1, p2) => p1.toUpperCase() + " " + p2.toUpperCase());
     // Canadian postcodes (e.g. M5V 2T6)
     addr = addr.replace(/(?:,\s*|\s+)\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/gi, "");
     // Dutch postcodes (e.g. 1012 JS)
@@ -192,14 +196,16 @@ const AddressNormalizer = (() => {
     // Labeled postal codes (e.g. PIN: 201010, ZIP: 90210)
     addr = addr.replace(/(?:,\s*|\s+)\b(?:postal\s+code|postcode|zip\s*code|zip|pincode|pin)\s*:?\s*\b\d{5,6}\b/gi, "");
     // Postal code at end of string or preceding a country name (protecting units/boxes/suites/numbers)
-    addr = addr.replace(/(?<!\b(?:box|suite|ste|number|no|kb|room|rm|apt|unit|building|bldg|sector|house|fl|floor|lot|plot)\s+)(?:,\s*|\s+)\b\d{5,6}\b(?=\s*(?:,|$|\b(?:india|usa|united states|taiwan|malaysia|uk|united kingdom|singapore|china|australia|canada)\b))/gi, "");
+    addr = addr.replace(/(?<!\b(?:box|suite|ste|number|no|kb|room|rm|apt|unit|building|bldg|sector|house|fl|floor|lot|plot)\s+)(?:,\s*|\s+)\b\d{5,6}\b(?=\s*(?:,|$|\b(?:india|usa|united states|taiwan|malaysia|singapore|china|australia|canada)\b))/gi, "");
     // Leading detached postal code (e.g. "413, Taichung City...")
     addr = addr.replace(/^\b\d{3,6}\b,\s*/, "");
     // Trailing 5-digit US zip with optional 4-digit extension at end of string
     addr = addr.replace(/(?<!\b(?:box|suite|ste|number|no|kb|room|rm|apt|unit|building|bldg|sector|house|fl|floor|lot|plot)\s+)(?:,\s*|\s+)\b\d{5}(?:-\d{4})?\s*$/, "");
 
-    // 6. Remove country names at the end of the address
-    addr = addr.replace(/(?:,\s*|\s+)\b(?:Afghanistan|Albania|Algeria|Andorra|Angola|Argentina|Armenia|Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cambodia|Cameroon|Canada|Cape Verde|Central African Republic|Chad|Chile|China|Colombia|Comoros|Congo|Costa Rica|Croatia|Cuba|Cyprus|Czech Republic|Denmark|Djibouti|Dominica|Dominican Republic|East Timor|Ecuador|Egypt|El Salvador|Equatorial Guinea|Eritrea|Estonia|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Grenada|Guatemala|Guinea|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Ivory Coast|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kiribati|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Macedonia|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Marshall Islands|Mauritania|Mauritius|Mexico|Micronesia|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nauru|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|Norway|Oman|Pakistan|Palau|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Romania|Russia|Rwanda|Saint Kitts and Nevis|Saint Lucia|Saint Vincent|Samoa|San Marino|Saudi Arabia|Senegal|Serbia|Seychelles|Sierra Leone|Singapore|Slovakia|Slovenia|Solomon Islands|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Swaziland|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Togo|Tonga|Trinidad and Tobago|Tunisia|Turkey|Turkmenistan|Tuvalu|Uganda|Ukraine|United Arab Emirates|UAE|United Kingdom|UK|U\.K\.|United States|United States of America|USA|U\.S\.A\.|Uruguay|Uzbekistan|Vanuatu|Vatican City|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe)\s*$/i, "");
+    // 6. Remove country names at the end of the address unless preceded by a UK postcode
+    if (!/\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b/i.test(addr)) {
+      addr = addr.replace(/(?:,\s*|\s+)\b(?:Afghanistan|Albania|Algeria|Andorra|Angola|Argentina|Armenia|Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cambodia|Cameroon|Canada|Cape Verde|Central African Republic|Chad|Chile|China|Colombia|Comoros|Congo|Costa Rica|Croatia|Cuba|Cyprus|Czech Republic|Denmark|Djibouti|Dominica|Dominican Republic|East Timor|Ecuador|Egypt|El Salvador|Equatorial Guinea|Eritrea|Estonia|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Grenada|Guatemala|Guinea|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Ivory Coast|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kiribati|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Macedonia|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Marshall Islands|Mauritania|Mauritius|Mexico|Micronesia|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nauru|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|Norway|Oman|Pakistan|Palau|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Romania|Russia|Rwanda|Saint Kitts and Nevis|Saint Lucia|Saint Vincent|Samoa|San Marino|Saudi Arabia|Senegal|Serbia|Seychelles|Sierra Leone|Singapore|Slovakia|Slovenia|Solomon Islands|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Swaziland|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Togo|Tonga|Trinidad and Tobago|Tunisia|Turkey|Turkmenistan|Tuvalu|Uganda|Ukraine|United Arab Emirates|UAE|United Kingdom|UK|U\.K\.|United States|United States of America|USA|U\.S\.A\.|Uruguay|Uzbekistan|Vanuatu|Vatican City|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe)\s*$/i, "");
+    }
 
     // Remove trailing unwanted punctuation at the end of the entire address
     addr = addr.replace(/,\s*,/g, ",").replace(/[,;.\-:]+$/, "").trim();

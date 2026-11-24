@@ -849,21 +849,56 @@ const CrawlerEngine = (() => {
       const src = match[1];
       if (src && src.includes("google.com/maps/embed?pb=")) {
         try {
-          const fullUrl = src.startsWith("//") ? "https:" + src : src;
+          let cleanSrc = src.replace(/&#39;/g, "%27")
+                            .replace(/&amp;/g, "&")
+                            .replace(/&#(\d+);/g, (m, dec) => String.fromCharCode(dec))
+                            .replace(/&#x([0-9a-f]+);/gi, (m, hex) => String.fromCharCode(parseInt(hex, 16)));
+          const fullUrl = cleanSrc.startsWith("//") ? "https:" + cleanSrc : cleanSrc;
           const res = await fetchFn(fullUrl);
           if (res && res.ok) {
             const embedHtml = await res.text();
-            // 1. Look for clean full address in quotes with street and postal code (e.g. "No. 2號, Wugong 2nd Rd, ...")
+
+            // 1. Look for structured address segment array: ["Unit, B3, Sapphire Way","Rhombus Business Park","Norwich NR6 6NN"]
+            const arrayRegex = /\["([^"]+?)","([^"]+?)","([^"]+?)"\]/g;
+            let m;
+            while ((m = arrayRegex.exec(embedHtml)) !== null) {
+              const seg1 = m[1].trim();
+              const seg2 = m[2].trim();
+              const seg3 = m[3].trim();
+              const combined = `${seg1}, ${seg2}, ${seg3}`;
+              if (/\b(?:road|rd|street|st|way|lane|ln|avenue|ave|park|drive|dr|court|ct|boulevard|blvd|unit|bldg|building|suite|ste|box|po)\b/i.test(combined)) {
+                const fullUK = /\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b/i.test(combined) && !/united kingdom|uk\b/i.test(combined)
+                  ? `${combined}, United Kingdom`
+                  : combined;
+                addrs.push(fullUK);
+                addrs.push(combined);
+              }
+            }
+
+            // 2. Full place string in [["0x...:0x...", "..."]
+            const placeFullRegex = /\["0x[a-f0-9]+:0x[a-f0-9]+","([^"]+)"/gi;
+            while ((m = placeFullRegex.exec(embedHtml)) !== null) {
+              let rawPlace = m[1].trim();
+              rawPlace = rawPlace.replace(/,\s*[a-zA-Z0-9\s.,'’&-]+?\b(?:ltd|limited|inc|corp|llc)\b\s*,/i, ",");
+              if (/\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b/i.test(rawPlace) && !/united kingdom|uk\b/i.test(rawPlace)) {
+                addrs.push(`${rawPlace}, United Kingdom`);
+              }
+              addrs.push(rawPlace);
+            }
+
+            // 3. Look for clean full address in quotes with street and postal code (e.g. "No. 2號, Wugong 2nd Rd, ...")
             const cleanAddrMatch = embedHtml.match(/"(No\.\s*[^",]+,\s*[^"]+)"/i);
             if (cleanAddrMatch && cleanAddrMatch[1] && cleanAddrMatch[1].length > 10) {
               addrs.push(cleanAddrMatch[1].trim());
             }
-            // 2. Look for clean structured address array: ["413, Taichung City, ..."]
+
+            // 4. Look for clean structured address array: ["413, Taichung City, ..."]
             const cleanArrMatch = embedHtml.match(/\["(\d{3,6},\s*[^"\]]+)"\]/i);
             if (cleanArrMatch && cleanArrMatch[1] && cleanArrMatch[1].length > 10) {
               addrs.push(cleanArrMatch[1].trim());
             }
-            // 3. Fallback to placeMatch with trailing company name stripped
+
+            // 5. Fallback to placeMatch with trailing company name stripped
             const placeMatch = embedHtml.match(/\["0x[a-f0-9]+:0x[a-f0-9]+","([^"]+)"/i);
             if (placeMatch && placeMatch[1]) {
               let cleaned = placeMatch[1].trim();
@@ -874,7 +909,7 @@ const CrawlerEngine = (() => {
         } catch (e) { }
       }
     }
-    return addrs;
+    return Array.from(new Set(addrs));
   }
 
   function extractMapAddresses(html) {
