@@ -858,6 +858,14 @@ You MUST respond strictly with a valid JSON object matching this exact schema:
   "numberOfProductDescriptions": "0"
 }
 
+CORE RULE - SPECIAL CHARACTER PRESERVATION:
+- All special characters (such as "&", "-", "/", "@", "'", ".", "+", "%", "#", etc.) MUST be kept exactly the same as in the original source content.
+- DO NOT change special characters into words or expansions:
+  * NEVER expand or replace "&" with "and" or "And" (always keep "&" as it is).
+  * NEVER expand or replace "@" with "at" (always keep "@" as it is).
+  * NEVER remove, replace, or alter hyphens "-", slashes "/", apostrophes "'", dots, or symbols within words or names.
+- Special characters MUST ALWAYS be kept AS IT IS.
+
 Field extraction guidelines:
 1. "websiteStatus": "Working" ONLY IF the site loaded AND its Business Type is an eligible category from "Manufacturer" to "Wholesaler" (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler).
    - CRITICAL ELIGIBILITY RULE: If the business type is anything outside Manufacturer to Wholesaler (such as Service Provider, Online Shopping, Restricted Site, Other, Retailer), "websiteStatus" MUST be marked as "Not Working", and state the reason in "notWorkingReason".
@@ -893,6 +901,11 @@ Field extraction guidelines:
      * Example: "Zhejiang Jiangnan Steel Structure Co., Ltd." MUST be expanded to "Zhejiang Jiangnan Steel Structure Company, Limited".
    - Extract exclusively from the official website content.
    - Prioritize the official legal name over trade/operational name.
+   - Special Character Preservation Rule:
+     * Special characters (such as "&", "-", "/", "@", "'", ".", "+", "%", "#") MUST be kept exactly the same as on the website.
+     * DO NOT change special characters into words or expansions (e.g., NEVER replace "&" with "and" or "And"; always keep "&" as it is).
+     * DO NOT remove internal hyphens "-", slashes "/", or special characters. Always keep special characters as it is.
+     * Only remove outer brackets and decorative leading/trailing bullets/symbols at the very beginning or end if not part of the name.
    - If a country name is part of the registered company name, retain it.
    - Remove brackets (parentheses, square brackets) and bracketed supplementary notes.
    - Remove leading/trailing symbols and unnecessary special characters.
@@ -910,6 +923,8 @@ Field extraction guidelines:
    - First letter in each word must be capitalized only (Title Case), NOT all the characters.
    - Preserve Original Template and Punctuation:
      * Keep the original address structure, sequence, and internal commas EXACTLY as shown on the website.
+     * Special characters, hyphens, slashes, ampersands ("&"), numbers, and symbols within the address MUST be kept exactly the same as shown on the website.
+     * DO NOT change or expand special characters into words (e.g., NEVER replace "&" with "and", NEVER replace "@" with "at"). Keep special characters always as it is.
      * DO NOT add any extra commas, and DO NOT remove commas from the middle of the address. Put it as it is.
      * DO NOT insert artificial linking words like "in" or "of" that are not present in the original website address.
      * ONLY remove special characters, symbols, and punctuation at the START and END of the address (e.g., remove leading ":", "-", bullets at the beginning, and remove trailing commas, periods, hyphens at the very end).

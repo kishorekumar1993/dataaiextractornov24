@@ -511,6 +511,17 @@ async function runPortalTests() {
     assert(amazonChecked.notWorkingReason.includes("Only businesses from Manufacturer to Wholesaler"), "Reason must mention Manufacturer to Wholesaler rule");
   });
 
+  // Test 8: Special character preservation rule in AI Prompt
+  test("Special character preservation rule in Prompt (keep same, do not change word or expansion)", () => {
+    const prompt = CrawlerEngine.buildSystemInstruction();
+    assert(prompt.includes("CORE RULE - SPECIAL CHARACTER PRESERVATION:"), "Prompt must have CORE RULE - SPECIAL CHARACTER PRESERVATION");
+    assert(prompt.includes("Special characters MUST ALWAYS be kept AS IT IS."), "Prompt must emphasize keeping special characters as is");
+    assert(prompt.includes('NEVER expand or replace "&" with "and" or "And"'), "Prompt must prohibit expanding & into and");
+    assert(prompt.includes('NEVER expand or replace "@" with "at"'), "Prompt must prohibit expanding @ into at");
+    assert(prompt.includes('DO NOT remove internal hyphens "-"'), "Prompt must protect hyphens and slashes");
+    assert(prompt.includes('Special characters, hyphens, slashes, ampersands ("&")'), "Address prompt must preserve special characters");
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");
