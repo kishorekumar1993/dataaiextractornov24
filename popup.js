@@ -1079,6 +1079,10 @@ Field extraction guidelines:
    - If a comma or special character is available in the original address, then provide it.
    - If a comma or special character is NOT available in the original address, DO NOT PROVIDE OR ADD IT!
    - NEVER add commas, hyphens, slashes, dots, or any other punctuation between address elements if they were not in the original address.
+   - UNIVERSAL STATE / PROVINCE COMMA RULE (CRITICAL):
+     * NEVER insert an artificial comma before a state, province, or territory if the original address text did not contain a comma there!
+     * For example, if the original address wrote "Bayswater Vic" or "Jackson WI" or "Concord ON" without a comma, you MUST expand to "Bayswater Victoria", "Jackson Wisconsin", "Concord Ontario" WITHOUT inserting a comma (do NOT output "Bayswater, Victoria").
+     * ONLY output a comma before the state if that exact comma was explicitly present in the original website address text (e.g., "Jackson, WI" -> "Jackson, Wisconsin"). If there was NO comma before the state abbreviation in the original text, DO NOT ADD ANY COMMA!
 2. Preserve the original address sequence and structure exactly as it appears.
 3. Keep internal commas and punctuation ONLY in their exact original positions. Do not add extra commas or remove meaningful original commas.
 4. Special characters, hyphens, slashes, ampersands ("&"), numbers, and symbols within the address MUST be kept exactly the same as shown on the website. Preserve meaningful hyphens, slashes, ampersands (&), numbers, coordinate identifiers (such as North173 West21640), and symbols. Keep coordinates and building numbers intact.
@@ -1090,7 +1094,8 @@ Field extraction guidelines:
 1. Remove pincode, postal codes, and ZIP codes completely from the address:
    - CRITICAL PINCODE / POSTAL CODE REMOVAL: All postal codes, ZIP codes, and pincodes (e.g. 5-digit US ZIPs like 53037 or 90210, 6-digit pincodes, UK alphanumeric postal codes, Canadian alphanumeric postal codes, etc.) MUST BE 100% REMOVED from the address. Under NO circumstances should any postal code or pincode numbers remain in companyAddress!
    - ONLY remove the postal code/zip code/pincode numbers themselves.
-   - CRITICAL: DO NOT remove the state or province abbreviation (such as "WI") when removing the pincode! The state abbreviation "WI" MUST NOT be removed—it MUST be expanded to "Wisconsin" (e.g. "Jackson, WI 53037" -> "Jackson, Wisconsin").
+   - CRITICAL: DO NOT remove the state or province abbreviation (such as "WI" or "Vic") when removing the pincode! The state abbreviation MUST NOT be removed—it MUST be expanded to its full name (e.g. "WI" -> "Wisconsin", "Vic" -> "Victoria").
+   - Comma preservation when removing pincodes: If the original address wrote "Jackson, WI 53037" (with a comma), expand to "Jackson, Wisconsin". If the original address wrote "Bayswater Vic 3153" or "Jackson WI 53037" (WITHOUT a comma), expand to "Bayswater Victoria" or "Jackson Wisconsin" with NO comma added! Never inject an extra comma before the state!
 2. Remove unwanted text at the initial (start) of the address (e.g., remove leading labels like "Address:", "Location:", "HQ:", "Registered Office:", bullet points, colons, hyphens, and company name prefixes).
 3. Remove unwanted text and punctuation at the end of the address (e.g., remove trailing periods, commas, colons, hyphens, phone/fax numbers, email, or trailing notes).
 4. Remove the country name.
@@ -1104,7 +1109,7 @@ Before returning companyAddress:
 - Verify that state/province abbreviations (e.g., WI -> Wisconsin) are expanded into their full names and NOT removed.
 - Verify that directional prefixes have been expanded when their meaning is clear, including prefixes attached to numerical identifiers.
 - Verify that all expanded words follow Title Case, not ALL CAPS.
-- Verify that the original numbers and meaningful punctuation are preserved, and that NO commas or special characters have been added (provide only if available in original address, else do not provide).
+- Verify that the original numbers and meaningful punctuation are preserved, and that NO commas or special characters have been added (provide only if available in original address, else do not provide; never add an artificial comma before state/province if missing in the original text).
 - Verify that postal codes, country names, company names, and brackets are removed.
 - Verify that only one complete address is returned.
 
