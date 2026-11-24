@@ -277,7 +277,7 @@
         // 1. Handle HTTP OK
         if (response.ok) {
           const jsonText = await response.text();
-          const parsedData = validateAndParseGeminiResponse(jsonText, modelName);
+          const parsedData = validateAndParseGeminiResponse(jsonText, modelName, context);
 
           logStructuredEvent({
             event: "api_success",
@@ -469,7 +469,7 @@
       }
 
       // Re-validate data locally as QC guarantee
-      const validated = validateExtractedJson(proxyResult.data);
+      const validated = validateExtractedJson(proxyResult.data, options.context);
 
       return {
         data: validated,
@@ -517,7 +517,7 @@
   /**
    * Validates raw Gemini response structure & extracts candidate text
    */
-  function validateAndParseGeminiResponse(rawResponseBodyText, modelName) {
+  function validateAndParseGeminiResponse(rawResponseBodyText, modelName, context = null) {
     if (!rawResponseBodyText || rawResponseBodyText.trim() === "") {
       throw new Error(`Empty response received from ${modelName}`);
     }
@@ -565,13 +565,13 @@
       throw new Error(`Model generated malformed JSON: ${jsonErr.message}. Output was: "${cleanedJsonText.slice(0, 150)}..."`);
     }
 
-    return validateExtractedJson(extractedObject);
+    return validateExtractedJson(extractedObject, context);
   }
 
   /**
    * Enforces all QC Schema rules and sanitizes phone numbers
    */
-  function validateExtractedJson(obj) {
+  function validateExtractedJson(obj, context = null) {
     if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
       throw new Error("Extracted result is not a valid JSON object.");
     }
@@ -607,6 +607,17 @@
     // Sanitize phone number (strip country code, leading zeros, toll-free, spaces)
     if (clean.phoneNumber) {
       clean.phoneNumber = sanitizePhoneNumber(clean.phoneNumber, clean.countryName);
+    }
+
+    // Secondary Phone Fallback: If phone is empty (e.g. main was toll-free), scan detectedPhones in context
+    if (!clean.phoneNumber && context && Array.isArray(context.detectedPhones)) {
+      for (const rawCandidate of context.detectedPhones) {
+        const sanitized = sanitizePhoneNumber(rawCandidate, clean.countryName);
+        if (sanitized && sanitized.length >= 7 && sanitized.length <= 15) {
+          clean.phoneNumber = sanitized;
+          break;
+        }
+      }
     }
 
     // First letter in each word capitalized only (Title Case), NOT all characters

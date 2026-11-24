@@ -1738,6 +1738,15 @@ ${context.crawledText}`;
 
     // Apply Business Type eligibility & Unpaid Category conditions (Manufacturer to Wholesaler only are Working, non-manufacturer cart options marked Not Working)
     if (aiResult && aiResult.data) {
+      if (!aiResult.data.phoneNumber && context && Array.isArray(context.detectedPhones)) {
+        for (const rawCandidate of context.detectedPhones) {
+          const sanitized = GeminiClient.sanitizePhoneNumber(rawCandidate, aiResult.data.countryName);
+          if (sanitized && sanitized.length >= 7 && sanitized.length <= 15) {
+            aiResult.data.phoneNumber = sanitized;
+            break;
+          }
+        }
+      }
       aiResult.data = applyBusinessTypeEligibilityRule(aiResult.data, mainHtml, crawledPages);
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
         if (typeof CompanyNormalizer !== "undefined" && CompanyNormalizer.normalizeCompanyName) {

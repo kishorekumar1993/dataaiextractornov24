@@ -617,6 +617,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       let extractedJson = extractionResult.data;
       if (extractedJson) {
+        if (!extractedJson.phoneNumber && aggregatedContext && Array.isArray(aggregatedContext.detectedPhones)) {
+          for (const rawCandidate of aggregatedContext.detectedPhones) {
+            const sanitized = typeof GeminiClient !== "undefined" && GeminiClient.sanitizePhoneNumber
+              ? GeminiClient.sanitizePhoneNumber(rawCandidate, extractedJson.countryName)
+              : "";
+            if (sanitized && sanitized.length >= 7 && sanitized.length <= 15) {
+              extractedJson.phoneNumber = sanitized;
+              break;
+            }
+          }
+        }
         if (extractedJson.companyName && typeof CompanyNormalizer !== "undefined" && CompanyNormalizer.normalizeCompanyName) {
           extractedJson.companyName = CompanyNormalizer.normalizeCompanyName(extractedJson.companyName);
         }
