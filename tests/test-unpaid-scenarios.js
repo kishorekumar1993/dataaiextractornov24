@@ -256,6 +256,24 @@ async function runUnpaidWebsiteTests() {
     assert(prompt.includes("Animals"), "Prompt must prohibit Animals images");
   });
 
+  // Industrial Supplier with JS Framework Bundle (ascmetals.com)
+  await test("Legitimate industrial supplier (ascmetals.com) with framework JS bundle -> Working", async () => {
+    const res = await CrawlerEngine.detectRedirectAndClassifyStatus("http://www.ascmetals.com");
+    assert.strictEqual(res.websiteStatus, "Working");
+    assert.strictEqual(res.isEligibleForExtraction, true);
+    assert.strictEqual(res.redirectDetected, true);
+    assert.strictEqual(res.redirectType, "HTTP_TO_HTTPS");
+    assert.strictEqual(res.finalDomain, "ascmetals.com");
+
+    const extractionData = {
+      websiteStatus: "Working",
+      businessType: "Supplier",
+      companyName: "ASC Metals Lincoln Ltd"
+    };
+    const validated = CrawlerEngine.applyBusinessTypeEligibilityRule(extractionData, res.finalHtml);
+    assert.strictEqual(validated.websiteStatus, "Working");
+  });
+
   console.log("==========================================================================");
   console.log(`  UNPAID SCENARIOS RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================================");

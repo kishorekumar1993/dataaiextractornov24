@@ -72,29 +72,29 @@ const CrawlerEngine = (() => {
 
   function checkUnpaidWebsiteContent(html, url) {
     if (!html && !url) return null;
-    const lower = (html || "").toLowerCase();
+    const cleanText = cleanHtmlToText(html || "");
+    const lower = cleanText.toLowerCase();
     const urlLower = (url || "").toLowerCase();
 
     // Rule 1: Weapons & Armor
     if (
-      lower.includes("weapon") || lower.includes("firearms") || lower.includes("ammunition") ||
-      lower.includes("body armor") || lower.includes("bulletproof vest") || lower.includes("ballistic armor") ||
-      urlLower.includes("weapon") || urlLower.includes("guns")
+      /\b(weapon|weapons|firearms?|ammunition|body armor|bulletproof vest|ballistic armor)\b/i.test(cleanText) ||
+      /\b(weapons?|guns|firearms?)\b/i.test(urlLower)
     ) {
       return "Unpaid Category: Companies involved in armor, weapons manufacturing, trading, supply, exporting, or repairing services.";
     }
 
     // Rule 2: Pornographic / Adult Content
     if (
-      lower.includes("porn") || lower.includes("xxx") || lower.includes("adult video") ||
-      lower.includes("sex shop") || lower.includes("erotic")
+      /\b(porn|pornography|pornographic|xxx|adult video|sex shop|erotic massage|adult entertainment)\b/i.test(cleanText) ||
+      /\b(porn|xxx)\b/i.test(urlLower)
     ) {
       return "Unpaid Category: Pornographic or adult content website.";
     }
 
     // Rule 3: Online Gambling / Gaming
     if (
-      lower.includes("online casino") || lower.includes("sports betting") || lower.includes("gambling") ||
+      lower.includes("online casino") || lower.includes("sports betting") || /\bgambling\b/i.test(cleanText) ||
       lower.includes("slot machine") || lower.includes("poker online") || lower.includes("online gaming real money")
     ) {
       return "Unpaid Category: Online gambling or online gaming website.";
@@ -110,9 +110,7 @@ const CrawlerEngine = (() => {
 
     // Rule 6: Alcohol or Tobacco
     if (
-      lower.includes("cigarettes") || lower.includes("tobacco products") || lower.includes("cigar manufacturer") ||
-      lower.includes("vape shop") || lower.includes("alcoholic beverages") || lower.includes("whiskey distillery") ||
-      lower.includes("vodka distillery") || lower.includes("brewery and beer")
+      /\b(cigarettes?|tobacco products?|cigar manufacturer|vape shop|alcoholic beverages?|whiskey distillery|vodka distillery|brewery and beer)\b/i.test(cleanText)
     ) {
       return "Unpaid Category: Alcoholic or tobacco product manufacturers, suppliers, or traders.";
     }
@@ -138,13 +136,22 @@ const CrawlerEngine = (() => {
 
   function hasOnlineSellingOptions(html) {
     if (!html) return false;
-    const lower = html.toLowerCase();
+    const stripped = (html || "").replace(SCRIPT_STYLE_REGEX, " ");
+    const lower = stripped.toLowerCase();
+    const cleanText = cleanHtmlToText(html).toLowerCase();
+
     return (
       lower.includes("add to cart") ||
       lower.includes("add to bag") ||
       lower.includes("buy now") ||
-      (lower.includes("checkout") && lower.includes("payment")) ||
-      lower.includes("shopping cart")
+      lower.includes("shopping cart") ||
+      cleanText.includes("add to cart") ||
+      cleanText.includes("add to bag") ||
+      cleanText.includes("buy now") ||
+      cleanText.includes("shopping cart") ||
+      (cleanText.includes("checkout") && cleanText.includes("payment")) ||
+      /<button[^>]*>(?:[^<]*)(?:add to cart|add to bag|buy now|checkout)(?:[^<]*)<\/button>/i.test(stripped) ||
+      /<input[^>]*value=["'](?:add to cart|add to bag|buy now|checkout)["']/i.test(stripped)
     );
   }
 
@@ -501,6 +508,10 @@ const CrawlerEngine = (() => {
     let manualReviewRequired = false;
 
     const htmlLower = (finalHtml || "").toLowerCase();
+    const cleanText = cleanHtmlToText(finalHtml || "");
+    const cleanTextLower = cleanText.toLowerCase();
+    const strippedHtml = (finalHtml || "").replace(SCRIPT_STYLE_REGEX, " ");
+    const strippedLower = strippedHtml.toLowerCase();
 
     // 1. Broken destination after redirect
     if (isBrokenDestination) {
@@ -570,14 +581,12 @@ const CrawlerEngine = (() => {
       websiteStatus = "Not Working";
       nonWorkingReason = `Website returned HTTP error ${httpStatus}.`;
     }
-    // 8. CAPTCHA / Bot challenges
+    // 8. CAPTCHA / Bot challenges (Only if explicit challenge prompt or challenge element on page without normal business content)
     else if (
-      htmlLower.includes("g-recaptcha") ||
-      htmlLower.includes("hcaptcha") ||
-      htmlLower.includes("cf-turnstile") ||
-      htmlLower.includes("verify you are human") ||
-      (htmlLower.includes("security check") && htmlLower.includes("human")) ||
-      (htmlLower.includes("recaptcha") && htmlLower.includes("challenge"))
+      cleanTextLower.includes("verify you are human") ||
+      (cleanTextLower.includes("security check") && cleanTextLower.includes("human")) ||
+      (cleanTextLower.includes("please verify") && cleanTextLower.includes("robot")) ||
+      ((strippedLower.includes("g-recaptcha") || strippedLower.includes("hcaptcha") || strippedLower.includes("cf-turnstile") || (strippedLower.includes("recaptcha") && strippedLower.includes("challenge"))) && cleanText.length < 800)
     ) {
       websiteStatus = "Manual Review";
       manualReviewRequired = true;
@@ -585,9 +594,10 @@ const CrawlerEngine = (() => {
     }
     // 9. Cloudflare protection
     else if (
-      htmlLower.includes("cf-chl-bypass") ||
-      htmlLower.includes("attention required! | cloudflare") ||
-      htmlLower.includes("checking your browser before accessing")
+      strippedLower.includes("cf-chl-bypass") ||
+      cleanTextLower.includes("attention required! | cloudflare") ||
+      cleanTextLower.includes("checking your browser before accessing") ||
+      (cleanTextLower.includes("just a moment") && cleanTextLower.includes("cloudflare"))
     ) {
       websiteStatus = "Manual Review";
       manualReviewRequired = true;
