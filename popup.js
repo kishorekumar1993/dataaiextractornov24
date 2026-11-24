@@ -926,6 +926,7 @@ Field extraction guidelines:
        - "Co." / "Co" -> "Company"
        - "Ltd." / "Ltd" -> "Limited"
        - "Pvt." / "Pvt" -> "Private" (e.g., "Pvt. Ltd." -> "Private Limited")
+       - "Pty." / "Pty" -> "Proprietary" (e.g., "Pty. Ltd." -> "Proprietary Limited")
        - "Corp." / "Corp" -> "Corporation"
        - "Inc." / "Inc" -> "Incorporated"
        - "Mfg." / "Mfg" -> "Manufacturing"
@@ -1073,13 +1074,17 @@ Field extraction guidelines:
 4. Apply Title Case after completing abbreviation expansion.
 5. Preserve the intended meaning and correct word boundaries.
 
-**D. Original Address Structure and Punctuation**
-1. Preserve the original address sequence and structure.
-2. Keep internal commas in their original positions.
-3. Special characters, hyphens, slashes, ampersands ("&"), numbers, and symbols within the address MUST be kept exactly the same as shown on the website. Preserve meaningful hyphens, slashes, ampersands (&), numbers, coordinate identifiers (such as North173 West21640), and symbols. Keep coordinates and building numbers intact.
-4. DO NOT change or expand special characters into words (e.g., NEVER replace "&" with "and", NEVER replace "@" with "at"). Keep special characters always as it is.
-5. Do not add artificial linking words such as "in" or "of".
-6. Do not add extra commas or remove meaningful internal commas.
+**D. Original Address Structure, Special Characters and Punctuation (STRICT NO-ADDITION RULE)**
+1. CRITICAL: DO NOT HANDLE, MODIFY, OR ADD ANY SPECIAL CHARACTERS OR COMMAS:
+   - If a comma or special character is available in the original address, then provide it.
+   - If a comma or special character is NOT available in the original address, DO NOT PROVIDE OR ADD IT!
+   - NEVER add commas, hyphens, slashes, dots, or any other punctuation between address elements if they were not in the original address.
+2. Preserve the original address sequence and structure exactly as it appears.
+3. Keep internal commas and punctuation ONLY in their exact original positions. Do not add extra commas or remove meaningful original commas.
+4. Special characters, hyphens, slashes, ampersands ("&"), numbers, and symbols within the address MUST be kept exactly the same as shown on the website. Preserve meaningful hyphens, slashes, ampersands (&), numbers, coordinate identifiers (such as North173 West21640), and symbols. Keep coordinates and building numbers intact.
+5. DO NOT change or expand special characters into words (e.g., NEVER replace "&" with "and", NEVER replace "@" with "at"). Keep special characters always as it is.
+6. Do not add artificial linking words such as "in" or "of".
+7. Strict rule: If available in the original address, then provide; else do NOT provide any added comma or special character.
 
 **E. Mandatory Cleanup**
 1. Remove pincode, postal codes, and ZIP codes completely from the address:
@@ -1099,7 +1104,7 @@ Before returning companyAddress:
 - Verify that state/province abbreviations (e.g., WI -> Wisconsin) are expanded into their full names and NOT removed.
 - Verify that directional prefixes have been expanded when their meaning is clear, including prefixes attached to numerical identifiers.
 - Verify that all expanded words follow Title Case, not ALL CAPS.
-- Verify that the original numbers and meaningful punctuation are preserved.
+- Verify that the original numbers and meaningful punctuation are preserved, and that NO commas or special characters have been added (provide only if available in original address, else do not provide).
 - Verify that postal codes, country names, company names, and brackets are removed.
 - Verify that only one complete address is returned.
 
