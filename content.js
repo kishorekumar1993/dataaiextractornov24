@@ -258,6 +258,22 @@
   // ==========================================
   // 3. Form Prefilling Engine
   // ==========================================
+  // Business Type Eligibility & Portal Normalization (Manufacturer to Wholesaler only are Working)
+  // ==========================================
+  const PORTAL_BUSINESS_TYPES = [
+    "Manufacturer",
+    "Industrial Services",
+    "Exporter",
+    "Trader",
+    "Distributer",
+    "Supplier",
+    "Wholesaler",
+    "Service Provider",
+    "Online Shopping",
+    "Restricted Site",
+    "Other"
+  ];
+
   const ELIGIBLE_WORKING_BUSINESS_TYPES = [
     "manufacturer",
     "industrial services",
@@ -269,6 +285,36 @@
     "wholesaler"
   ];
 
+  function normalizeBusinessType(raw) {
+    if (!raw) return "Other";
+    const str = String(raw).trim().toLowerCase();
+    
+    // Check exact portal match first
+    const exact = PORTAL_BUSINESS_TYPES.find(p => p.toLowerCase() === str);
+    if (exact) return exact;
+
+    // Semantic normalization to official portal dropdown options:
+    if (str.includes("manufactur")) return "Manufacturer";
+    if (str.includes("industrial service") || str.includes("industrial")) return "Industrial Services";
+    if (str.includes("export")) return "Exporter";
+    if (str.includes("trade") || str.includes("trading")) return "Trader";
+    if (str.includes("distribut")) return "Distributer";
+    if (str.includes("suppl")) return "Supplier";
+    if (str.includes("wholesale")) return "Wholesaler";
+    
+    // Ineligible categories (marked Not Working):
+    if (str.includes("retail") || str.includes("shopping") || str.includes("store") || str.includes("shop") || str.includes("ecommerce") || str.includes("e-commerce") || str.includes("marketplace")) {
+      return "Online Shopping";
+    }
+    if (str.includes("restrict") || str.includes("blocked") || str.includes("prohibit")) {
+      return "Restricted Site";
+    }
+    if (str.includes("service")) {
+      return "Service Provider";
+    }
+    return "Other";
+  }
+
   function isEligibleWorkingBusinessType(businessType) {
     if (!businessType) return false;
     const b = String(businessType).toLowerCase().trim();
@@ -277,13 +323,14 @@
 
   function applyBusinessTypeEligibility(data) {
     if (!data) return data;
-    const bType = String(data.businessType || "").trim();
-    if (!isEligibleWorkingBusinessType(bType)) {
+    const rawType = String(data.businessType || "").trim();
+    if (!isEligibleWorkingBusinessType(rawType)) {
       data.websiteStatus = "Not Working";
-      const reason = `Ineligible Business Type: "${bType || 'Other'}". Only businesses from Manufacturer to Wholesaler (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler) are eligible Working sites; all other types are marked Not Working.`;
+      const reason = `Ineligible Business Type: "${rawType || 'Other'}". Only businesses from Manufacturer to Wholesaler (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler) are eligible Working sites; all other types are marked Not Working.`;
       data.notWorkingReason = reason;
       data.nonWorkingReason = reason;
     }
+    data.businessType = normalizeBusinessType(rawType);
     return data;
   }
 
@@ -689,8 +736,10 @@
 
     // Update badges
     if (badgeStatus) {
+      const isWorking = (data.websiteStatus || "").toLowerCase() === "working";
       badgeStatus.textContent = `Status: ${data.websiteStatus || "Working"}`;
-      badgeStatus.style.color = (data.websiteStatus || "").toLowerCase() === "working" ? "#34d399" : "#f87171";
+      badgeStatus.style.color = isWorking ? "#34d399" : "#f87171";
+      badgeStatus.style.background = isWorking ? "rgba(16,185,129,0.15)" : "rgba(248,113,113,0.15)";
     }
     if (badgeType) {
       badgeType.textContent = data.businessType || "N/A";

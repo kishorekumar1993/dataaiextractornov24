@@ -509,6 +509,8 @@ async function runPortalTests() {
     assert.strictEqual(amazonChecked.websiteStatus, "Not Working", "Amazon / Retailer must be converted to Not Working");
     assert(amazonChecked.notWorkingReason.includes('Ineligible Business Type: "Retailer"'), "Reason must explicitly mention Ineligible Business Type: Retailer");
     assert(amazonChecked.notWorkingReason.includes("Only businesses from Manufacturer to Wholesaler"), "Reason must mention Manufacturer to Wholesaler rule");
+    assert.strictEqual(amazonChecked.businessType, "Online Shopping", "Retailer must be normalized to portal option Online Shopping");
+    assert.strictEqual(CrawlerEngine.normalizeBusinessType("distributor"), "Distributer", "distributor must normalize to portal option Distributer");
   });
 
   // Test 8: Special character preservation rule in AI Prompt
@@ -522,21 +524,19 @@ async function runPortalTests() {
     assert(prompt.includes('Special characters, hyphens, slashes, ampersands ("&")'), "Address prompt must preserve special characters");
   });
 
-  // Test 9: Canadian Province & State Available rule in AI Prompt
-  test("Canadian province in address (e.g. Concord, Ontario) instructed as State Available in Prompt", () => {
+  // Test 9: Universal Country Capital & First-Level Division State Rule in AI Prompt
+  test("Universal Country Capital & first-level division rule in Prompt (no hardcoding)", () => {
     const prompt = CrawlerEngine.buildSystemInstruction();
-    assert(prompt.includes("Ontario"), "Prompt must explicitly mention Ontario as a Canadian province");
-    assert(prompt.includes("130 Pennsylvania Avenue, Unit #8 Concord, Ontario"), "Prompt must use the Pennsylvania Avenue Concord Ontario example");
-    assert(prompt.includes("Disregard State Names in Street Lines"), "Prompt must instruct disregarding state names in street lines while checking the rest for province");
+    assert(prompt.includes("Country Capitals (CRITICAL UNIVERSAL RULE)"), "Prompt must instruct universal national capital rule");
+    assert(prompt.includes("Official States & Provinces: Any recognized first-level administrative division"), "Prompt must instruct first-level divisions rule");
+    assert(prompt.includes("Disregard State Names in Street Lines"), "Prompt must instruct disregarding state names in street lines");
   });
 
-  // Test 10: Country Capital & Floor expansion in AI Prompt
-  test("Country Capital in address (e.g. Taipei City for Taiwan) instructed as State Available and 3f. floor expansion", () => {
+  // Test 10: Smart Generalized Address & Floor Expansion in AI Prompt
+  test("Smart generalized address & floor expansion in Prompt (no brittle hardcoded address)", () => {
     const prompt = CrawlerEngine.buildSystemInstruction();
-    assert(prompt.includes("Country Capitals (CRITICAL RULE)"), "Prompt must instruct Country Capitals rule");
-    assert(prompt.includes("Taipei / Taipei City for Taiwan"), "Prompt must explicitly mention Taipei City for Taiwan");
-    assert(prompt.includes("3f.-6"), "Prompt must instruct floor expansion for 3f.-6 to 3rd Floor");
-    assert(prompt.includes("Sec."), "Prompt must instruct Section expansion");
+    assert(prompt.includes("Floor Designations: Expand any floor abbreviation"), "Prompt must instruct generalized floor expansion rule");
+    assert(prompt.includes("Section"), "Prompt must instruct Section expansion");
   });
 
   console.log("==========================================================");
