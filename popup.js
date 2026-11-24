@@ -1016,11 +1016,14 @@ Field extraction guidelines:
 3. Strict Address Selection Logic:
    - Scenario 1: All Three Addresses Are Identical
      * Select the Contact Page address.
-   - Scenario 2: Contact Page Address Is Incomplete
+   - Scenario 2: Contact Page Address Is Incomplete (Missing Street / Road Name)
      * Check the Footer and Map for additional address components.
-     * If the Map provides a more complete address for the exact same location, use it to supplement the Contact Page address.
-     * When the Map provides the verified official street name and detailed location for that building number, adopt the verified Map address formulation to complete the address.
-     * NEVER concatenate or duplicate conflicting or redundant locality/colony and street names together into an artificial combined address (e.g., NEVER combine a colony/garden name with the verified road name into "Colony Gardens, Road Name Road"—use the verified Map street address formulation!).
+     * If the Contact Page text only mentions a general neighborhood, colony, enclave, or garden name (e.g. "Shashi Gardens"), but the Embedded Map provides the verified official street/road name for that exact building/plot (e.g. "Shashi Park Rd" / "Shashi Park Road"):
+       - The Contact Page address is INCOMPLETE because the official street/road name is missing.
+       - The Map provides the more complete, verified official address for that exact location.
+       - USE THE VERIFIED MAP ADDRESS FORMULATION DIRECTLY (e.g. "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi")!
+       - NEVER concatenate both colony and road names together into an artificial combined address (e.g. never output "Shashi Gardens, Shashi Park Road").
+       - Preserve the original commas present in that verified Map address.
      * Preserve all valid Contact Page information.
    - Scenario 3: Contact Page and Footer Are Different
      * Contact Page remains the primary source (ABSOLUTE PRIORITY OVER FOOTER).
@@ -1029,7 +1032,8 @@ Field extraction guidelines:
      * Use Footer information ONLY when it verifies or completes missing components of the exact same physical address, or when the Contact Page contains NO address at all.
    - Scenario 4: Contact Page and Map Are Different
      * Compare building number, street, locality, city and state.
-     * If the Map contains additional verified components of the same location (e.g., verified street/road name, unit, phase, locality, city), supplement the Contact Page address with those verified components, or adopt the verified Map address formulation for that exact location.
+     * If the Map contains additional verified components of the same location (e.g. verified street/road name like "Shashi Park Rd" instead of general colony name, unit, phase, locality, city, state), adopt the verified Map address formulation directly for that exact location ("B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi").
+     * Preserve the verified commas present in the Map address.
      * If the Map points to a different location, ignore it.
    - Scenario 5: All Three Addresses Are Different
      * Do not automatically select the longest address.
@@ -1067,7 +1071,10 @@ Field extraction guidelines:
    - Remove brackets.
    - Remove unnecessary trailing punctuation and special characters.
    - Preserve meaningful building numbers and street identifiers.
-   - Punctuation & Comma Handling: In address, do not invent or add artificial commas or special characters. If available in original source address, preserve them; else do not add commas between words.
+   - Punctuation & Comma Handling:
+     * Commas present in the source address (such as the Embedded Map address or Contact address) MUST BE PRESERVED (e.g. "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi" must keep its commas).
+     * Do NOT strip away commas that exist in the original source address.
+     * Do NOT invent or insert artificial commas where none existed in the source text (e.g., do not insert a comma before a state abbreviation if no comma was in the original text).
 
 6. Headquarters & Active Address Priority:
    - Always prioritize the Headquarters (HQ) or Registered Head Office address. HQ (Headquarters) address is always first priority.
@@ -1128,10 +1135,10 @@ Field extraction guidelines:
 5. Preserve the intended meaning and correct word boundaries.
 
 **D. Original Address Structure, Special Characters and Punctuation (STRICT NO-ADDITION RULE)**
-1. CRITICAL: DO NOT HANDLE, MODIFY, OR ADD ANY SPECIAL CHARACTERS OR COMMAS:
-   - If a comma or special character is available in the original address, then provide it.
+1. CRITICAL: PRESERVE SOURCE COMMAS & DO NOT ADD ARTIFICIAL PUNCTUATION:
+   - If a comma or special character is available in the source address (Contact Page or Map), you MUST preserve and provide it (do NOT strip away existing commas!).
    - If a comma or special character is NOT available in the original address, DO NOT PROVIDE OR ADD IT!
-   - NEVER add commas, hyphens, slashes, dots, or any other punctuation between address elements if they were not in the original address.
+   - NEVER add artificial commas, hyphens, slashes, dots, or any other punctuation between address elements if they were not in the original address.
    - UNIVERSAL STATE / PROVINCE COMMA RULE (CRITICAL):
      * NEVER insert an artificial comma before a state, province, or territory if the original address text did not contain a comma there!
      * For example, if the original address wrote "Bayswater Vic" or "Jackson WI" or "Concord ON" without a comma, you MUST expand to "Bayswater Victoria", "Jackson Wisconsin", "Concord Ontario" WITHOUT inserting a comma (do NOT output "Bayswater, Victoria").
