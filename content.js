@@ -358,7 +358,7 @@
       { key: "phoneNumber", value: data.phoneNumber || "" },
       { key: "numberOfProducts", value: data.numberOfProducts || "3" },
       { key: "productImages", value: data.productImages || "3" },
-      { key: "numberOfProductDescriptions", value: data.numberOfProductDescriptions || "0" }
+      { key: "numberOfProductDescriptions", value: data.numberOfProductDescriptions || "3" }
     ];
 
     for (const item of fillPlan) {

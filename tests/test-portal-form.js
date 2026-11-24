@@ -357,7 +357,7 @@ async function runPortalTests() {
       phoneNumber: "57187654321",
       numberOfProducts: "3",
       productImages: "3",
-      numberOfProductDescriptions: "0"
+      numberOfProductDescriptions: "3"
     };
 
     // Simulate input prefilling
@@ -411,7 +411,7 @@ async function runPortalTests() {
     assert.strictEqual(elements.phoneInput.value, "57187654321");
     assert.strictEqual(elements.productSelect.value, "3");
     assert.strictEqual(elements.imageSelect.value, "3");
-    assert.strictEqual(elements.descSelect.value, "0");
+    assert.strictEqual(elements.descSelect.value, "3");
 
     // Verify events
     assert(elements.companyNameInput.dispatchedEvents.includes("input"), "input event should be fired");

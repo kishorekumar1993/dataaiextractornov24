@@ -959,7 +959,7 @@ You MUST respond strictly with a valid JSON object matching this exact schema:
   "phoneNumber": "Main contact phone number",
   "numberOfProducts": "3",
   "productImages": "3",
-  "numberOfProductDescriptions": "0"
+  "numberOfProductDescriptions": "3"
 }
 
 CORE RULE - SPECIAL CHARACTER PRESERVATION:
@@ -1121,8 +1121,8 @@ Before returning companyAddress:
       * China: "+86-573-85127888" -> "57385127888"
       * Domestic with 0: "0573-85127888" -> "57385127888" (leading 0 removed)
     - If no valid non-toll-free phone number exists, return "".
-13. "numberOfProducts": String representation of number of products or services offered (e.g. "3").
-14. "productImages": String representation of number of product images identified (e.g. "3").
+13. "numberOfProducts": String representation of number of products or services offered (default "3").
+14. "productImages": String representation of number of product images identified (default "3").
     - CRITICAL IMAGE EXCLUSION RULE (Rule 15): Images related to the following categories are STRICTLY PROHIBITED and MUST NEVER be counted as product images:
       * Porn / Adult Content
       * Medicine
@@ -1132,8 +1132,8 @@ Before returning companyAddress:
       * Chemicals
       * Alcohol
       * Animals
-    - If all images on the website fall under these prohibited categories, "productImages" MUST be "0".
-15. "numberOfProductDescriptions": String representation of product descriptions present (e.g. "0").
+    - If all images on the website fall under these prohibited categories, "productImages" MUST be "0". Otherwise, default is "3".
+15. "numberOfProductDescriptions": String representation of product descriptions present (default "3").
 
 CRITICAL QC RULES - UNPAID WEBSITES (INELIGIBLE FOR BILLING):
 The following categories are NOT eligible for billing and MUST be classified with "websiteStatus": "Not Working" (unless noted):
