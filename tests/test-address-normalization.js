@@ -45,7 +45,39 @@ test("Floor designation contextual expansion (3F -> 3Floor, 2nd Fl. -> 2nd Floor
   assert(AddressNormalizer.normalizeAddress(input2).includes("2nd Floor"), `Expected 2nd Floor, got: ${AddressNormalizer.normalizeAddress(input2)}`);
 });
 
-// 2. Preserve street numbers, unit numbers, directional identifiers and original address meaning
+// 2. P.O. and Kb expansion tests
+test("P.O. and P.O. Box expansion (P.O. Box -> Post Office Box, P.O. -> Post Office)", () => {
+  const input1 = "P.O. Box 450, 100 Main Street, Springfield";
+  const norm1 = AddressNormalizer.normalizeAddress(input1);
+  assert(norm1.includes("Post Office Box 450"), `Expected 'Post Office Box 450', got: ${norm1}`);
+
+  const input2 = "P.O. Mayur Vihar, Phase - I, Delhi";
+  const norm2 = AddressNormalizer.normalizeAddress(input2);
+  assert(norm2.includes("Post Office Mayur Vihar"), `Expected 'Post Office Mayur Vihar', got: ${norm2}`);
+});
+
+test("Kb / K.B. contextual expansion (Kotak Berkunci for locked bag, Kota Bharu for city, Kabupaten for regency)", () => {
+  // Locked bag in postal address
+  const input1 = "Kb 123, Pejabat Pos, Serdang, Selangor";
+  const norm1 = AddressNormalizer.normalizeAddress(input1);
+  assert(norm1.includes("Kotak Berkunci Number 123"), `Expected Kotak Berkunci Number 123, got: ${norm1}`);
+
+  const input2 = "K.B. No. 45, Jalan Ampang, Kuala Lumpur";
+  const norm2 = AddressNormalizer.normalizeAddress(input2);
+  assert(norm2.includes("Kotak Berkunci Number 45"), `Expected Kotak Berkunci Number 45, got: ${norm2}`);
+
+  // City context in Kelantan
+  const input3 = "Jalan Sultanah Zainab, KB, Kelantan";
+  const norm3 = AddressNormalizer.normalizeAddress(input3);
+  assert(norm3.includes("Kota Bharu, Kelantan"), `Expected Kota Bharu, Kelantan, got: ${norm3}`);
+
+  // Indonesian regency context
+  const input4 = "Jalan Raya Tajur, Kb. Bogor, Jawa Barat";
+  const norm4 = AddressNormalizer.normalizeAddress(input4);
+  assert(norm4.includes("Kabupaten Bogor"), `Expected Kabupaten Bogor, got: ${norm4}`);
+});
+
+// 3. Preserve street numbers, unit numbers, directional identifiers and original address meaning
 test("Preserve street numbers, unit numbers, and alphanumeric block identifiers", () => {
   const input = "N173 W21640 Northwest Passage Way, Jackson, Wisconsin";
   const normalized = AddressNormalizer.normalizeAddress(input);
@@ -66,7 +98,7 @@ test("Preserve Roman numerals and alphanumeric phase identifiers (Mayur Vihar - 
   assert(normalized.includes("Phase - II"), `Expected Phase - II preserved in uppercase, got: ${normalized}`);
 });
 
-// 3. Apply proper Title Case
+// 4. Apply proper Title Case
 test("Proper Title Case application across lowercase and uppercase input", () => {
   const input = "41 BARRY STREET, BAYSWATER, VICTORIA";
   const normalized = AddressNormalizer.normalizeAddress(input);
@@ -77,7 +109,7 @@ test("Proper Title Case application across lowercase and uppercase input", () =>
   assert.strictEqual(normalizedLower, "41 Barry Street, Bayswater, Victoria");
 });
 
-// 4. Never invent missing address information
+// 5. Never invent missing address information
 test("Never invent missing address information (no hallucinations of unmentioned city/state)", () => {
   const input = "128 Industry Road, Chemical Zone";
   const normalized = AddressNormalizer.normalizeAddress(input);
@@ -85,16 +117,16 @@ test("Never invent missing address information (no hallucinations of unmentioned
   assert(!normalized.includes("China") && !normalized.includes("Hangzhou"), "Must not invent unmentioned country or city");
 });
 
-// 5. Preserve uncertain abbreviations
-test("Preserve uncertain abbreviations without guessing (PO Box, C/O, HQ, unknown codes)", () => {
-  const input = "PO Box 450, C/O Operations, HQ Building";
+// 6. Preserve uncertain abbreviations
+test("Preserve uncertain abbreviations without guessing (APO, HQ, unknown codes)", () => {
+  const input = "APO Box 450, C/O Operations, HQ Building";
   const normalized = AddressNormalizer.normalizeAddress(input);
-  assert(normalized.includes("PO Box 450"), `Expected PO Box preserved, got: ${normalized}`);
-  assert(normalized.includes("C/O Operations"), `Expected C/O preserved, got: ${normalized}`);
+  assert(normalized.includes("APO Box 450"), `Expected APO Box preserved, got: ${normalized}`);
+  assert(normalized.includes("Care Of Operations"), `Expected Care Of preserved, got: ${normalized}`);
   assert(normalized.includes("HQ Building"), `Expected HQ preserved, got: ${normalized}`);
 });
 
-// 6. Comma and punctuation preservation
+// 7. Comma and punctuation preservation
 test("Preserve source commas and clean trailing clutter", () => {
   const input = "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi,";
   const normalized = AddressNormalizer.normalizeAddress(input);

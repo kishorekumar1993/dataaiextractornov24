@@ -61,8 +61,7 @@ const AddressNormalizer = (() => {
 
   // Uncertain / Ambiguous abbreviations that MUST be preserved as-is without guessing
   const UNCERTAIN_PRESERVE = new Set([
-    "po", "p.o.", "box", "apo", "fpo", "dpo", "c/o", "hq", "g/f", "m/f",
-    "n/a", "co", "corp", "inc", "ltd", "llc", "llp", "gmbh", "plc"
+    "apo", "fpo", "dpo", "hq", "n/a", "co", "corp", "inc", "ltd", "llc", "llp", "gmbh", "plc"
   ]);
 
   /**
@@ -77,11 +76,8 @@ const AddressNormalizer = (() => {
       return token.toUpperCase();
     }
 
-    // If token is an uncertain/reserved acronym (e.g. "PO", "Box", "C/O"), preserve standard casing
+    // If token is an uncertain/reserved acronym, preserve standard casing
     if (UNCERTAIN_PRESERVE.has(token.toLowerCase())) {
-      if (token.toLowerCase() === "po" || token.toLowerCase() === "p.o.") return "PO";
-      if (token.toLowerCase() === "box") return "Box";
-      if (token.toLowerCase() === "c/o") return "C/O";
       return token.toUpperCase();
     }
 
@@ -124,7 +120,10 @@ const AddressNormalizer = (() => {
   /**
    * Intelligently normalizes an address string:
    * 1. Preserves street numbers, unit numbers, directional identifiers, and meaning.
-   * 2. Contextually expands abbreviations (Rd -> Road, St -> Street, Ste -> Suite, F/Fl -> Floor).
+   * 2. Contextually expands abbreviations:
+   *    - P.O. Box -> Post Office Box, P.O. -> Post Office
+   *    - Kb / K.B. -> Kotak Berkunci (or Kota Bharu / Kabupaten contextually)
+   *    - Rd -> Road, St -> Street, Ste -> Suite, F/Fl -> Floor
    * 3. Preserves uncertain or ambiguous abbreviations as-is.
    * 4. Applies proper Title Case.
    * 5. Never invents missing address information.
@@ -152,7 +151,33 @@ const AddressNormalizer = (() => {
     // Remove trailing unwanted punctuation at the end of the entire address
     addr = addr.replace(/[,;.\-:]+$/, "").trim();
 
-    // Contextual floor expansion on raw string before tokenization (e.g. "3F", "2nd Fl.", "1st F")
+    // 1. Contextual Postal expansions: P.O. / PO / Post Office
+    // "P.O. Box" / "PO Box" -> "Post Office Box"
+    addr = addr.replace(/\b(?:p\.?o\.?|po)\s+box\b/gi, "Post Office Box");
+    // "P.O." / "P.O" standalone or before name -> "Post Office"
+    addr = addr.replace(/\b(?:p\.o\.|p\.o)(?=\s|$)/gi, "Post Office");
+
+    // 2. Contextual Postal expansions: P.B. / Post Bag
+    addr = addr.replace(/\b(?:p\.?b\.?|pb)\s+(?:no\.?|number)\b/gi, "Post Bag Number");
+    addr = addr.replace(/\b(?:p\.b\.|p\.b)(?=\s|$)/gi, "Post Bag");
+
+    // 3. Contextual Postal & Regional expansions: KB / K.B. / Kb
+    // A. In Locked Bag context: followed by number or No/Number (e.g. "K.B. 123", "KB No. 45", "Kb 500")
+    addr = addr.replace(/\b(?:k\.?b\.?|kb)\s+(?:no\.?|number|#)?\s*(\d+)\b/gi, "Kotak Berkunci Number $1");
+    // B. In city/state context: "KB, Kelantan" or "KB Kelantan"
+    addr = addr.replace(/\b(?:k\.?b\.?|kb)\s*,\s*(kelantan|malaysia)\b/gi, "Kota Bharu, $1");
+    addr = addr.replace(/\b(?:k\.?b\.?|kb)\s+(kelantan)\b/gi, "Kota Bharu $1");
+    // C. In Indonesian regency context: "Kab." / "Kb." before regency name (e.g. "Kb. Bandung", "Kab. Bogor")
+    addr = addr.replace(/\b(?:kab\.|kb\.)\s+([a-zA-Z]+)\b/gi, "Kabupaten $1");
+
+    // 4. Other administrative prefixes
+    addr = addr.replace(/\b(?:c\/o)\b/gi, "Care Of");
+    addr = addr.replace(/\b(?:g\/f)\b/gi, "Ground Floor");
+    addr = addr.replace(/\b(?:m\/f)\b/gi, "Mezzanine Floor");
+    addr = addr.replace(/\b(?:b\/f)\b/gi, "Basement Floor");
+    addr = addr.replace(/\b(?:h\.?no\.?|h\s+no\.?)\s*([a-zA-Z0-9\/-]+)\b/gi, "House Number $1");
+
+    // 5. Contextual floor expansion on raw string before tokenization (e.g. "3F", "2nd Fl.", "1st F")
     addr = addr.replace(/\b(\d+)(?:st|nd|rd|th)?\s*(?:fl\.|fl|f)\b/gi, (match, num) => {
       if (match.toLowerCase().includes("st") || match.toLowerCase().includes("nd") || 
           match.toLowerCase().includes("rd") || match.toLowerCase().includes("th")) {
@@ -202,13 +227,11 @@ const AddressNormalizer = (() => {
         }
 
         // 4. Contextual Thoroughfare Expansion (e.g., Rd -> Road, St -> Street, Ave -> Avenue)
-        // Must follow a name or number, or be a recognizable thoroughfare in the segment
         if (THOROUGHFARES[lower]) {
           return prefix + THOROUGHFARES[lower] + suffix;
         }
 
         // 5. Contextual Directional Expansion (e.g., N -> North, SW -> Southwest)
-        // Expand standalone directionals that are not part of an alphanumeric code (like N173)
         if (DIRECTIONALS[lower]) {
           return prefix + DIRECTIONALS[lower] + suffix;
         }

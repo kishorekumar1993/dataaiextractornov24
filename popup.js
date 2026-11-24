@@ -1090,6 +1090,17 @@ Field extraction guidelines:
      * "Rd." / "Rd" -> "Road", "St." / "St" -> "Street", "Ave." / "Ave" -> "Avenue", "Blvd." / "Blvd" -> "Boulevard", "Hwy." / "Hwy" -> "Highway", "Dr." / "Dr" -> "Drive", "Ln." / "Ln" -> "Lane", "Way", "Ct." / "Ct" -> "Court", "Pl." / "Pl" -> "Place", "Cir." / "Cir" -> "Circle", "Pkwy." / "Pkwy" -> "Parkway", "Ter." / "Terr." -> "Terrace"
    - Universal Divisions, Units & Buildings:
      * "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" -> "Section 3"), "Dist." / "Dist" -> "District", "Prov." / "Prov" -> "Province", "Ind." / "Ind" -> "Industrial", "Bldg." / "Bldg" -> "Building", "Rm." / "Rm" -> "Room", "No." / "No" -> "Number", "Ste." / "Ste" -> "Suite", "Apt." / "Apt" -> "Apartment", "Blk." / "Blk" -> "Block", "Sq." / "Sq" -> "Square", "Ctr." / "Ctr" -> "Center", "Plz." / "Plz" -> "Plaza"
+   - Postal, Delivery & Administrative Abbreviations:
+     * "P.O. Box" / "PO Box" -> "Post Office Box"
+     * "P.O." / "P.O" -> "Post Office" (e.g. "P.O. Mayur Vihar" -> "Post Office Mayur Vihar")
+     * "P.B." / "PB" -> "Post Bag" (e.g. "P.B. No." -> "Post Bag Number")
+     * "Kb" / "KB" / "K.B.":
+       - In postal / locked bag context (when followed by a number or No., e.g. "Kb 123", "K.B. No. 45", "Kb 500"): -> "Kotak Berkunci Number" (or "Kotak Berkunci")
+       - In Malaysian state/locality context (e.g. "KB, Kelantan" or "KB Kelantan"): -> "Kota Bharu"
+       - In Indonesian regency context ("Kb." / "Kab."): -> "Kabupaten"
+     * "C/O" / "c/o" -> "Care Of"
+     * "H.No." / "H.No" / "H No" -> "House Number"
+     * "G/F" -> "Ground Floor", "M/F" -> "Mezzanine Floor", "B/F" -> "Basement Floor"
    - Floor Designations: Expand any floor abbreviation into "Floor":
      * Universal floor pattern: Any number directly attached to or followed by "f", "F", "fl", "Fl", or "fl." (e.g. "1F", "2F", "3f.", "3f.-6", "3F-6", "4F-1", "5FL", "10F", "1st F", "2nd Fl.") MUST be expanded with "Floor":
        - When attached directly to a number without ordinal suffix: "1F" -> "1Floor", "2F" -> "2Floor", "3f." / "3F" -> "3Floor", "3f.-6" -> "3Floor - 6" (or "3Floor.-6").
