@@ -967,7 +967,36 @@ Field extraction guidelines:
     - If no valid non-toll-free phone number exists, return "".
 13. "numberOfProducts": String representation of number of products or services offered (e.g. "3").
 14. "productImages": String representation of number of product images identified (e.g. "3").
+    - CRITICAL IMAGE EXCLUSION RULE (Rule 15): Images related to the following categories are STRICTLY PROHIBITED and MUST NEVER be counted as product images:
+      * Porn / Adult Content
+      * Medicine
+      * Food
+      * Weapons
+      * Aircraft / Marine
+      * Chemicals
+      * Alcohol
+      * Animals
+    - If all images on the website fall under these prohibited categories, "productImages" MUST be "0".
 15. "numberOfProductDescriptions": String representation of product descriptions present (e.g. "0").
+
+CRITICAL QC RULES - UNPAID WEBSITES (INELIGIBLE FOR BILLING):
+The following categories are NOT eligible for billing and MUST be classified with "websiteStatus": "Not Working" (unless noted):
+1. Companies involved in armor, weapons manufacturing, trading, supply, exporting, or repairing services -> Not Working.
+2. Pornographic or adult content websites -> Not Working.
+3. Online gambling or online gaming websites -> Not Working.
+4. Service provider websites (e.g., restaurants, salons, retailers, etc.), EXCEPT for industrial service providers -> Not Working.
+5. Websites related to hacking services or hacking information -> Not Working.
+6. Websites of alcoholic or tobacco product manufacturers, suppliers, or traders -> Not Working.
+7. Websites related to the airline or aviation industry -> Not Working.
+8. Personal websites, blogs, etc. -> Not Working.
+9. Websites hosted on free platforms (e.g., WordPress, Wix, Weebly, Blogspot, etc.) -> Not Working.
+10. Subdomain websites (i.e., not hosted at the root level, e.g. multimedia/entertainment streaming subdomains, non-canonical third-level subdomains) -> Not Working.
+11. Websites with online product selling options (e.g., Add to Cart, Payment Gateway, Buy Now options), EXCEPT for manufacturers -> Not Working.
+12. Websites in a non-English language without a translation option -> Status: "Non English".
+13. URL redirecting websites – if redirected to a different registered domain -> Status: "Redirect Site".
+14. Websites designed in Flash format where text is not copyable -> Status: "Flash".
+15. Disallowed product images (Porn, Medicine, Food, Weapons, Aircraft/Marine, Chemicals, Alcohol, Animals) must never be counted.
+16. For any unpaid category 1 to 11, set "websiteStatus": "Not Working" and explain the exact rule in "notWorkingReason".
 
 Return ONLY the raw JSON object. Do not enclose in markdown code blocks like \`\`\`json.`;
   }

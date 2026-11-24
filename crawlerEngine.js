@@ -32,6 +32,122 @@ const CrawlerEngine = (() => {
     "github.io", "pages.dev", "gitlab.io", "azurewebsites.net", "appspot.com", "cloudfront.net"
   ]);
 
+  // Free hosting platforms (Unpaid Website Category - Rule 9)
+  const FREE_HOSTING_DOMAINS = new Set([
+    "wordpress.com",
+    "wixsite.com",
+    "wix.com",
+    "weebly.com",
+    "blogspot.com",
+    "blogger.com",
+    "webflow.io",
+    "jimdosite.com",
+    "site123.me",
+    "yolasite.com",
+    "strikingly.com",
+    "godaddysites.com"
+  ]);
+
+  function isFreeHostingPlatform(hostname) {
+    if (!hostname) return false;
+    const lower = getHostname(hostname);
+    for (const freeDom of FREE_HOSTING_DOMAINS) {
+      if (lower === freeDom || lower.endsWith("." + freeDom)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function isIneligibleSubdomain(urlOrHostname) {
+    const parsed = parseDomain(urlOrHostname);
+    if (!parsed || !parsed.subdomain) return false;
+    const sub = parsed.subdomain.toLowerCase();
+    // www and mobile (m, mobile) are acceptable canonical root aliases
+    if (sub === "www" || sub === "m" || sub === "mobile" || sub === "www.m") {
+      return false;
+    }
+    return true;
+  }
+
+  function checkUnpaidWebsiteContent(html, url) {
+    if (!html && !url) return null;
+    const lower = (html || "").toLowerCase();
+    const urlLower = (url || "").toLowerCase();
+
+    // Rule 1: Weapons & Armor
+    if (
+      lower.includes("weapon") || lower.includes("firearms") || lower.includes("ammunition") ||
+      lower.includes("body armor") || lower.includes("bulletproof vest") || lower.includes("ballistic armor") ||
+      urlLower.includes("weapon") || urlLower.includes("guns")
+    ) {
+      return "Unpaid Category: Companies involved in armor, weapons manufacturing, trading, supply, exporting, or repairing services.";
+    }
+
+    // Rule 2: Pornographic / Adult Content
+    if (
+      lower.includes("porn") || lower.includes("xxx") || lower.includes("adult video") ||
+      lower.includes("sex shop") || lower.includes("erotic")
+    ) {
+      return "Unpaid Category: Pornographic or adult content website.";
+    }
+
+    // Rule 3: Online Gambling / Gaming
+    if (
+      lower.includes("online casino") || lower.includes("sports betting") || lower.includes("gambling") ||
+      lower.includes("slot machine") || lower.includes("poker online") || lower.includes("online gaming real money")
+    ) {
+      return "Unpaid Category: Online gambling or online gaming website.";
+    }
+
+    // Rule 5: Hacking Services / Information
+    if (
+      lower.includes("hacking service") || lower.includes("hire a hacker") || lower.includes("exploit kit") ||
+      lower.includes("ddos for hire") || lower.includes("crack passwords")
+    ) {
+      return "Unpaid Category: Hacking services or hacking information website.";
+    }
+
+    // Rule 6: Alcohol or Tobacco
+    if (
+      lower.includes("cigarettes") || lower.includes("tobacco products") || lower.includes("cigar manufacturer") ||
+      lower.includes("vape shop") || lower.includes("alcoholic beverages") || lower.includes("whiskey distillery") ||
+      lower.includes("vodka distillery") || lower.includes("brewery and beer")
+    ) {
+      return "Unpaid Category: Alcoholic or tobacco product manufacturers, suppliers, or traders.";
+    }
+
+    // Rule 7: Airline / Aviation Industry
+    if (
+      lower.includes("airline flights") || lower.includes("air passenger transport") || lower.includes("book flights online") ||
+      lower.includes("commercial airline") || lower.includes("aviation passenger service")
+    ) {
+      return "Unpaid Category: Airline or aviation passenger industry.";
+    }
+
+    // Rule 8: Personal Website / Blog
+    if (
+      lower.includes("personal blog") || lower.includes("my personal website") ||
+      (lower.includes("thoughts, stories and ideas") && lower.includes("personal"))
+    ) {
+      return "Unpaid Category: Personal website or blog.";
+    }
+
+    return null;
+  }
+
+  function hasOnlineSellingOptions(html) {
+    if (!html) return false;
+    const lower = html.toLowerCase();
+    return (
+      lower.includes("add to cart") ||
+      lower.includes("add to bag") ||
+      lower.includes("buy now") ||
+      (lower.includes("checkout") && lower.includes("payment")) ||
+      lower.includes("shopping cart")
+    );
+  }
+
   function getHostname(urlOrHostname) {
     if (!urlOrHostname) return "";
     let raw = String(urlOrHostname).trim();
@@ -538,6 +654,21 @@ const CrawlerEngine = (() => {
       websiteStatus = "Non English";
       nonWorkingReason = "Website content is not in English and no English version is accessible.";
     }
+    // 15b. Unpaid Category: Free Hosting Platforms (Rule 9)
+    else if (isFreeHostingPlatform(finalDomain) || isFreeHostingPlatform(finalUrl)) {
+      websiteStatus = "Not Working";
+      nonWorkingReason = `Unpaid Category: Website hosted on a free platform (${finalDomain || finalUrl}).`;
+    }
+    // 15c. Unpaid Category: Subdomain Website (Rule 10)
+    else if (isIneligibleSubdomain(finalUrl)) {
+      websiteStatus = "Not Working";
+      nonWorkingReason = `Unpaid Category: Subdomain website not hosted at root level (${finalUrl}).`;
+    }
+    // 15d. Unpaid Category: Prohibited Industry / Content (Rules 1, 2, 3, 5, 6, 7, 8)
+    else if (checkUnpaidWebsiteContent(finalHtml, finalUrl)) {
+      websiteStatus = "Not Working";
+      nonWorkingReason = checkUnpaidWebsiteContent(finalHtml, finalUrl);
+    }
     // 16. Working
     else {
       websiteStatus = "Working";
@@ -584,15 +715,31 @@ const CrawlerEngine = (() => {
     return ELIGIBLE_WORKING_BUSINESS_TYPES.some(eligible => b.includes(eligible));
   }
 
-  function applyBusinessTypeEligibilityRule(data) {
+  function applyBusinessTypeEligibilityRule(data, html = "") {
     if (!data) return data;
     const currentStatus = data.websiteStatus || "Working";
+    const bType = String(data.businessType || "").trim();
+
     if (currentStatus === "Working") {
-      if (!isEligibleWorkingBusinessType(data.businessType)) {
+      // Rule 4: Business Type Eligibility (Manufacturer to Wholesaler only)
+      if (!isEligibleWorkingBusinessType(bType)) {
         data.websiteStatus = "Not Working";
-        const reason = `Ineligible Business Type: "${data.businessType || 'Other'}". Only businesses from Manufacturer to Wholesaler (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler) are eligible Working sites; other business types are marked Not Working.`;
+        const reason = `Ineligible Business Type: "${bType || 'Other'}". Only businesses from Manufacturer to Wholesaler (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler) are eligible Working sites; other business types are marked Not Working.`;
         data.notWorkingReason = reason;
         data.nonWorkingReason = reason;
+        return data;
+      }
+
+      // Rules 11 & 16: Online product selling options (Add to Cart, Buy Now, Payment Gateway), except for Manufacturers
+      if (html && hasOnlineSellingOptions(html)) {
+        const isManufacturer = bType.toLowerCase().includes("manufacturer");
+        if (!isManufacturer) {
+          data.websiteStatus = "Not Working";
+          const reason = `Unpaid Category: Non-manufacturer website with online product selling options (Add to Cart, Payment Gateway, Buy Now). Only manufacturers with online selling are eligible.`;
+          data.notWorkingReason = reason;
+          data.nonWorkingReason = reason;
+          return data;
+        }
       }
     }
     return data;
@@ -858,7 +1005,36 @@ Field extraction guidelines:
     - If no valid non-toll-free phone number exists, return "".
 13. "numberOfProducts": String representation of number of products or services offered (e.g. "3").
 14. "productImages": String representation of number of product images identified (e.g. "3").
+    - CRITICAL IMAGE EXCLUSION RULE (Rule 15): Images related to the following categories are STRICTLY PROHIBITED and MUST NEVER be counted as product images:
+      * Porn / Adult Content
+      * Medicine
+      * Food
+      * Weapons
+      * Aircraft / Marine
+      * Chemicals
+      * Alcohol
+      * Animals
+    - If all images on the website fall under these prohibited categories, "productImages" MUST be "0".
 15. "numberOfProductDescriptions": String representation of product descriptions present (e.g. "0").
+
+CRITICAL QC RULES - UNPAID WEBSITES (INELIGIBLE FOR BILLING):
+The following categories are NOT eligible for billing and MUST be classified with "websiteStatus": "Not Working" (unless noted):
+1. Companies involved in armor, weapons manufacturing, trading, supply, exporting, or repairing services -> Not Working.
+2. Pornographic or adult content websites -> Not Working.
+3. Online gambling or online gaming websites -> Not Working.
+4. Service provider websites (e.g., restaurants, salons, retailers, etc.), EXCEPT for industrial service providers -> Not Working.
+5. Websites related to hacking services or hacking information -> Not Working.
+6. Websites of alcoholic or tobacco product manufacturers, suppliers, or traders -> Not Working.
+7. Websites related to the airline or aviation industry -> Not Working.
+8. Personal websites, blogs, etc. -> Not Working.
+9. Websites hosted on free platforms (e.g., WordPress, Wix, Weebly, Blogspot, etc.) -> Not Working.
+10. Subdomain websites (i.e., not hosted at the root level, e.g. multimedia/entertainment streaming subdomains, non-canonical third-level subdomains) -> Not Working.
+11. Websites with online product selling options (e.g., Add to Cart, Payment Gateway, Buy Now options), EXCEPT for manufacturers -> Not Working.
+12. Websites in a non-English language without a translation option -> Status: "Non English".
+13. URL redirecting websites – if redirected to a different registered domain -> Status: "Redirect Site".
+14. Websites designed in Flash format where text is not copyable -> Status: "Flash".
+15. Disallowed product images (Porn, Medicine, Food, Weapons, Aircraft/Marine, Chemicals, Alcohol, Animals) must never be counted.
+16. For any unpaid category 1 to 11, set "websiteStatus": "Not Working" and explain the exact rule in "notWorkingReason".
 
 Return ONLY the raw JSON object. Do not enclose in markdown code blocks like \`\`\`json.`;
   }
@@ -1011,9 +1187,9 @@ ${context.crawledText}`;
       fetchFn: fetchFn
     });
 
-    // Apply Business Type eligibility condition: Manufacturer to Wholesaler only are Working, others Not Working
+    // Apply Business Type eligibility & Unpaid Category conditions (Manufacturer to Wholesaler only are Working, non-manufacturer cart options marked Not Working)
     if (aiResult && aiResult.data) {
-      aiResult.data = applyBusinessTypeEligibilityRule(aiResult.data);
+      aiResult.data = applyBusinessTypeEligibilityRule(aiResult.data, mainHtml);
     }
 
     const finalStatus = aiResult.data?.websiteStatus || statusResult.websiteStatus;
@@ -1039,6 +1215,11 @@ ${context.crawledText}`;
 
   return {
     MULTI_PART_TLDS,
+    FREE_HOSTING_DOMAINS,
+    isFreeHostingPlatform,
+    isIneligibleSubdomain,
+    checkUnpaidWebsiteContent,
+    hasOnlineSellingOptions,
     ELIGIBLE_WORKING_BUSINESS_TYPES,
     isEligibleWorkingBusinessType,
     applyBusinessTypeEligibilityRule,
