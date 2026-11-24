@@ -559,7 +559,11 @@ async function runPortalTests() {
     const prompt = CrawlerEngine.buildSystemInstruction();
     assert(prompt.includes("Current Active Address Priority (CRITICAL)"), "Prompt must instruct Current Active Address Priority rule");
     assert(prompt.includes("NEVER select former, historical, or previous addresses"), "Prompt must instruct never selecting historical or previous addresses");
-    assert(prompt.includes("alphanumeric coordinate grid designations"), "Prompt must preserve alphanumeric coordinate grid numbers");
+    assert(prompt.includes("North173"), "Prompt must include North173 expansion example");
+    assert(prompt.includes("West21640"), "Prompt must include West21640 expansion example");
+    assert(prompt.includes("1Floor"), "Prompt must include 1F -> 1Floor expansion example");
+    assert(prompt.includes("1st Floor"), "Prompt must include 1st F -> 1st Floor expansion example");
+    assert(prompt.includes("pincode"), "Prompt must instruct removing pincode");
   });
 
   console.log("==========================================================");
