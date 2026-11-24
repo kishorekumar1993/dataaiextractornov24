@@ -131,6 +131,7 @@
     if (request.action === "autofillPortalForm") {
       try {
         const fillResult = prefillPortalForm(request.data);
+        renderWidgetDetails(request.data, request.meta);
         sendResponse({ success: true, ...fillResult });
       } catch (err) {
         sendResponse({ success: false, error: err.message });
@@ -445,6 +446,8 @@
   // ==========================================
   // 4. On-Page Floating Assistant Widget
   // ==========================================
+  let lastWidgetData = null;
+
   function setupFloatingWidget(initialUrl) {
     if (document.getElementById("site-intel-portal-widget")) {
       updateFloatingWidgetTarget(initialUrl);
@@ -456,79 +459,138 @@
     widget.id = "site-intel-portal-widget";
     widget.style.cssText = `
       position: fixed;
-      bottom: 20px;
-      right: 20px;
+      bottom: 24px;
+      right: 84px;
       z-index: 999999;
       background: #0f172a;
       color: #f8fafc;
       border: 1px solid #334155;
       border-radius: 12px;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.6), 0 8px 12px -6px rgba(0, 0, 0, 0.5);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 13px;
-      width: 320px;
-      padding: 12px 14px;
+      width: 380px;
+      max-height: 85vh;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
-      gap: 10px;
       backdrop-filter: blur(8px);
       transition: all 0.2s ease;
+      overflow: hidden;
     `;
 
     widget.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding-bottom:8px;">
+      <!-- Header -->
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding:10px 14px; background:#1e293b; cursor:move;">
         <div style="display:flex; align-items:center; gap:6px; font-weight:600; font-size:13px; color:#38bdf8;">
           <span>🕷️</span>
           <span>AI QC Autofill</span>
           <span style="background:rgba(16,185,129,0.15); color:#34d399; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:700;">PROVISIONED</span>
         </div>
-        <button id="site-intel-close-btn" style="background:none; border:none; color:#64748b; font-size:16px; cursor:pointer; line-height:1; padding:2px;">✕</button>
-      </div>
-
-      <div style="display:flex; flex-direction:column; gap:4px;">
-        <div style="font-size:11px; color:#94a3b8; font-weight:500;">TARGET WEBSITE:</div>
-        <div id="site-intel-widget-target" style="font-size:12px; font-weight:600; color:#f8fafc; word-break:break-all; background:#1e293b; padding:6px 8px; border-radius:6px; border:1px solid #334155;">
-          ${initialUrl || "Detecting URL from form..."}
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button id="site-intel-min-btn" title="Minimize / Expand" style="background:none; border:none; color:#94a3b8; font-size:14px; cursor:pointer; line-height:1; padding:2px;">—</button>
+          <button id="site-intel-close-btn" title="Close" style="background:none; border:none; color:#94a3b8; font-size:15px; cursor:pointer; line-height:1; padding:2px;">✕</button>
         </div>
       </div>
 
-      <div id="site-intel-status-line" style="font-size:11px; color:#94a3b8; display:none;">
-        Ready to analyze and fill portal form.
-      </div>
+      <!-- Widget Body -->
+      <div id="site-intel-widget-body" style="padding:12px 14px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; max-height:calc(85vh - 45px);">
+        <!-- Target Site Row -->
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <div style="font-size:11px; color:#94a3b8; font-weight:600; letter-spacing:0.3px;">TARGET WEBSITE:</div>
+          <div id="site-intel-widget-target" style="font-size:12px; font-weight:600; color:#f8fafc; word-break:break-all; background:#1e293b; padding:6px 10px; border-radius:6px; border:1px solid #334155;">
+            ${initialUrl || "Detecting URL from form..."}
+          </div>
+        </div>
 
-      <button id="site-intel-action-btn" style="
-        background: #2563eb;
-        color: #ffffff;
-        border: none;
-        padding: 8px 12px;
-        border-radius: 6px;
-        font-weight: 600;
-        font-size: 13px;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 6px;
-        transition: background 0.2s ease;
-      ">
-        <span>⚡</span>
-        <span id="site-intel-btn-text">Crawl & Autofill Form</span>
-      </button>
+        <!-- Status Line -->
+        <div id="site-intel-status-line" style="font-size:12px; color:#94a3b8; display:none; padding:4px 0;">
+          Ready to analyze and fill portal form.
+        </div>
+
+        <!-- Main Action Button -->
+        <button id="site-intel-action-btn" style="
+          background: #2563eb;
+          color: #ffffff;
+          border: none;
+          padding: 9px 12px;
+          border-radius: 6px;
+          font-weight: 600;
+          font-size: 13px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          transition: background 0.2s ease;
+        ">
+          <span>⚡</span>
+          <span id="site-intel-btn-text">Crawl & Autofill Form</span>
+        </button>
+
+        <!-- Extracted Details Section (Full details view matching popup) -->
+        <div id="site-intel-details-section" style="display:none; flex-direction:column; gap:8px; border-top:1px solid #334155; padding-top:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; font-weight:700; color:#38bdf8; letter-spacing:0.3px;">📊 EXTRACTED CORPORATE DETAILS</span>
+            <button id="site-intel-copy-btn" title="Copy JSON" style="background:#1e293b; color:#94a3b8; border:1px solid #334155; border-radius:4px; font-size:11px; padding:3px 8px; cursor:pointer;">📋 Copy JSON</button>
+          </div>
+
+          <!-- Badges -->
+          <div id="site-intel-summary-badges" style="display:flex; gap:6px; flex-wrap:wrap; font-size:11px;">
+            <span id="site-intel-badge-status" style="background:rgba(16,185,129,0.15); color:#34d399; padding:2px 7px; border-radius:4px; font-weight:600;">Status: Working</span>
+            <span id="site-intel-badge-type" style="background:#1e293b; color:#cbd5e1; padding:2px 7px; border-radius:4px; border:1px solid #334155;">Manufacturer</span>
+            <span id="site-intel-badge-engine" style="background:#1e293b; color:#60a5fa; padding:2px 7px; border-radius:4px; border:1px solid #334155;">gemini-3.5-flash-lite</span>
+          </div>
+
+          <!-- Key-Value Table showing ALL 15 fields -->
+          <div style="max-height:240px; overflow-y:auto; border:1px solid #334155; border-radius:6px; background:#020617;">
+            <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+              <tbody id="site-intel-table-body">
+                <!-- Dynamically populated rows -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     `;
 
     document.body.appendChild(widget);
 
-    // Event listeners for widget
+    // Event listeners
     const closeBtn = widget.querySelector("#site-intel-close-btn");
     closeBtn.addEventListener("click", () => {
       widget.style.display = "none";
+    });
+
+    const minBtn = widget.querySelector("#site-intel-min-btn");
+    const widgetBody = widget.querySelector("#site-intel-widget-body");
+    let isMinimized = false;
+    minBtn.addEventListener("click", () => {
+      isMinimized = !isMinimized;
+      if (isMinimized) {
+        widgetBody.style.display = "none";
+        minBtn.textContent = "+";
+        widget.style.width = "220px";
+      } else {
+        widgetBody.style.display = "flex";
+        minBtn.textContent = "—";
+        widget.style.width = "380px";
+      }
     });
 
     const actionBtn = widget.querySelector("#site-intel-action-btn");
     actionBtn.addEventListener("mouseenter", () => { actionBtn.style.background = "#1d4ed8"; });
     actionBtn.addEventListener("mouseleave", () => { actionBtn.style.background = "#2563eb"; });
     actionBtn.addEventListener("click", handleWidgetCrawlAndFill);
+
+    const copyBtn = widget.querySelector("#site-intel-copy-btn");
+    copyBtn.addEventListener("click", () => {
+      if (!lastWidgetData) return;
+      navigator.clipboard.writeText(JSON.stringify(lastWidgetData, null, 2)).then(() => {
+        copyBtn.textContent = "✓ Copied!";
+        setTimeout(() => { copyBtn.textContent = "📋 Copy JSON"; }, 2000);
+      });
+    });
 
     // Listen to input changes on Website Name field to update widget live
     const websiteSpec = PORTAL_FIELD_SPECS[0];
@@ -548,6 +610,84 @@
     if (targetEl) {
       targetEl.textContent = url || "Please enter URL in Website Name field";
     }
+  }
+
+  // Renders the full details table into the on-page floating widget matching the popup structured view
+  function renderWidgetDetails(data, meta = {}) {
+    if (!data) return;
+    lastWidgetData = data;
+
+    const detailsSection = document.getElementById("site-intel-details-section");
+    const tableBody = document.getElementById("site-intel-table-body");
+    const badgeStatus = document.getElementById("site-intel-badge-status");
+    const badgeType = document.getElementById("site-intel-badge-type");
+    const badgeEngine = document.getElementById("site-intel-badge-engine");
+
+    if (!detailsSection || !tableBody) return;
+    detailsSection.style.display = "flex";
+
+    // Update badges
+    if (badgeStatus) {
+      badgeStatus.textContent = `Status: ${data.websiteStatus || "Working"}`;
+      badgeStatus.style.color = (data.websiteStatus || "").toLowerCase() === "working" ? "#34d399" : "#f87171";
+    }
+    if (badgeType) {
+      badgeType.textContent = data.businessType || "N/A";
+    }
+    if (badgeEngine) {
+      const model = meta.modelUsed || "gemini-3.5-flash-lite";
+      const time = meta.durationMs ? ` · ${(meta.durationMs / 1000).toFixed(1)}s` : "";
+      badgeEngine.textContent = `${model}${time}`;
+    }
+
+    // Populate all 15 fields
+    const keyLabels = [
+      { key: "websiteStatus", label: "Website Status" },
+      { key: "notWorkingReason", label: "Not Working Reason" },
+      { key: "businessType", label: "Business Type" },
+      { key: "companyProfile", label: "Company Profile" },
+      { key: "companyName", label: "Company Name" },
+      { key: "countryName", label: "Country" },
+      { key: "companyAddress", label: "Address" },
+      { key: "state", label: "State / Province" },
+      { key: "city", label: "City" },
+      { key: "emailId", label: "Email ID" },
+      { key: "secondaryEmailId", label: "Secondary Email" },
+      { key: "phoneNumber", label: "Phone Number" },
+      { key: "numberOfProducts", label: "Number of Products" },
+      { key: "productImages", label: "Product Images" },
+      { key: "numberOfProductDescriptions", label: "Product Descriptions" }
+    ];
+
+    tableBody.innerHTML = "";
+    keyLabels.forEach((item, idx) => {
+      const val = data[item.key];
+      const row = document.createElement("tr");
+      row.style.background = idx % 2 === 0 ? "rgba(30, 41, 59, 0.4)" : "transparent";
+      row.style.borderBottom = "1px solid rgba(51, 65, 85, 0.4)";
+
+      const tdKey = document.createElement("td");
+      tdKey.style.padding = "5px 8px";
+      tdKey.style.color = "#94a3b8";
+      tdKey.style.fontWeight = "500";
+      tdKey.style.width = "40%";
+      tdKey.textContent = item.label;
+
+      const tdVal = document.createElement("td");
+      tdVal.style.padding = "5px 8px";
+      tdVal.style.fontWeight = "600";
+      if (val === undefined || val === null || val === "") {
+        tdVal.textContent = "—";
+        tdVal.style.color = "#475569";
+      } else {
+        tdVal.textContent = String(val);
+        tdVal.style.color = "#f8fafc";
+      }
+
+      row.appendChild(tdKey);
+      row.appendChild(tdVal);
+      tableBody.appendChild(row);
+    });
   }
 
   async function handleWidgetCrawlAndFill() {
@@ -593,16 +733,19 @@
       statusLine.textContent = "📝 Prefilling portal form fields...";
       const fillResult = prefillPortalForm(response.data);
 
+      // Render full extracted details in widget
+      renderWidgetDetails(response.data, response.meta);
+
       btnText.textContent = "✓ Form Filled!";
       actionBtn.style.background = "#10b981";
-      statusLine.textContent = `✅ Successfully filled ${fillResult.filledCount} fields!`;
+      statusLine.textContent = `✅ Successfully filled ${fillResult.filledCount} fields! All details shown below.`;
 
       setTimeout(() => {
         actionBtn.disabled = false;
         actionBtn.style.opacity = "1";
         actionBtn.style.cursor = "pointer";
         actionBtn.style.background = "#2563eb";
-        btnText.textContent = "Crawl & Autofill Again";
+        btnText.textContent = "⚡ Crawl & Autofill Again";
       }, 3500);
 
     } catch (err) {
@@ -616,7 +759,7 @@
         actionBtn.style.opacity = "1";
         actionBtn.style.cursor = "pointer";
         actionBtn.style.background = "#2563eb";
-        btnText.textContent = "Crawl & Autofill Form";
+        btnText.textContent = "⚡ Crawl & Autofill Form";
       }, 3500);
     }
   }

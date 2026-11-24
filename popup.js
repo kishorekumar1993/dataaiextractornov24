@@ -577,7 +577,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         updateProgress(95, "Prefilling Portal Form...", "Transferring AI data to form fields...");
         try {
           const fillRes = await new Promise(resolve => {
-            chrome.tabs.sendMessage(currentTab.id, { action: "autofillPortalForm", data: extractedJson }, resolve);
+            chrome.tabs.sendMessage(currentTab.id, {
+              action: "autofillPortalForm",
+              data: extractedJson,
+              meta: extractionResult.meta
+            }, resolve);
           });
           if (fillRes && fillRes.success) {
             updateProgress(100, "Done!", `Portal form autofilled (${fillRes.filledCount} fields populated)!`);
@@ -625,7 +629,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab) return;
-    chrome.tabs.sendMessage(tab.id, { action: "autofillPortalForm", data: lastExtractedResult }, (res) => {
+    chrome.tabs.sendMessage(tab.id, {
+      action: "autofillPortalForm",
+      data: lastExtractedResult,
+      meta: { modelUsed: geminiModel }
+    }, (res) => {
       if (res && res.success) {
         const orig = autofillPortalBtn.textContent;
         autofillPortalBtn.textContent = `✓ Filled (${res.filledCount})`;
@@ -767,6 +775,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function buildSystemInstruction() {
+    if (typeof CrawlerEngine !== "undefined" && CrawlerEngine.buildSystemInstruction) {
+      return CrawlerEngine.buildSystemInstruction();
+    }
     return `You are an expert web crawler and business intelligence data extraction agent.
 Your task is to analyze content gathered from crawling a website (Home, About Us, Company Profile, Contact Us, and Product pages) and extract structured corporate intelligence.
 
@@ -890,6 +901,9 @@ Return ONLY the raw JSON object. Do not enclose in markdown code blocks like \`\
   }
 
   function buildUserPrompt(context) {
+    if (typeof CrawlerEngine !== "undefined" && CrawlerEngine.buildUserPrompt) {
+      return CrawlerEngine.buildUserPrompt(context);
+    }
     return `Analyze the following crawled website data and extract all corporate details according to the required schema:
 
 Website Domain: ${context.domain}

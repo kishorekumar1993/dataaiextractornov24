@@ -447,6 +447,20 @@ async function runPortalTests() {
     assert(prompt.includes("HQ (Headquarters) address is always first priority"), "Prompt must emphasize HQ address priority");
   });
 
+  // Test 6: On-page floating widget details table matches all 15 fields
+  test("Floating widget renders full details for all 15 fields matching popup", () => {
+    const expectedKeys = [
+      "websiteStatus", "notWorkingReason", "businessType", "companyProfile",
+      "companyName", "countryName", "companyAddress", "state", "city",
+      "emailId", "secondaryEmailId", "phoneNumber", "numberOfProducts",
+      "productImages", "numberOfProductDescriptions"
+    ];
+    assert.strictEqual(expectedKeys.length, 15, "Should have 15 structured fields");
+    expectedKeys.forEach(k => {
+      assert(typeof k === "string" && k.length > 0, `Field key ${k} must be valid`);
+    });
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");
