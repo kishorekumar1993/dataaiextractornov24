@@ -269,27 +269,36 @@
     "wholesaler"
   ];
 
+  function isEligibleWorkingBusinessType(businessType) {
+    if (!businessType) return false;
+    const b = String(businessType).toLowerCase().trim();
+    return ELIGIBLE_WORKING_BUSINESS_TYPES.some(eligible => b.includes(eligible));
+  }
+
+  function applyBusinessTypeEligibility(data) {
+    if (!data) return data;
+    const bType = String(data.businessType || "").trim();
+    if (!isEligibleWorkingBusinessType(bType)) {
+      data.websiteStatus = "Not Working";
+      const reason = `Ineligible Business Type: "${bType || 'Other'}". Only businesses from Manufacturer to Wholesaler (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler) are eligible Working sites; all other types are marked Not Working.`;
+      data.notWorkingReason = reason;
+      data.nonWorkingReason = reason;
+    }
+    return data;
+  }
+
   function prefillPortalForm(data) {
     if (!data) return { filledCount: 0, errors: ["No data provided"] };
+    applyBusinessTypeEligibility(data);
 
     const detection = detectPortalForm();
     let filledCount = 0;
     const filledFields = [];
     const errors = [];
 
-    // Condition: Only Manufacturer to Wholesaler are Working sites. Other business types are marked Not Working.
-    let finalWebsiteStatus = data.websiteStatus || "Working";
-    if (finalWebsiteStatus === "Working" && data.businessType) {
-      const bType = String(data.businessType).toLowerCase().trim();
-      const isEligible = ELIGIBLE_WORKING_BUSINESS_TYPES.some(e => bType.includes(e));
-      if (!isEligible) {
-        finalWebsiteStatus = "Not Working";
-      }
-    }
-
     // Map extracted JSON to portal fields
     const fillPlan = [
-      { key: "websiteStatus", value: finalWebsiteStatus },
+      { key: "websiteStatus", value: data.websiteStatus || "Working" },
       { key: "businessType", value: data.businessType || "" },
       { key: "companyProfile", value: data.companyProfile || "Available" },
       { key: "companyName", value: data.companyName || "" },
@@ -408,6 +417,36 @@
           matchIdx = i;
           break;
         }
+      }
+    }
+
+    // 4. Synonym / alias matching for portal options
+    if (matchIdx === -1) {
+      const aliases = {
+        "distributor": ["distributer"],
+        "distributer": ["distributor"],
+        "retailer": ["online shopping", "other"],
+        "retail": ["online shopping", "other"],
+        "ecommerce": ["online shopping"],
+        "e-commerce": ["online shopping"],
+        "shopping": ["online shopping"],
+        "marketplace": ["online shopping", "other"],
+        "service": ["service provider"],
+        "services": ["service provider"],
+        "consulting": ["service provider"]
+      };
+
+      const mappedList = aliases[targetStr] || [];
+      for (const mapped of mappedList) {
+        for (let i = 0; i < selectEl.options.length; i++) {
+          const optText = selectEl.options[i].text.trim().toLowerCase();
+          const optVal = selectEl.options[i].value.trim().toLowerCase();
+          if (optText.includes(mapped) || optVal.includes(mapped)) {
+            matchIdx = i;
+            break;
+          }
+        }
+        if (matchIdx !== -1) break;
       }
     }
 
@@ -636,6 +675,7 @@
   // Renders the full details table into the on-page floating widget matching the popup structured view
   function renderWidgetDetails(data, meta = {}) {
     if (!data) return;
+    applyBusinessTypeEligibility(data);
     lastWidgetData = data;
 
     const detailsSection = document.getElementById("site-intel-details-section");

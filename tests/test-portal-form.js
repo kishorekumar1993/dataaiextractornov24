@@ -498,6 +498,17 @@ async function runPortalTests() {
     // 3. Verify Prompt includes the rule
     const prompt = CrawlerEngine.buildSystemInstruction();
     assert(prompt.includes("Manufacturer to Wholesaler"), "Prompt must instruct that only Manufacturer to Wholesaler are eligible Working sites");
+
+    // 4. Check explicit Retailer example (e.g. Amazon screenshot)
+    const amazonData = {
+      websiteStatus: "Working",
+      businessType: "Retailer",
+      companyName: "Amazon"
+    };
+    const amazonChecked = CrawlerEngine.applyBusinessTypeEligibilityRule(amazonData);
+    assert.strictEqual(amazonChecked.websiteStatus, "Not Working", "Amazon / Retailer must be converted to Not Working");
+    assert(amazonChecked.notWorkingReason.includes('Ineligible Business Type: "Retailer"'), "Reason must explicitly mention Ineligible Business Type: Retailer");
+    assert(amazonChecked.notWorkingReason.includes("Only businesses from Manufacturer to Wholesaler"), "Reason must mention Manufacturer to Wholesaler rule");
   });
 
   console.log("==========================================================");

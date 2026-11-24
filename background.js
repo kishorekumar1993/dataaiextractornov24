@@ -135,6 +135,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           crawlDepth
         });
 
+        if (result && result.data && CrawlerEngine.applyBusinessTypeEligibilityRule) {
+          result.data = CrawlerEngine.applyBusinessTypeEligibilityRule(result.data);
+        }
+
         // Cache completed result
         const cleanKey = request.targetUrl.toLowerCase().split("#")[0].split("?")[0].replace(/\/$/, "");
         queueManager.completedMap[cleanKey] = {
