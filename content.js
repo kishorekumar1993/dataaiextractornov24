@@ -343,6 +343,15 @@
     const filledFields = [];
     const errors = [];
 
+    function resolveProductCountDefault(val) {
+      if (val === undefined || val === null || val === "" || val === "Not Available") {
+        return "3";
+      }
+      const str = String(val).trim();
+      const n = parseInt(str, 10);
+      return (!isNaN(n) && n >= 0 && n <= 3) ? String(n) : "3";
+    }
+
     // Map extracted JSON to portal fields
     const fillPlan = [
       { key: "websiteStatus", value: data.websiteStatus || "Working" },
@@ -356,9 +365,9 @@
       { key: "emailId", value: data.emailId || "" },
       { key: "secondaryEmailId", value: data.secondaryEmailId || "" },
       { key: "phoneNumber", value: data.phoneNumber || "" },
-      { key: "numberOfProducts", value: data.numberOfProducts || "3" },
-      { key: "productImages", value: data.productImages || "3" },
-      { key: "numberOfProductDescriptions", value: data.numberOfProductDescriptions || "3" }
+      { key: "numberOfProducts", value: resolveProductCountDefault(data.numberOfProducts) },
+      { key: "productImages", value: resolveProductCountDefault(data.productImages) },
+      { key: "numberOfProductDescriptions", value: resolveProductCountDefault(data.numberOfProductDescriptions) }
     ];
 
     for (const item of fillPlan) {

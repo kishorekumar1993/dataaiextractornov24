@@ -1038,9 +1038,11 @@ Extract the complete Headquarters (HQ) or Registered Head Office address from th
 1. Identify and expand all recognizable abbreviations, shortened words, and directional references into their complete standard English full forms:
    - Thoroughfares: "Rd." / "Rd" -> "Road", "St." / "St" -> "Street", "Ave." / "Ave" -> "Avenue", "Blvd." / "Blvd" -> "Boulevard", "Hwy." / "Hwy" -> "Highway", "Dr." / "Dr" -> "Drive", "Ln." / "Ln" -> "Lane"
    - Divisions & Units: "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" -> "Section 3"), "Dist." / "Dist" -> "District", "Prov." / "Prov" -> "Province", "Ind." / "Ind" -> "Industrial", "Bldg." / "Bldg" -> "Building", "Rm." / "Rm" -> "Room", "No." / "No" -> "Number", "Ste." / "Ste" -> "Suite", "Apt." / "Apt" -> "Apartment", "Blk." / "Blk" -> "Block", "Sq." / "Sq" -> "Square", "Ctr." / "Ctr" -> "Center", "Plz." / "Plz" -> "Plaza"
-   - Floor Designations: Expand any floor abbreviation:
-     * When attached directly to a number without ordinal suffix: "1F" -> "1Floor", "2F" -> "2Floor", "3F" / "3f." -> "3Floor" (e.g., "1F" -> "1Floor"; "3f.-6" -> "3Floor - 6").
-     * When ordinal suffix is present: "1st F" / "1st Fl." -> "1st Floor", "2nd F" / "2nd Fl." -> "2nd Floor", "3rd F" / "3rd Fl." -> "3rd Floor" (e.g., "1st F" -> "1st Floor"). Retain any sub-unit hyphenated numbers intact.
+   - Floor Designations: Expand any floor abbreviation into "Floor":
+     * Universal floor pattern: Any number directly attached to or followed by "f", "F", "fl", "Fl", or "fl." (e.g. "1F", "2F", "3f.", "3f.-6", "3F-6", "4F-1", "5FL", "10F", "1st F", "2nd Fl.") MUST be expanded with "Floor":
+       - When attached directly to a number without ordinal suffix: "1F" -> "1Floor", "2F" -> "2Floor", "3f." / "3F" -> "3Floor", "3f.-6" -> "3Floor - 6" (or "3Floor.-6").
+       - When ordinal suffix is present: "1st F" / "1st Fl." -> "1st Floor", "2nd F" / "2nd Fl." -> "2nd Floor", "3rd F" / "3rd Fl." -> "3rd Floor".
+       - NEVER leave raw single-letter "f" or "F" unexpanded when referring to floors! Retain any sub-unit hyphenated numbers intact.
    - State & Province Abbreviations (MANDATORY EXPANSION): Always expand 2-letter or shortened state, province, and territory abbreviations into their complete official names (e.g., "WI" MUST be expanded to "Wisconsin", "CA" -> "California", "TX" -> "Texas", "NY" -> "New York", "IL" -> "Illinois", "PA" -> "Pennsylvania", "OH" -> "Ohio", "ON" -> "Ontario", "BC" -> "British Columbia", etc.). State abbreviations MUST NEVER be deleted or removed from the address—they MUST be expanded to their full form.
    - Directional Prefixes Attached to Numbers: Expand directional letters attached directly to numerical identifiers or grid coordinates into their full form:
      * "N173" -> "North173"
@@ -1093,14 +1095,14 @@ Before returning companyAddress:
 
 
 8. "state": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the state name itself):
-   - Select "Available" ONLY if an actual State, County, Province, or Prefecture is explicitly present in the address.
    - What Qualifies as State = "Available":
-     * Official States & Provinces: Any recognized first-level administrative division of any country worldwide (e.g., States, Provinces, Counties, Prefectures, Cantons, Departments, Federal Territories, or Special Administrative Regions), even when the word "State" or "Province" is not explicitly written after the name.
-     * Country Capitals (CRITICAL UNIVERSAL RULE): If the address contains the Country's Capital city (any national capital city of any country worldwide), "state" MUST ALWAYS be marked as "Available" (national capitals hold primary state-level administrative status equivalent to federal capital territories / special municipalities).
+     * Official States & Provinces: Any recognized first-level administrative division of any country worldwide (e.g., States, Provinces, Counties, Prefectures, Cantons, Departments, Federal Territories, or Special/Direct-controlled Municipalities), even when the word "State" or "Province" is not explicitly written after the name.
+     * Country Capitals (CRITICAL UNIVERSAL RULE): If the address contains the Country's Capital city (any national capital or capital city of any country/region worldwide, e.g. Taipei / Taipei City for Taiwan, Washington D.C., London, Paris, Tokyo, Beijing, New Delhi, Berlin, Ottawa, etc., whether written with or without the word "City"), "state" MUST ALWAYS be marked as "Available"! Capital cities hold primary state-level administrative status.
    - Disregard State Names in Street Lines:
      * If a state or province name appears solely as part of a street name (e.g., "Pennsylvania Avenue", "Washington Boulevard"), it does not count as the state. Only count it if an actual state, province, or capital division is present in the address location itself.
-   - Select "Not Available" ONLY when the address contains strictly a local city, town, or district without any state, province, county, prefecture, or national capital present.
-   - DO NOT consider a general City, Town, District, Municipality, Suburb, or Country as a State unless it is an official first-level province/state division or the country's national capital.
+   - Select "Available" whenever an official State, Province, County, Prefecture, or Country Capital is present.
+   - Select "Not Available" ONLY when the address contains strictly an ordinary non-capital local town/suburb without any state, province, county, or country capital present.
+   - DO NOT consider an ordinary local town, village, or suburb as a State.
 
 9. "city": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the city name itself):
    - Select "Available" ONLY if an actual official City, Town, District, or Municipality is explicitly present in the address.
