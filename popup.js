@@ -781,9 +781,17 @@ document.addEventListener("DOMContentLoaded", async () => {
       const doc = parser.parseFromString(html, "text/html");
 
       // Extract Map Addresses before removing iframes
-      const mapAddresses = typeof CrawlerEngine !== "undefined" && CrawlerEngine.extractMapAddresses
+      let mapAddresses = typeof CrawlerEngine !== "undefined" && CrawlerEngine.extractMapAddresses
         ? CrawlerEngine.extractMapAddresses(html)
         : [];
+      if (typeof CrawlerEngine !== "undefined" && CrawlerEngine.resolveMapEmbedAddress) {
+        try {
+          const embedAddrs = await CrawlerEngine.resolveMapEmbedAddress(html, fetch);
+          if (embedAddrs && embedAddrs.length > 0) {
+            mapAddresses = Array.from(new Set([...mapAddresses, ...embedAddrs]));
+          }
+        } catch (e) { }
+      }
 
       ["script", "style", "noscript", "svg", "canvas", "iframe", "nav"].forEach(tag => {
         doc.querySelectorAll(tag).forEach(el => el.remove());
@@ -992,12 +1000,13 @@ Field extraction guidelines:
      * NEVER concatenate or duplicate conflicting or redundant locality/colony and street names together into an artificial combined address (e.g., NEVER combine a colony/garden name with the verified road name into "Colony Gardens, Road Name Road"—use the verified Map street address formulation!).
      * Preserve all valid Contact Page information.
    - Scenario 3: Contact Page and Footer Are Different
-     * Contact Page remains the primary source.
-     * Use Footer information only when it verifies or completes missing components of the same address.
-     * Never override or discard the Contact Page address in favor of an unrelated Footer address.
+     * Contact Page remains the primary source (ABSOLUTE PRIORITY OVER FOOTER).
+     * If the Contact Page body (under Location, Contact Us, or Registered Office) and its Embedded Map display an address, you MUST ALWAYS select that Contact Page / Map address!
+     * You MUST NEVER override, discard, or replace the Contact Page / Map address with a different facility, development branch, secondary office, or corporate office address found in the website footer or footer widgets (e.g., if Contact Page Location & Map are in Delhi, NEVER replace it with a secondary facility or corporate office in Ghaziabad from the footer!).
+     * Use Footer information ONLY when it verifies or completes missing components of the exact same physical address, or when the Contact Page contains NO address at all.
    - Scenario 4: Contact Page and Map Are Different
      * Compare building number, street, locality, city and state.
-     * If the Map contains additional verified components of the same location, supplement the Contact Page address with those verified components, or adopt the verified Map address formulation for that exact location.
+     * If the Map contains additional verified components of the same location (e.g., verified street/road name, unit, phase, locality, city), supplement the Contact Page address with those verified components, or adopt the verified Map address formulation for that exact location.
      * If the Map points to a different location, ignore it.
    - Scenario 5: All Three Addresses Are Different
      * Do not automatically select the longest address.
@@ -1039,6 +1048,7 @@ Field extraction guidelines:
 
 6. Headquarters & Active Address Priority:
    - Always prioritize the Headquarters (HQ) or Registered Head Office address. HQ (Headquarters) address is always first priority.
+   - Primary Location Priority: The primary address displayed in the Contact Page body (under Location, Contact Us, or Registered Office) and confirmed by its Embedded Map is ALWAYS the primary Headquarters address. NEVER override it with a secondary facility or branch listed in the footer.
    - If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
    - Select only one address. Never combine multiple branch addresses.
    - Use only information available on the official website.
