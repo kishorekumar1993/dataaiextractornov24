@@ -972,28 +972,30 @@ Field extraction guidelines:
 **A. Three-Source Address Comparison Framework (CONTACT PAGE IS THE PRIMARY SOURCE)**
 1. Objective:
    Extract the most complete Headquarters (HQ) address by comparing three official website sources:
-   - Contact Page – Primary Source (HIGHEST PRIORITY)
-   - Website Footer – Secondary Source
+   - Contact Page – Primary Source (ABSOLUTE HIGHEST PRIORITY)
    - Embedded Map – Additional Address Verification Source
-2. ABSOLUTE RULE - CONTACT PAGE PRIORITY & MAP COMPARISON (ADDITIONAL EXTRA ITEMS MERGING):
-   - The Contact Page address has the FIRST PRIORITY. Always start with the Contact Page address as the primary base.
-   - Compare Contact Page Address with Embedded Map:
-     * If both the Contact Page address and the Map represent the exact same location with the same components: This is fine; use the Contact Page address.
-     * If the Map has Additional / Extra items (e.g. Map provides additional building name, complex/plaza name, unit number, floor number, block, sector, or street detail that the Contact Page omitted or abbreviated for the exact same location): WE MUST TAKE THAT ADDITIONAL EXTRA ITEM FROM THE MAP AND MERGE IT INTO THE ADDRESS to update it properly!
+   - Website Footer – Secondary Source (Only fallback if Contact Page has no address)
+2. ABSOLUTE RULE - CONTACT PAGE PRIORITY (NEVER OVERRIDE WITH FOOTER):
+   - The address displayed on the Contact Page (under Location / Contact Us / Office Address) MUST ALWAYS be taken as the primary base address!
+   - You MUST NEVER override, discard, or replace the Contact Page address with the Footer address.
+   - The Footer address is ONLY used if the Contact Page is completely missing or contains no address.
+3. MAP COMPARISON RULE (MERGING ADDITIONAL / EXTRA ITEMS):
+   - Compare the Contact Page address with the Contact Page Embedded Map:
+     * Check if both represent the same physical location.
+     * If both the Contact Page address and the Map have the exact same components: That is fine; take the Contact Page address.
+     * If the Map has Additional / Extra items (e.g. Map provides an extra road/street name like "Shashi Park Road", building name, complex/plaza name, unit number, or floor that the Contact Page text omitted or shortened for the exact same location): WE MUST TAKE THAT ADDITIONAL EXTRA ITEM FROM THE MAP AND MERGE IT INTO THE CONTACT PAGE ADDRESS!
+     * Example: If Contact Page has "B-14, Shashi Gardens, Mayur Vihar - I, Delhi" and Map has "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi", take the extra road from Map and merge -> "B-14, Shashi Gardens, Shashi Park Road, Mayur Vihar - I, New Delhi" (or Delhi).
      * If the Map points to a completely different location: Completely ignore the Map and take the Contact Page address.
-   - Compare with Footer:
-     * If Contact Page has Corporate Office / Headquarters, take that Corporate Office / Headquarters address.
-     * Use Footer information only when it verifies or completes missing components of the same physical HQ address.
-3. Strict Address Selection Logic (All 6 Scenarios):
+4. Strict Address Selection Logic (All 6 Scenarios):
    - Scenario 1: All Three Addresses Are Identical
      * Select the Contact Page address.
    - Scenario 2: Contact Page Address Is Incomplete (Map Has Additional Extra Items)
      * Take the Contact Page address as the primary base.
-     * Compare with Map and Footer: If the Map has additional extra items (e.g. missing plaza/building name, unit number, suite, floor, sector, or road detail for the exact same location), WE MUST TAKE THAT ADDITIONAL EXTRA ITEM FROM THE MAP AND MERGE IT INTO THE ADDRESS to make it complete.
+     * Compare with Map and Footer: If the Map has additional extra items (e.g. missing road name, plaza/building name, unit number, suite, floor, sector, or street detail for the exact same location), WE MUST TAKE THAT ADDITIONAL EXTRA ITEM FROM THE MAP AND MERGE IT INTO THE ADDRESS to make it complete.
      * Preserve all valid Contact Page information.
    - Scenario 3: Contact Page and Footer Are Different
      * Contact Page remains the primary source.
-     * Take the Contact Page address ONLY. Use Footer information only when it verifies or completes missing components of the same address. Do NOT replace the Contact Page address with the Footer address.
+     * Take the Contact Page address ONLY! Do NOT replace the Contact Page address with the Footer address.
    - Scenario 4: Contact Page and Map Are Different
      * Compare building number, street, locality, city and state.
      * If the Map contains additional verified components of the same location, supplement the Contact Page address with those extra items.
@@ -1008,7 +1010,7 @@ Field extraction guidelines:
      * If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
      * If no verified address exists in Footer either, flag "websiteStatus": "Manual Review", with reason "Manual Review Required: Contact Page Address Is Not Available".
      * Do not automatically assume the Footer or Map represents the HQ.
-4. Address Completion Rules:
+5. Address Completion Rules:
    Compare these components:
    - Building / House Number
    - Street Number and Street Name
@@ -1022,7 +1024,7 @@ Field extraction guidelines:
    - It does not contradict the Contact Page.
    - It is verified using the official website or its embedded map.
    - Never add unrelated branch addresses, nearby landmarks, or guessed geographic details.
-5. Headquarters & Active Address Priority:
+6. Headquarters & Active Address Priority:
    - Always prioritize the Headquarters (HQ) or Registered Head Office address. HQ (Headquarters) address is always first priority.
    - If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
    - Select only one address. Never combine multiple branch addresses.
