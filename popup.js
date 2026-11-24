@@ -975,26 +975,28 @@ Field extraction guidelines:
    - Contact Page – Primary Source (HIGHEST PRIORITY)
    - Website Footer – Secondary Source
    - Embedded Map – Additional Address Verification Source
-2. ABSOLUTE RULE - CONTACT PAGE PRIORITY & EXCESS MERGING:
-   - IF the Contact Page has an address, you MUST take the Contact Page address as the primary base!
-   - You MUST NEVER replace or discard the Contact Page address in favor of the Footer or Map address.
-   - Additional / Excess details ONLY: You may ONLY merge additional missing components (such as a missing suite number, unit number, building number, or floor designation) from the Footer or Map if the Contact Page was missing that specific detail for the exact same physical location.
-   - If the Contact Page already provides the complete address components, take the Contact Page address as-is.
-   - If the Footer or Map shows a different location, IGNORE the Footer and Map and take the Contact Page address ONLY.
+2. ABSOLUTE RULE - CONTACT PAGE PRIORITY & MAP COMPARISON (ADDITIONAL EXTRA ITEMS MERGING):
+   - The Contact Page address has the FIRST PRIORITY. Always start with the Contact Page address as the primary base.
+   - Compare Contact Page Address with Embedded Map:
+     * If both the Contact Page address and the Map represent the exact same location with the same components: This is fine; use the Contact Page address.
+     * If the Map has Additional / Extra items (e.g. Map provides additional building name, complex/plaza name, unit number, floor number, block, sector, or street detail that the Contact Page omitted or abbreviated for the exact same location): WE MUST TAKE THAT ADDITIONAL EXTRA ITEM FROM THE MAP AND MERGE IT INTO THE ADDRESS to update it properly!
+     * If the Map points to a completely different location: Completely ignore the Map and take the Contact Page address.
+   - Compare with Footer:
+     * If Contact Page has Corporate Office / Headquarters, take that Corporate Office / Headquarters address.
+     * Use Footer information only when it verifies or completes missing components of the same physical HQ address.
 3. Strict Address Selection Logic (All 6 Scenarios):
    - Scenario 1: All Three Addresses Are Identical
      * Select the Contact Page address.
-   - Scenario 2: Contact Page Address Is Incomplete
+   - Scenario 2: Contact Page Address Is Incomplete (Map Has Additional Extra Items)
      * Take the Contact Page address as the primary base.
-     * Check the Footer and Map for additional address components.
-     * If the Map or Footer provides a more complete address for the exact same location (e.g. missing unit, suite, building number, or floor), use it to supplement the Contact Page address.
+     * Compare with Map and Footer: If the Map has additional extra items (e.g. missing plaza/building name, unit number, suite, floor, sector, or road detail for the exact same location), WE MUST TAKE THAT ADDITIONAL EXTRA ITEM FROM THE MAP AND MERGE IT INTO THE ADDRESS to make it complete.
      * Preserve all valid Contact Page information.
    - Scenario 3: Contact Page and Footer Are Different
      * Contact Page remains the primary source.
      * Take the Contact Page address ONLY. Use Footer information only when it verifies or completes missing components of the same address. Do NOT replace the Contact Page address with the Footer address.
    - Scenario 4: Contact Page and Map Are Different
      * Compare building number, street, locality, city and state.
-     * If the Map contains additional verified components of the same location, supplement the Contact Page address.
+     * If the Map contains additional verified components of the same location, supplement the Contact Page address with those extra items.
      * If the Map points to a different location, ignore it and take the Contact Page address.
    - Scenario 5: All Three Addresses Are Different
      * Do not automatically select the longest address.
