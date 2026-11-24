@@ -708,7 +708,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (resp.ok) return await resp.text();
     } catch (e) { }
     const bgRes = await new Promise(resolve => {
-      chrome.runtime.sendMessage({ action: "fetchUrl", url: url }, resolve);
+      try {
+        if (!chrome.runtime || !chrome.runtime.id) return resolve(null);
+        chrome.runtime.sendMessage({ action: "fetchUrl", url: url }, (res) => {
+          if (chrome.runtime && chrome.runtime.lastError) return resolve(null);
+          resolve(res);
+        });
+      } catch (e) {
+        resolve(null);
+      }
     });
     if (bgRes && bgRes.success) return bgRes.text;
     return "";
@@ -754,7 +762,15 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (resp.ok) html = await resp.text();
       } catch (e) {
         const bgRes = await new Promise(resolve => {
-          chrome.runtime.sendMessage({ action: "fetchUrl", url: url }, resolve);
+          try {
+            if (!chrome.runtime || !chrome.runtime.id) return resolve(null);
+            chrome.runtime.sendMessage({ action: "fetchUrl", url: url }, (res) => {
+              if (chrome.runtime && chrome.runtime.lastError) return resolve(null);
+              resolve(res);
+            });
+          } catch (err) {
+            resolve(null);
+          }
         });
         if (bgRes && bgRes.success) html = bgRes.text;
       }

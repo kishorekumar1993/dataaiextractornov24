@@ -800,10 +800,35 @@
     });
   }
 
+  function isExtensionContextValid() {
+    try {
+      return Boolean(typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.id);
+    } catch (e) {
+      return false;
+    }
+  }
+
   async function handleWidgetCrawlAndFill() {
     const actionBtn = document.getElementById("site-intel-action-btn");
     const btnText = document.getElementById("site-intel-btn-text");
     const statusLine = document.getElementById("site-intel-status-line");
+
+    // Guard: Check if extension context is still valid (handles extension reloads/updates)
+    if (!isExtensionContextValid()) {
+      if (statusLine) {
+        statusLine.style.display = "block";
+        statusLine.textContent = "🔄 Extension was updated or reloaded. Please refresh this page (F5) to reconnect.";
+      }
+      if (btnText) btnText.textContent = "🔄 Refresh Page to Reconnect";
+      if (actionBtn) {
+        actionBtn.style.background = "#f59e0b";
+        actionBtn.disabled = false;
+        actionBtn.style.opacity = "1";
+        actionBtn.style.cursor = "pointer";
+        actionBtn.onclick = () => window.location.reload();
+      }
+      return;
+    }
 
     // Get latest URL from form
     const detection = detectPortalForm();
@@ -829,11 +854,24 @@
     try {
       // Send crawl request to background service worker
       statusLine.textContent = "🤖 Analyzing with Gemini AI...";
-      const response = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({
-          action: "crawlAndExtractForPortal",
-          targetUrl: url
-        }, resolve);
+      const response = await new Promise((resolve, reject) => {
+        try {
+          if (!chrome.runtime || !chrome.runtime.id) {
+            return reject(new Error("Extension context invalidated. Please refresh this page (F5) to reconnect."));
+          }
+          chrome.runtime.sendMessage({
+            action: "crawlAndExtractForPortal",
+            targetUrl: url
+          }, (res) => {
+            if (chrome.runtime && chrome.runtime.lastError) {
+              const errMsg = chrome.runtime.lastError.message || "Communication failed";
+              return reject(new Error(errMsg.includes("context invalidated") ? "Extension context invalidated. Please refresh this page (F5) to reconnect." : errMsg));
+            }
+            resolve(res);
+          });
+        } catch (e) {
+          reject(e);
+        }
       });
 
       if (!response || !response.success) {
@@ -859,6 +897,22 @@
       }, 3500);
 
     } catch (err) {
+      const isContextInvalidated = /context invalidated/i.test(err?.message || "");
+      if (isContextInvalidated) {
+        console.warn("Site Intelligence: Extension context invalidated due to extension reload. Please refresh the page.");
+        if (statusLine) {
+          statusLine.style.display = "block";
+          statusLine.textContent = "🔄 Extension was updated or reloaded. Please refresh this page (F5) to reconnect.";
+        }
+        if (btnText) btnText.textContent = "🔄 Refresh Page to Reconnect";
+        actionBtn.style.background = "#f59e0b";
+        actionBtn.disabled = false;
+        actionBtn.style.opacity = "1";
+        actionBtn.style.cursor = "pointer";
+        actionBtn.onclick = () => window.location.reload();
+        return;
+      }
+
       console.error("Widget crawl error:", err);
       btnText.textContent = "Error";
       actionBtn.style.background = "#ef4444";
