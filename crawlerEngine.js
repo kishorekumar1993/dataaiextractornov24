@@ -1171,22 +1171,53 @@ Field extraction guidelines:
    - "Other"
    NOTE ON ELIGIBILITY: Only "Manufacturer" through "Wholesaler" qualify as "Working" sites. All other business types (Service Provider, Online Shopping, Restricted Site, Other) MUST be marked "Not Working" in websiteStatus.
 4. "companyProfile": "Available" if company description/about information was found, or "Not Available".
-5. "companyName": Complete official legal or operational company name with all abbreviations expanded into their full forms:
+5. "companyName": Complete official legal registered company name with all abbreviations expanded into their full forms:
+   - MULTI-SOURCE EXTRACTION PRIORITY (MANDATORY TO PREVENT INCOMPLETE COMPANY NAMES):
+     * Priority 1: Footer Legal Copyright / Imprint Notice: Check footer lines like "© [Year] [Exact Legal Registered Name]" or "Copyright [Year] [Full Name] All Rights Reserved" (e.g. "© 2026 Lamb's Signs Limited", "© 2024 Four C Plus (Internet) Company Limited", "© 2023 ANSON Hydraulics Industrial Co., Ltd."). This almost always contains the statutory, official registered corporate name.
+     * Priority 2: About Us / Company Profile / History: Look for statutory incorporation or opening introduction phrases: "[Full Name] was founded/incorporated in...", "Welcome to [Full Name]".
+     * Priority 3: Contact Us Page Corporate Header / Address Block: Often lists the full legal corporate entity above or alongside the physical headquarters address (e.g., "Four C Plus (Internet) Company Limited, 3rd Floor...").
+     * Priority 4: Terms of Service / Privacy Policy / Legal Imprint: Statutory statements defining the legal entity operating the business.
+     * Priority 5: Header Logo / Page Title: Often contains only a truncated brand/trade name or acronym (e.g., "Lamb's Signs", "ANSON", "4C Plus").
+     * CRITICAL FULL-COMPLETENESS RULE (NEVER LEAVE COMPANY NAME INCOMPLETE):
+       - ALWAYS select the LONGEST, MOST COMPLETE LEGAL REGISTERED NAME over a truncated brand name or header logo!
+       - NEVER omit internal functional/industry words (e.g. NEVER truncate "Anson Hydraulics Industrial Company, Limited" to "Anson" or "Anson Hydraulics").
+       - NEVER omit the legal corporate entity suffix (e.g. NEVER output "Lamb's Signs" without "Limited"; NEVER output "Oriental Chem" without "Company, Limited").
+       - If a website displays both a short trade/brand name (e.g. "ANSON") and a full legal corporate name (e.g. "ANSON Hydraulics Industrial Co., Ltd."), YOU MUST ALWAYS SELECT THE FULL LEGAL CORPORATE NAME: "Anson Hydraulics Industrial Company, Limited".
    - Mandatory Abbreviation Expansion to Full Form:
      * General / English Legal & Corporate Types:
+       - "Co., Ltd." / "Co.,Ltd" / "Co. Ltd." / "Co Ltd" -> "Company, Limited"
        - "Co." / "Co" -> "Company"
        - "Ltd." / "Ltd" -> "Limited"
-       - "Pvt." / "Pvt" -> "Private" (e.g., "Pvt. Ltd." -> "Private Limited")
-       - "Pty." / "Pty" -> "Proprietary" (e.g., "Pty. Ltd." -> "Proprietary Limited")
+       - "Pvt. Ltd." / "Pvt Ltd" -> "Private Limited"
+       - "Pte. Ltd." / "Pte Ltd" -> "Private Limited"
+       - "Pty. Ltd." / "Pty Ltd" -> "Proprietary Limited"
        - "Corp." / "Corp" -> "Corporation"
        - "Inc." / "Inc" -> "Incorporated"
        - "Mfg." / "Mfg" -> "Manufacturing"
        - "Intl." / "Int'l" -> "International"
        - "Tech." / "Tech" -> "Technology"
        - "Grp." / "Grp" -> "Group"
-       - "LLC" -> "Limited Liability Company"
-       - "LLP" -> "Limited Liability Partnership"
+       - "LLC" / "L.L.C." -> "Limited Liability Company"
+       - "LLP" / "L.L.P." -> "Limited Liability Partnership"
+       - "PLC" / "Plc" -> "Public Limited Company"
+       - "Sdn. Bhd." / "Sdn Bhd" -> "Sendirian Berhad"
+       - "Bhd." / "Bhd" -> "Berhad"
        - Example: "Zhejiang Jiangnan Steel Structure Co., Ltd." MUST be expanded to "Zhejiang Jiangnan Steel Structure Company, Limited".
+     * Internal Industry & Business Descriptors Inside Company Name:
+       - "Mfg." / "Mfg" -> "Manufacturing"
+       - "Ind." / "Inds." -> "Industrial" / "Industries"
+       - "Tech." / "Technol." -> "Technology"
+       - "Intl." / "Int'l" -> "International"
+       - "Grp." -> "Group"
+       - "Eng." / "Engg." -> "Engineering"
+       - "Ent." / "Ents." -> "Enterprises"
+       - "Sol." / "Sols." -> "Solutions"
+       - "Sys." -> "Systems"
+       - "Serv." / "Svc." / "Svcs." -> "Services"
+       - "Prod." / "Prods." -> "Products"
+       - "Dev." -> "Development"
+       - "Chem." -> "Chemical"
+       - "Equip." / "Eqpt." -> "Equipment"
      * Country-Specific Company Name & Legal Entity Expansions:
        - United States & Canada: "Inc." -> "Incorporated", "Corp." -> "Corporation", "LLC" / "L.L.C." -> "Limited Liability Company", "LP" -> "Limited Partnership", "LLP" -> "Limited Liability Partnership", "PLLC" -> "Professional Limited Liability Company".
        - United Kingdom, Australia, New Zealand, South Africa, India, Singapore, Malaysia, Hong Kong (Commonwealth): "Ltd." -> "Limited", "Pvt. Ltd." -> "Private Limited", "Pte. Ltd." (Singapore/Southeast Asia) -> "Private Limited", "Pty. Ltd." (Australia/South Africa) -> "Proprietary Limited", "PLC" / "Plc" -> "Public Limited Company", "LLP" -> "Limited Liability Partnership", "Sdn. Bhd." (Malaysia) -> "Sendirian Berhad", "Bhd." -> "Berhad".
@@ -1672,6 +1703,11 @@ ${context.crawledText}`;
     // Apply Business Type eligibility & Unpaid Category conditions (Manufacturer to Wholesaler only are Working, non-manufacturer cart options marked Not Working)
     if (aiResult && aiResult.data) {
       aiResult.data = applyBusinessTypeEligibilityRule(aiResult.data, mainHtml);
+      if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
+        if (typeof CompanyNormalizer !== "undefined" && CompanyNormalizer.normalizeCompanyName) {
+          aiResult.data.companyName = CompanyNormalizer.normalizeCompanyName(aiResult.data.companyName);
+        }
+      }
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
         if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
           aiResult.data.companyAddress = AddressNormalizer.normalizeAddress(aiResult.data.companyAddress);
