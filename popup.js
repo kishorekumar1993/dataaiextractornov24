@@ -936,6 +936,7 @@ Extract the complete Headquarters (HQ) or Registered Head Office address from th
    - Floor Designations: Expand any floor abbreviation:
      * When attached directly to a number without ordinal suffix: "1F" -> "1Floor", "2F" -> "2Floor", "3F" / "3f." -> "3Floor" (e.g., "1F" -> "1Floor"; "3f.-6" -> "3Floor - 6").
      * When ordinal suffix is present: "1st F" / "1st Fl." -> "1st Floor", "2nd F" / "2nd Fl." -> "2nd Floor", "3rd F" / "3rd Fl." -> "3rd Floor" (e.g., "1st F" -> "1st Floor"). Retain any sub-unit hyphenated numbers intact.
+   - State & Province Abbreviations (MANDATORY EXPANSION): Always expand 2-letter or shortened state, province, and territory abbreviations into their complete official names (e.g., "WI" MUST be expanded to "Wisconsin", "CA" -> "California", "TX" -> "Texas", "NY" -> "New York", "IL" -> "Illinois", "PA" -> "Pennsylvania", "OH" -> "Ohio", "ON" -> "Ontario", "BC" -> "British Columbia", etc.). State abbreviations MUST NEVER be deleted or removed from the address—they MUST be expanded to their full form.
    - Directional Prefixes Attached to Numbers: Expand directional letters attached directly to numerical identifiers or grid coordinates into their full form:
      * "N173" -> "North173"
      * "W21640" -> "West21640"
@@ -964,7 +965,9 @@ Extract the complete Headquarters (HQ) or Registered Head Office address from th
 6. Do not add extra commas or remove meaningful internal commas.
 
 **E. Mandatory Cleanup**
-1. Remove pincode, postal codes, and ZIP codes completely from the address.
+1. Remove pincode, postal codes, and ZIP codes completely from the address:
+   - ONLY remove the postal code/zip code/pincode numbers (e.g., in "Jackson, WI 53037", remove ONLY "53037").
+   - CRITICAL: DO NOT remove the state or province abbreviation (such as "WI") when removing the pincode! The state abbreviation "WI" MUST NOT be removed—it MUST be expanded to "Wisconsin" (e.g. "Jackson, WI 53037" -> "Jackson, Wisconsin").
 2. Remove unwanted text at the initial (start) of the address (e.g., remove leading labels like "Address:", "Location:", "HQ:", "Registered Office:", bullet points, colons, hyphens, and company name prefixes).
 3. Remove unwanted text and punctuation at the end of the address (e.g., remove trailing periods, commas, colons, hyphens, phone/fax numbers, email, or trailing notes).
 4. Remove the country name.
@@ -975,6 +978,7 @@ Extract the complete Headquarters (HQ) or Registered Head Office address from th
 Before returning companyAddress:
 - Verify that the selected address is the HQ or Registered Head Office.
 - Verify that all recognizable abbreviations have been expanded.
+- Verify that state/province abbreviations (e.g., WI -> Wisconsin) are expanded into their full names and NOT removed.
 - Verify that directional prefixes have been expanded when their meaning is clear, including prefixes attached to numerical identifiers.
 - Verify that all expanded words follow Title Case, not ALL CAPS.
 - Verify that the original numbers and meaningful punctuation are preserved.
