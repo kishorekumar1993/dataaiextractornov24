@@ -836,7 +836,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       return {
         title,
-        textSnippet: text.slice(0, 5000),
+        textSnippet: text.slice(0, 12000),
         footerText: extractedFooter,
         emails,
         phones,
@@ -1008,9 +1008,10 @@ Field extraction guidelines:
    - Embedded Map – Additional Address Verification Source
 
 2. Address Extraction Rules:
-   - Extract the address separately from the Contact Page, Footer and Map.
-   - Compare all three addresses component by component.
-   - Identify missing address components in the Contact Page.
+   - Extract the address separately from the Contact Page body text, Contact Page Embedded Map, and Footer.
+   - CRITICAL CONTACT PAGE MAP PRIORITY: If in the Contact Page the address is not available in text (or the contact page contains only an inquiry form), but the Contact Page includes an Embedded Map, YOU MUST TAKE THE CONTACT MAP ADDRESS as the primary address! The Contact Map is on the Contact Page and directly represents the verified physical headquarters address.
+   - Compare all available addresses component by component.
+   - Identify missing address components in the Contact Page text.
    - Check whether the Footer or Map provides additional information belonging to the same physical location.
 
 3. Strict Address Selection Logic:
@@ -1026,10 +1027,11 @@ Field extraction guidelines:
        - Preserve the original commas present in that verified Map address.
      * Preserve all valid Contact Page information.
    - Scenario 3: Contact Page and Footer Are Different
-     * Contact Page remains the primary source (ABSOLUTE PRIORITY OVER FOOTER).
-     * If the Contact Page body (under Location, Contact Us, or Registered Office) and its Embedded Map display an address, you MUST ALWAYS select that Contact Page / Map address!
+     * Contact Page remains the primary source (ABSOLUTE PRIORITY OVER FOOTER: both Contact Page text and Contact Page Embedded Map override Footer).
+     * If the Contact Page body (under Location, Contact Us, or Registered Office) or its Embedded Map display an address, you MUST ALWAYS select that Contact Page / Map address!
+     * If Contact Page text has no address or only an inquiry form, but has an Embedded Map, you MUST take the Contact Map address!
      * You MUST NEVER override, discard, or replace the Contact Page / Map address with a different facility, development branch, secondary office, or corporate office address found in the website footer or footer widgets (e.g., if Contact Page Location & Map are in Delhi, NEVER replace it with a secondary facility or corporate office in Ghaziabad from the footer!).
-     * Use Footer information ONLY when it verifies or completes missing components of the exact same physical address, or when the Contact Page contains NO address at all.
+     * Use Footer information ONLY when it verifies or completes missing components of the exact same physical address, or when the Contact Page contains NO address and NO embedded map at all.
    - Scenario 4: Contact Page and Map Are Different
      * Compare building number, street, locality, city and state.
      * If the Map contains additional verified components of the same location (e.g. verified street/road name like "Shashi Park Rd" instead of general colony name, unit, phase, locality, city, state), adopt the verified Map address formulation directly for that exact location ("B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi").
@@ -1038,13 +1040,19 @@ Field extraction guidelines:
    - Scenario 5: All Three Addresses Are Different
      * Do not automatically select the longest address.
      * Do not merge different locations.
-     * Select the Contact Page address as the base.
+     * Select the Contact Page address as the base (using Contact Map if Contact text is not available).
      * Supplement it only when additional components are verified as belonging to the same physical HQ location.
      * If the difference cannot be resolved, flag "websiteStatus": "Manual Review", with reason "Manual Review Required: Conflicting addresses across Contact, Footer, and Map that cannot be reconciled".
-   - Scenario 6: Contact Page Address Is Not Available
-     * Flag "websiteStatus": "Manual Review", with reason "Manual Review Required: Contact Page Address Is Not Available".
-     * Do not automatically assume the Footer or Map represents the HQ.
-     * Fallback: If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
+   - Scenario 6: Contact Page Address Is Not Available in Text (or Contact Page contains only Form / Map):
+     * CRITICAL CONTACT MAP PRIORITY (MANDATORY): If in the Contact Page the address is not available in text (e.g. the contact page body only contains an inquiry/contact form, or has no text address block), but the Contact Page includes an Embedded Map, YOU MUST TAKE THE CONTACT MAP ADDRESS! The Contact Page Map is located directly on the Contact Page and represents the verified physical headquarters address of the company.
+     * When taking the Contact Map address:
+       - Cross-verify with the Footer address (if present): If both point to the same physical facility (e.g. matching building number, road, district, city, state), adopt the complete verified Contact Map address.
+       - Clean and remove any trailing company name, Chinese corporate name, or slash-separated business registration name appended to the map address (e.g., strip "安頌液壓工業股份有限公司/ANSON Hydraulics Industrial Co., Ltd." or "/Company Name").
+       - Remove country name (e.g., "Taiwan") and postal/ZIP codes (e.g., "413", "41353").
+       - Clean native building/lot numbers (e.g., convert "No. 2號" or "2號" to "No. 2" or "2").
+       - Expand street, district, and administrative abbreviations (e.g., "Rd" -> "Road", "Dist." -> "District") in Title Case while preserving original commas.
+     * Fallback (Only when NO Contact Map is present): If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
+     * Only flag "websiteStatus": "Manual Review" with reason "Manual Review Required: Conflicting addresses across Contact, Footer, and Map that cannot be reconciled" if no valid address exists across all sources.
 
 4. Address Completion Rules:
    Compare these components:

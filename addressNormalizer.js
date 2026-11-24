@@ -148,6 +148,18 @@ const AddressNormalizer = (() => {
     addr = addr.replace(/,\s*\n/g, ", ").replace(/\n/g, " ");
     addr = addr.replace(/[ \t]+/g, " ").trim();
 
+    // Strip trailing company registration names (e.g. /ANSON Hydraulics... or Chinese company titles)
+    addr = addr.replace(/\s*[\u4e00-\u9fa5]+[a-zA-Z0-9\s.,&\/\-]*$/i, "").trim();
+    addr = addr.replace(/\/[a-zA-Z0-9\s.,&\-]+(?:Co\.|Ltd\.|Inc\.|Corp\.|Limited|Company)[^,]*$/i, "").trim();
+
+    // Clean Chinese building character 號 (e.g. "No. 2號" -> "No. 2", "2號" -> "2")
+    addr = addr.replace(/\bNo\.\s*(\d+)號/gi, "No. $1");
+    addr = addr.replace(/(\d+)號/g, "$1");
+
+    // Remove leading or trailing postal codes if detached
+    addr = addr.replace(/^\d{3,6},\s*/, "");
+    addr = addr.replace(/,\s*\d{3,6}$/, "");
+
     // Remove trailing unwanted punctuation at the end of the entire address
     addr = addr.replace(/[,;.\-:]+$/, "").trim();
 
