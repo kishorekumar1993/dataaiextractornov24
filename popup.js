@@ -1017,12 +1017,14 @@ Field extraction guidelines:
 3. Strict Address Selection Logic:
    - Scenario 1: All Three Addresses Are Identical
      * Select the Contact Page address.
-   - Scenario 2: Contact Page Address Is Incomplete (Missing Street / Road Name)
-     * Check the Footer and Map for additional address components.
-     * If the Contact Page text only mentions a general neighborhood, colony, enclave, or garden name (e.g. "Shashi Gardens"), but the Embedded Map provides the verified official street/road name for that exact building/plot (e.g. "Shashi Park Rd" / "Shashi Park Road"):
-       - The Contact Page address is INCOMPLETE because the official street/road name is missing.
-       - The Map provides the more complete, verified official address for that exact location.
-       - USE THE VERIFIED MAP ADDRESS FORMULATION DIRECTLY (e.g. "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi")!
+   - Scenario 2: Contact Page Address Is Incomplete (Compare Which One Has Full Details)
+     * CRITICAL FULL DETAILS RULE: You MUST compare all three addresses component by component to determine WHICH ONE HAS FULL DETAILS!
+     * If the Contact Page text or Footer only contains partial details (e.g. "No.2, Wugong 2nd Rd., Wufeng Dist., Taichung City" which is missing the local village/locality, or "Shashi Gardens" which is missing the road name), but the Embedded Map provides the MORE COMPLETE / FULL DETAIL address for that exact physical location (e.g. including the village, locality, sub-district, or official street name such as "Beiliu Village" in "Number 2, Wugong 2nd Road, Beiliu Village, Wufeng District, Taichung City", or "Shashi Park Rd" in "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi"):
+       - The Map address HAS FULL DETAILS and provides the most complete verified headquarters address!
+       - YOU MUST SELECT AND PUT THE FULL DETAIL MAP ADDRESS AS THE FINAL COMPANY ADDRESS!
+       - NEVER discard or omit the extra verified locality, village, or street details from the Map.
+       - USE THE VERIFIED MAP ADDRESS FORMULATION DIRECTLY (e.g. "Number 2, Wugong 2nd Road, Beiliu Village, Wufeng District, Taichung City" or "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi")!
+       - ALWAYS expand "No." or "No.2" to "Number" (e.g. "Number 2").
        - NEVER concatenate both colony and road names together into an artificial combined address (e.g. never output "Shashi Gardens, Shashi Park Road").
        - Preserve the original commas present in that verified Map address.
      * Preserve all valid Contact Page information.
@@ -1032,11 +1034,12 @@ Field extraction guidelines:
      * If Contact Page text has no address or only an inquiry form, but has an Embedded Map, you MUST take the Contact Map address!
      * You MUST NEVER override, discard, or replace the Contact Page / Map address with a different facility, development branch, secondary office, or corporate office address found in the website footer or footer widgets (e.g., if Contact Page Location & Map are in Delhi, NEVER replace it with a secondary facility or corporate office in Ghaziabad from the footer!).
      * Use Footer information ONLY when it verifies or completes missing components of the exact same physical address, or when the Contact Page contains NO address and NO embedded map at all.
-   - Scenario 4: Contact Page and Map Are Different
-     * Compare building number, street, locality, city and state.
-     * If the Map contains additional verified components of the same location (e.g. verified street/road name like "Shashi Park Rd" instead of general colony name, unit, phase, locality, city, state), adopt the verified Map address formulation directly for that exact location ("B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi").
+   - Scenario 4: Contact Page and Map Are Different (Compare Which One Has Full Details)
+     * Compare building number, street, locality, village, district, city and state to check which address has full details.
+     * If the Map contains additional verified components or MORE COMPLETE / FULL DETAILS of the same location (e.g. verified street/road name like "Shashi Park Rd", or village/locality like "Beiliu Village", unit, phase, locality, city, state), ADOPT THE VERIFIED FULL DETAIL MAP ADDRESS FORMULATION DIRECTLY for that exact location (e.g. "Number 2, Wugong 2nd Road, Beiliu Village, Wufeng District, Taichung City" or "B-14, Shashi Park Rd, I, Mayur Vihar, New Delhi, Delhi").
+     * Always expand "No." / "No.2" into "Number" (e.g. "Number 2").
      * Preserve the verified commas present in the Map address.
-     * If the Map points to a different location, ignore it.
+     * If the Map points to a completely different location/city, ignore it.
    - Scenario 5: All Three Addresses Are Different
      * Do not automatically select the longest address.
      * Do not merge different locations.
@@ -1045,11 +1048,12 @@ Field extraction guidelines:
      * If the difference cannot be resolved, flag "websiteStatus": "Manual Review", with reason "Manual Review Required: Conflicting addresses across Contact, Footer, and Map that cannot be reconciled".
    - Scenario 6: Contact Page Address Is Not Available in Text (or Contact Page contains only Form / Map):
      * CRITICAL CONTACT MAP PRIORITY (MANDATORY): If in the Contact Page the address is not available in text (e.g. the contact page body only contains an inquiry/contact form, or has no text address block), but the Contact Page includes an Embedded Map, YOU MUST TAKE THE CONTACT MAP ADDRESS! The Contact Page Map is located directly on the Contact Page and represents the verified physical headquarters address of the company.
-     * When taking the Contact Map address:
-       - Cross-verify with the Footer address (if present): If both point to the same physical facility (e.g. matching building number, road, district, city, state), adopt the complete verified Contact Map address.
+     * COMPARE WHICH ONE HAS FULL DETAILS: Compare the Contact Map address and Footer address:
+       - If the Map address provides fuller / more complete details (e.g. includes village/locality like "Beiliu Village", building number, road, district, city), YOU MUST PUT THE FULL DETAIL MAP ADDRESS!
+       - Always expand "No." / "No.2" into "Number" (e.g. "Number 2, Wugong 2nd Road, Beiliu Village, Wufeng District, Taichung City").
        - Clean and remove any trailing company name, Chinese corporate name, or slash-separated business registration name appended to the map address (e.g., strip "安頌液壓工業股份有限公司/ANSON Hydraulics Industrial Co., Ltd." or "/Company Name").
        - Remove country name (e.g., "Taiwan") and postal/ZIP codes (e.g., "413", "41353").
-       - Clean native building/lot numbers (e.g., convert "No. 2號" or "2號" to "No. 2" or "2").
+       - Clean native building/lot numbers (e.g., convert "No. 2號" or "2號" to "Number 2" or "2").
        - Expand street, district, and administrative abbreviations (e.g., "Rd" -> "Road", "Dist." -> "District") in Title Case while preserving original commas.
      * Fallback (Only when NO Contact Map is present): If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
      * Only flag "websiteStatus": "Manual Review" with reason "Manual Review Required: Conflicting addresses across Contact, Footer, and Map that cannot be reconciled" if no valid address exists across all sources.
@@ -1101,7 +1105,7 @@ Expand every recognizable abbreviation, shortened word, postal/box abbreviation 
    - Universal / International Thoroughfares:
      * "Rd." / "Rd" -> "Road", "St." / "St" -> "Street", "Ave." / "Ave" -> "Avenue", "Blvd." / "Blvd" -> "Boulevard", "Hwy." / "Hwy" -> "Highway", "Dr." / "Dr" -> "Drive", "Ln." / "Ln" -> "Lane", "Way", "Ct." / "Ct" -> "Court", "Pl." / "Pl" -> "Place", "Cir." / "Cir" -> "Circle", "Pkwy." / "Pkwy" -> "Parkway", "Ter." / "Terr." -> "Terrace"
    - Universal Divisions, Units & Buildings:
-     * "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" -> "Section 3"), "Dist." / "Dist" -> "District", "Prov." / "Prov" -> "Province", "Ind." / "Ind" -> "Industrial", "Bldg." / "Bldg" -> "Building", "Rm." / "Rm" -> "Room", "No." / "No" -> "Number", "Ste." / "Ste" -> "Suite", "Apt." / "Apt" -> "Apartment", "Blk." / "Blk" -> "Block", "Sq." / "Sq" -> "Square", "Ctr." / "Ctr" -> "Center", "Plz." / "Plz" -> "Plaza"
+     * "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" -> "Section 3"), "Dist." / "Dist" -> "District", "Prov." / "Prov" -> "Province", "Ind." / "Ind" -> "Industrial", "Bldg." / "Bldg" -> "Building", "Rm." / "Rm" -> "Room", "No." / "No" / "No.2" -> "Number" (MANDATORY EXPANSION: Always expand "No." or "No" or "No.2" or "No. 2" into "Number", e.g. "No. 2" -> "Number 2", "No.2" -> "Number 2", "No. 45" -> "Number 45", "No. 2號" -> "Number 2". NEVER leave "No." or "No" unexpanded!), "Ste." / "Ste" -> "Suite", "Apt." / "Apt" -> "Apartment", "Blk." / "Blk" -> "Block", "Sq." / "Sq" -> "Square", "Ctr." / "Ctr" -> "Center", "Plz." / "Plz" -> "Plaza"
    - Postal, Delivery & Administrative Abbreviations:
      * "P.O. Box" / "PO Box" -> "Post Office Box"
      * "P.O." / "P.O" -> "Post Office" (e.g. "P.O. Mayur Vihar" -> "Post Office Mayur Vihar")

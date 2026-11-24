@@ -148,15 +148,19 @@ const AddressNormalizer = (() => {
     addr = addr.replace(/,\s*\n/g, ", ").replace(/\n/g, " ");
     addr = addr.replace(/[ \t]+/g, " ").trim();
 
-    // Strip trailing company registration names (e.g. /ANSON Hydraulics... or Chinese company titles)
-    addr = addr.replace(/\s*[\u4e00-\u9fa5]+[a-zA-Z0-9\s.,&\/\-]*$/i, "").trim();
-    addr = addr.replace(/\/[a-zA-Z0-9\s.,&\-]+(?:Co\.|Ltd\.|Inc\.|Corp\.|Limited|Company)[^,]*$/i, "").trim();
-
-    // Clean Chinese building character 號 (e.g. "No. 2號" -> "No. 2", "2號" -> "2")
-    addr = addr.replace(/\bNo\.\s*(\d+)號/gi, "No. $1");
+    // 1. Clean Chinese 號 character on building numbers (e.g. "No. 2號" -> "Number 2", "2號" -> "2")
+    addr = addr.replace(/\bNo\.\s*(\d+)號/gi, "Number $1");
     addr = addr.replace(/(\d+)號/g, "$1");
 
-    // Remove leading or trailing postal codes if detached
+    // 2. Expand No. / No attached or preceding numbers (e.g. "No. 2" -> "Number 2", "No.2" -> "Number 2", "No. 45" -> "Number 45")
+    addr = addr.replace(/\b(?:no\.|no)\s*(\d+)/gi, "Number $1");
+    addr = addr.replace(/\bno\.(?=\s|$)/gi, "Number");
+
+    // 3. Remove trailing company registration names (e.g. /ANSON Hydraulics... or native Chinese company titles at the end)
+    addr = addr.replace(/\/[a-zA-Z0-9\s.,&\-]+(?:Co\.|Ltd\.|Inc\.|Corp\.|Limited|Company)[^,]*$/i, "").trim();
+    addr = addr.replace(/[\u4e00-\u9fa5]{2,}[^,]*$/i, "").trim();
+
+    // 4. Remove leading or trailing detached postal codes
     addr = addr.replace(/^\d{3,6},\s*/, "");
     addr = addr.replace(/,\s*\d{3,6}$/, "");
 
