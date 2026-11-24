@@ -1004,8 +1004,15 @@ Field extraction guidelines:
 
 8. "state": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the state name itself):
    - Select "Available" ONLY if an actual State, County, Province, or Prefecture is explicitly present in the address.
-   - Select "Not Available" if no State, County, Province, or Prefecture is present in the address.
-   - CRITICAL RULE: ONLY (County, Province, Prefecture) or an official State can be considered as State.
+   - What Qualifies as State = "Available":
+     * Official States: Any recognized state (e.g., US states, Australian states, Indian states, etc.).
+     * Official Provinces: Any recognized province (e.g., Canadian provinces such as Ontario, Quebec, British Columbia, Alberta, Manitoba, Saskatchewan, Nova Scotia, New Brunswick, Newfoundland and Labrador, Prince Edward Island; Chinese provinces such as Zhejiang, Jiangsu, Guangdong, etc.).
+       IMPORTANT NOTE FOR CANADIAN ADDRESSES: In Canadian addresses such as "130 Pennsylvania Avenue, Unit #8 Concord, Ontario", "Ontario" is an official Canadian Province, so "state" MUST be "Available". Even when the word "Province" is not written out (e.g., "Concord, Ontario" or "Richmond, British Columbia"), the province name itself makes state "Available".
+     * Official Counties: Any recognized county (e.g., UK/US counties like Yorkshire, Lancashire, Orange County, etc.).
+     * Official Prefectures: Any recognized prefecture (e.g., Japanese prefectures like Tokyo, Osaka, Aichi, etc.).
+   - Disregard State Names in Street Lines:
+     * If a state name appears only as part of a street name (e.g., "Pennsylvania Avenue", "Texas Street", "Washington Boulevard"), do NOT consider it as a state. However, always check the rest of the address for an actual state or province (e.g., in "130 Pennsylvania Avenue, Unit #8 Concord, Ontario", Pennsylvania is part of the street address, but "Ontario" is the Province, so state is "Available").
+   - Select "Not Available" if no State, County, Province, or Prefecture is present in the address (e.g., an address with only a street and city like "100 Oxford Street, London" where London is a city and no county/state/province is stated).
    - DO NOT consider a City, Town, District, Municipality, Special Municipality, Suburb, or Country as a State. If only a city or district is present in the address without a State/Province/County/Prefecture, "state" MUST be "Not Available".
 
 9. "city": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the city name itself):

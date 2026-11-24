@@ -522,6 +522,14 @@ async function runPortalTests() {
     assert(prompt.includes('Special characters, hyphens, slashes, ampersands ("&")'), "Address prompt must preserve special characters");
   });
 
+  // Test 9: Canadian Province & State Available rule in AI Prompt
+  test("Canadian province in address (e.g. Concord, Ontario) instructed as State Available in Prompt", () => {
+    const prompt = CrawlerEngine.buildSystemInstruction();
+    assert(prompt.includes("Ontario"), "Prompt must explicitly mention Ontario as a Canadian province");
+    assert(prompt.includes("130 Pennsylvania Avenue, Unit #8 Concord, Ontario"), "Prompt must use the Pennsylvania Avenue Concord Ontario example");
+    assert(prompt.includes("Disregard State Names in Street Lines"), "Prompt must instruct disregarding state names in street lines while checking the rest for province");
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");
