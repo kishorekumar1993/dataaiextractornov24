@@ -3,7 +3,7 @@
 
 const CrawlerEngine = (() => {
   const AddressNormalizer = (typeof require !== "undefined")
-    ? (function() { try { return require("./addressNormalizer.js"); } catch (e) { return null; } })()
+    ? (function () { try { return require("./addressNormalizer.js"); } catch (e) { return null; } })()
     : (typeof window !== "undefined" && window.AddressNormalizer ? window.AddressNormalizer : null);
 
   // Regex patterns for HTML processing in environments without DOM
@@ -831,7 +831,7 @@ const CrawlerEngine = (() => {
     return result;
   }
 
-    async function resolveMapEmbedAddress(html, fetchFn = (typeof fetch !== "undefined" ? fetch : null)) {
+  async function resolveMapEmbedAddress(html, fetchFn = (typeof fetch !== "undefined" ? fetch : null)) {
     if (!html || !fetchFn) return [];
     const iframeRegex = /<iframe\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
     const addrs = [];
@@ -1091,10 +1091,10 @@ CORE RULE - SPECIAL CHARACTER PRESERVATION:
 - Special characters MUST ALWAYS be kept AS IT IS.
 
 Field extraction guidelines:
-1. "websiteStatus": "Working" ONLY IF the site loaded AND its Business Type is an eligible category from "Manufacturer" to "Wholesaler" (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler).
+1. "websiteStatus": Keep "websiteStatus" strictly as "Working" or "Not Working" (and skip redirect/subdomain sites as required by QC). "Working" ONLY IF the site loaded AND its Business Type is an eligible category from "Manufacturer" to "Wholesaler" (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler).
    - CRITICAL ELIGIBILITY RULE: If the business type is anything outside Manufacturer to Wholesaler (such as Service Provider, Online Shopping, Restricted Site, Other, Retailer), "websiteStatus" MUST be marked as "Not Working", and state the reason in "notWorkingReason".
    - If the site is down, broken, parked, or under construction, mark accordingly.
-2. "notWorkingReason": Empty string "" if working, otherwise specify the exact reason (e.g., "Ineligible Business Type: Service Provider (Only Manufacturer to Wholesaler are eligible)", or DNS/HTTP error).
+2. "notWorkingReason": Empty string "" if working, otherwise explain any disqualification, error, or unknown edge case requiring technical team confirmation in "notWorkingReason" (e.g., "Ineligible Business Type: Service Provider (Only Manufacturer to Wholesaler are eligible)", redirect site, ineligible subdomain, or DNS/HTTP error).
 3. "businessType": Select strictly from the portal dropdown options:
    - "Manufacturer"
    - "Industrial Services"
@@ -1243,8 +1243,12 @@ Field extraction guidelines:
    - Use only information available on the official website.
    - Current Active Address Priority (CRITICAL): Always select the CURRENT active headquarters or operational address. NEVER select former, historical, or previous addresses (e.g., text stating "prior to [date] was located at...", "formerly located at...", "previous address", or "relocated from...").
 
-**B. Universal & Country-Specific Abbreviation Expansion (MANDATORY)**
-1. Identify and expand all recognizable abbreviations, shortened words, and directional references into their complete standard full forms according to country context:
+**B. Universal & Contextual Abbreviation Expansion (MANDATORY)**
+Expand every recognizable abbreviation, shortened word, postal/box abbreviation (such as P.O. Box, PBS, Post Bag), directional token, floor/unit token, and administrative/street term into its full form in Title Case according to the surrounding geographic and business context—without hardcoding specific companies or sites.
+- Contextual & Regional Expansion: Use surrounding city, district, state/province, and country context to resolve shortened locality or street tokens (for example, expanding "Kb" to "Kampung Baru" in a Balakong / Seri Kembangan context, or expanding regional street/estate/district abbreviations when clear from context).
+- What Stays Unexpanded: Keep pure lot/plot/unit/house numbers, numeric coordinates, and non-abbreviated proper names or established brand acronyms as-is. Only leave a token unexpanded when it is genuinely an ambiguous code/reference with no clear geographic or domain expansion.
+
+1. Universal Abbreviation Mappings (expand abbreviations into their complete, grammatically standard English or native equivalents):
    - Universal / International Thoroughfares:
      * "Rd." / "Rd" -> "Road", "St." / "St" -> "Street", "Ave." / "Ave" -> "Avenue", "Blvd." / "Blvd" -> "Boulevard", "Hwy." / "Hwy" -> "Highway", "Dr." / "Dr" -> "Drive", "Ln." / "Ln" -> "Lane", "Way", "Ct." / "Ct" -> "Court", "Pl." / "Pl" -> "Place", "Cir." / "Cir" -> "Circle", "Pkwy." / "Pkwy" -> "Parkway", "Ter." / "Terr." -> "Terrace"
    - Universal Divisions, Units & Buildings:
@@ -1253,10 +1257,6 @@ Field extraction guidelines:
      * "P.O. Box" / "PO Box" -> "Post Office Box"
      * "P.O." / "P.O" -> "Post Office" (e.g. "P.O. Mayur Vihar" -> "Post Office Mayur Vihar")
      * "P.B." / "PB" -> "Post Bag" (e.g. "P.B. No." -> "Post Bag Number")
-     * "Kb" / "KB" / "K.B.":
-       - In postal / locked bag context (when followed by a number or No., e.g. "Kb 123", "K.B. No. 45", "Kb 500"): -> "Kotak Berkunci Number" (or "Kotak Berkunci")
-       - In Malaysian state/locality context (e.g. "KB, Kelantan" or "KB Kelantan"): -> "Kota Bharu"
-       - In Indonesian regency context ("Kb." / "Kab."): -> "Kabupaten"
      * "C/O" / "c/o" -> "Care Of"
      * "H.No." / "H.No" / "H No" -> "House Number"
      * "G/F" -> "Ground Floor", "M/F" -> "Mezzanine Floor", "B/F" -> "Basement Floor"
@@ -1304,7 +1304,10 @@ Field extraction guidelines:
 4. Apply Title Case after completing abbreviation expansion.
 5. Preserve the intended meaning and correct word boundaries.
 
-**D. Original Address Structure, Special Characters and Punctuation (STRICT NO-ADDITION RULE)**
+**D. Original Structure & Special Characters (STRICT)**
+- Expand abbreviations and remove postal/ZIP codes and country names BEFORE finalizing the string—do NOT leave abbreviations unexpanded just because they appeared short in the raw text.
+- Preserve existing commas, hyphens ("-"), slashes ("/"), ampersands ("&"), and numbers from the chosen source address; NEVER expand "&" to "and" or "@" to "at", and NEVER add extra commas or special characters that were not in the source text.
+- Trim leading/trailing spaces and strip stray leading/trailing punctuation or brackets.
 1. CRITICAL: PRESERVE SOURCE COMMAS & DO NOT ADD ARTIFICIAL PUNCTUATION:
    - If a comma or special character is available in the source address (Contact Page or Map), you MUST preserve and provide it (do NOT strip away existing commas!).
    - If a comma or special character is NOT available in the original address, DO NOT PROVIDE OR ADD IT!
@@ -1374,19 +1377,20 @@ Before returning companyAddress:
       * China: "+86-573-85127888" -> "57385127888"
       * Domestic with 0: "0573-85127888" -> "57385127888" (leading 0 removed)
     - If no valid non-toll-free phone number exists, return "".
-13. "numberOfProducts": String representation of number of products or services offered (default "3").
-14. "productImages": String representation of number of product images identified (default "3").
+13. "numberOfProducts": String representation of number of products or services offered: Set using "One" (for 1) or "Three" (for more than 3)—never "0" (default "3" or "Three").
+14. "productImages": String representation of number of product images identified: Set using "One" (for 1) or "Three" (for more than 3)—never "0". If all images on the site belong to prohibited categories, set "productImages" to "0". Otherwise default "3" (or "Three").
     - CRITICAL IMAGE EXCLUSION RULE (Rule 15): Images related to the following categories are STRICTLY PROHIBITED and MUST NEVER be counted as product images:
-      * Porn / Adult Content
-      * Medicine
+      * Porn / Adult Content (Adult/Porn)
+      * Medicine, Medical, Hospital
       * Food
-      * Weapons
-      * Aircraft / Marine
+      * Weapons (including Knife), Defence
+      * Aircraft, Aerospace, Marine, Ship (Aircraft / Marine)
       * Chemicals
       * Alcohol
       * Animals
-    - If all images on the website fall under these prohibited categories, "productImages" MUST be "0". Otherwise, default is "3".
-15. "numberOfProductDescriptions": String representation of product descriptions present (default "3").
+    - Prohibited Categories (All Lists & Images): Never count or pass sites/images involving Adult/Porn, Medicine, Medical, Hospital, Food, Weapons (including Knife), Defence, Aircraft, Aerospace, Marine, Ship, Chemicals, Alcohol, or Animals.
+    - If all images on the website fall under these prohibited categories, "productImages" MUST be "0". Otherwise, default is "3" (or "Three").
+15. "numberOfProductDescriptions": String representation of product descriptions present: Set using "One" (for 1) or "Three" (for more than 3)—never "0" (default "3" or "Three").
 
 CRITICAL QC RULES - UNPAID WEBSITES (INELIGIBLE FOR BILLING):
 The following categories are NOT eligible for billing and MUST be classified with "websiteStatus": "Not Working" (unless noted):
@@ -1406,6 +1410,12 @@ The following categories are NOT eligible for billing and MUST be classified wit
 14. Websites designed in Flash format where text is not copyable -> Status: "Flash".
 15. Disallowed product images (Porn, Medicine, Food, Weapons, Aircraft/Marine, Chemicals, Alcohol, Animals) must never be counted.
 16. For any unpaid category 1 to 11, set "websiteStatus": "Not Working" and explain the exact rule in "notWorkingReason".
+
+ADDITIONAL QC RULES:
+- Only check Facebook and LinkedIn if their official links appear on the website.
+- Never use Google Translate.
+- Select only one branch (prioritizing Headquarters: HQ (Headquarters) address is always first priority).
+- Flag any unfamiliar edge case not covered by the instruction sheet for technical team confirmation (explain in "notWorkingReason").
 
 Return ONLY the raw JSON object. Do not enclose in markdown code blocks like \`\`\`json.`;
   }
