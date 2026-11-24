@@ -554,6 +554,7 @@ document.addEventListener("DOMContentLoaded", async () => {
               category: item.category,
               title: pageResult.title,
               textSnippet: pageResult.textSnippet,
+              html: pageResult.html || "",
 
               // Preserve separately extracted address sources
               mapAddresses: pageResult.mapAddresses || [],
@@ -624,7 +625,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       }
       if (typeof CrawlerEngine !== "undefined" && CrawlerEngine.applyBusinessTypeEligibilityRule) {
-        extractedJson = CrawlerEngine.applyBusinessTypeEligibilityRule(extractedJson);
+        extractedJson = CrawlerEngine.applyBusinessTypeEligibilityRule(extractedJson, initialPageData?.html || "", crawledPages);
       }
 
       if (statusResult) {
@@ -845,6 +846,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       return {
         title,
         textSnippet: text.slice(0, 12000),
+        html: html,
         footerText: extractedFooter,
         emails,
         phones,

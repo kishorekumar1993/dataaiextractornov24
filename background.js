@@ -1,5 +1,5 @@
 // Background Service Worker for Manifest V3
-importScripts("companyNormalizer.js", "addressNormalizer.js", "geminiClient.js", "requestQueue.js", "crawlerEngine.js");
+importScripts("companyNormalizer.js", "addressNormalizer.js", "restrictionValidator.js", "geminiClient.js", "requestQueue.js", "crawlerEngine.js");
 
 const queueManager = new CrawlerQueueManager({
   concurrency: 1,

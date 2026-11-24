@@ -19,6 +19,7 @@
       ],
       "js": [
         "companyNormalizer.js",
+        "restrictionValidator.js",
         "content.js"
       ],
       "run_at": "document_idle"

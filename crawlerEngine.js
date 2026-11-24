@@ -4,7 +4,11 @@
 const CrawlerEngine = (() => {
   const AddressNormalizer = (typeof require !== "undefined")
     ? (function () { try { return require("./addressNormalizer.js"); } catch (e) { return null; } })()
-    : (typeof window !== "undefined" && window.AddressNormalizer ? window.AddressNormalizer : null);
+    : (typeof window !== "undefined" && window.AddressNormalizer ? window.AddressNormalizer : (typeof self !== "undefined" && self.AddressNormalizer ? self.AddressNormalizer : null));
+
+  const RestrictionValidator = (typeof require !== "undefined")
+    ? (function () { try { return require("./restrictionValidator.js"); } catch (e) { return null; } })()
+    : (typeof window !== "undefined" && window.RestrictionValidator ? window.RestrictionValidator : (typeof self !== "undefined" && self.RestrictionValidator ? self.RestrictionValidator : null));
 
   // Regex patterns for HTML processing in environments without DOM
   const SCRIPT_STYLE_REGEX = /<(?:script|style|noscript|svg|canvas|iframe|template|nav)\b[^<]*(?:(?!<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>)<[^<]*)*<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>/gi;
@@ -76,6 +80,10 @@ const CrawlerEngine = (() => {
 
   function checkUnpaidWebsiteContent(html, url) {
     if (!html && !url) return null;
+    if (typeof RestrictionValidator !== "undefined" && RestrictionValidator && RestrictionValidator.detectTextRestrictions) {
+      const detected = RestrictionValidator.detectTextRestrictions(html, url);
+      if (detected) return detected.reason;
+    }
     const cleanText = cleanHtmlToText(html || "");
     const lower = cleanText.toLowerCase();
     const urlLower = (url || "").toLowerCase();
@@ -138,8 +146,11 @@ const CrawlerEngine = (() => {
     return null;
   }
 
-  function hasOnlineSellingOptions(html) {
-    if (!html) return false;
+  function hasOnlineSellingOptions(html, text = "", url = "") {
+    if (!html && !text) return false;
+    if (typeof RestrictionValidator !== "undefined" && RestrictionValidator && RestrictionValidator.detectOnlineShopping) {
+      return RestrictionValidator.detectOnlineShopping(html, text, url).detected;
+    }
     const stripped = (html || "").replace(SCRIPT_STYLE_REGEX, " ");
     const lower = stripped.toLowerCase();
     const cleanText = cleanHtmlToText(html).toLowerCase();
@@ -678,16 +689,19 @@ const CrawlerEngine = (() => {
       websiteStatus = "Not Working";
       nonWorkingReason = `Unpaid Category: Subdomain website not hosted at root level (${finalUrl}).`;
     }
-    // 15d. Unpaid Category: Prohibited Industry / Content (Rules 1, 2, 3, 5, 6, 7, 8)
-    else if (checkUnpaidWebsiteContent(finalHtml, finalUrl)) {
-      websiteStatus = "Not Working";
-      nonWorkingReason = checkUnpaidWebsiteContent(finalHtml, finalUrl);
-    }
-    // 16. Working
+    // 15d. Unpaid Category: Prohibited Industry / Content (20 Categories)
     else {
-      websiteStatus = "Working";
-      nonWorkingReason = "";
-      isEligibleForExtraction = true;
+      const unpaidReason = checkUnpaidWebsiteContent(finalHtml, finalUrl);
+      if (unpaidReason) {
+        websiteStatus = "Not Working";
+        nonWorkingReason = unpaidReason;
+      }
+      // 16. Working
+      else {
+        websiteStatus = "Working";
+        nonWorkingReason = "";
+        isEligibleForExtraction = true;
+      }
     }
 
     return {
@@ -773,10 +787,17 @@ const CrawlerEngine = (() => {
     return ELIGIBLE_WORKING_BUSINESS_TYPES.some(eligible => b.includes(eligible));
   }
 
-  function applyBusinessTypeEligibilityRule(data, html = "") {
+  function applyBusinessTypeEligibilityRule(data, html = "", crawledPages = []) {
     if (!data) return data;
     const rawType = String(data.businessType || "").trim();
     const currentStatus = data.websiteStatus || "Working";
+
+    // Use Centralized RestrictionValidator if available
+    if (typeof RestrictionValidator !== "undefined" && RestrictionValidator && RestrictionValidator.validateFinalQC) {
+      const qcResult = RestrictionValidator.validateFinalQC(data, crawledPages, { initialHtml: html });
+      qcResult.businessType = normalizeBusinessType(rawType);
+      return qcResult;
+    }
 
     if (currentStatus === "Working") {
       // Rule 4: Business Type Eligibility (Manufacturer to Wholesaler only)
@@ -1640,6 +1661,7 @@ ${context.crawledText}`;
             category: link.category,
             sourceType: link.category === "contact" ? "CONTACT_PAGE" : link.category.toUpperCase(),
             textSnippet: subText.slice(0, link.category === "contact" ? 12000 : 5000),
+            html: subHtml,
             mapAddresses: subMapAddresses,
             footerText: subFooter
           });
@@ -1707,7 +1729,7 @@ ${context.crawledText}`;
 
     // Apply Business Type eligibility & Unpaid Category conditions (Manufacturer to Wholesaler only are Working, non-manufacturer cart options marked Not Working)
     if (aiResult && aiResult.data) {
-      aiResult.data = applyBusinessTypeEligibilityRule(aiResult.data, mainHtml);
+      aiResult.data = applyBusinessTypeEligibilityRule(aiResult.data, mainHtml, crawledPages);
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
         if (typeof CompanyNormalizer !== "undefined" && CompanyNormalizer.normalizeCompanyName) {
           aiResult.data.companyName = CompanyNormalizer.normalizeCompanyName(aiResult.data.companyName);
@@ -1771,6 +1793,7 @@ ${context.crawledText}`;
     buildUserPrompt,
     normalizeAddress: (raw) => (AddressNormalizer && AddressNormalizer.normalizeAddress ? AddressNormalizer.normalizeAddress(raw) : raw),
     resolveMapEmbedAddress,
+    RestrictionValidator: (typeof RestrictionValidator !== "undefined" ? RestrictionValidator : null),
     crawlAndExtractUrl
   };
 })();
