@@ -994,8 +994,8 @@ const CrawlerEngine = (() => {
       }
     };
 
-    if (abouts.length > 0) addLink(abouts[0]);
     if (contacts.length > 0) addLink(contacts[0]);
+    if (abouts.length > 0) addLink(abouts[0]);
     if (products.length > 0) addLink(products[0]);
     if (products.length > 1) addLink(products[1]);
     if (abouts.length > 1) addLink(abouts[1]);
@@ -1131,31 +1131,33 @@ Field extraction guidelines:
 
 **Contact Page, Footer and Map Address Comparison – Complete Address Extraction**
 
-**A. Three-Source Address Comparison Framework**
+**A. Three-Source Address Comparison Framework (CONTACT PAGE IS THE PRIMARY SOURCE)**
 1. Objective:
    Extract the most complete Headquarters (HQ) address by comparing three official website sources:
-   - Contact Page – Primary Source
+   - Contact Page – Primary Source (HIGHEST PRIORITY)
    - Website Footer – Secondary Source
    - Embedded Map – Additional Address Verification Source
-2. Address Extraction Rules:
-   - Extract the address separately from the Contact Page, Footer, and Embedded Map.
-   - Compare all three addresses component by component.
-   - Identify missing address components in the Contact Page.
-   - Check whether the Footer or Map provides additional information belonging to the same physical location.
-3. Strict Address Selection Logic:
+2. ABSOLUTE RULE - CONTACT PAGE PRIORITY & EXCESS MERGING:
+   - IF the Contact Page has an address, you MUST take the Contact Page address as the primary base!
+   - You MUST NEVER replace or discard the Contact Page address in favor of the Footer or Map address.
+   - Additional / Excess details ONLY: You may ONLY merge additional missing components (such as a missing suite number, unit number, building number, or floor designation) from the Footer or Map if the Contact Page was missing that specific detail for the exact same physical location.
+   - If the Contact Page already provides the complete address components, take the Contact Page address as-is.
+   - If the Footer or Map shows a different location, IGNORE the Footer and Map and take the Contact Page address ONLY.
+3. Strict Address Selection Logic (All 6 Scenarios):
    - Scenario 1: All Three Addresses Are Identical
      * Select the Contact Page address.
    - Scenario 2: Contact Page Address Is Incomplete
+     * Take the Contact Page address as the primary base.
      * Check the Footer and Map for additional address components.
-     * If the Map provides a more complete address for the exact same location, use it to supplement the Contact Page address.
+     * If the Map or Footer provides a more complete address for the exact same location (e.g. missing unit, suite, building number, or floor), use it to supplement the Contact Page address.
      * Preserve all valid Contact Page information.
    - Scenario 3: Contact Page and Footer Are Different
      * Contact Page remains the primary source.
-     * Use Footer information only when it verifies or completes missing components of the same address.
+     * Take the Contact Page address ONLY. Use Footer information only when it verifies or completes missing components of the same address. Do NOT replace the Contact Page address with the Footer address.
    - Scenario 4: Contact Page and Map Are Different
      * Compare building number, street, locality, city and state.
      * If the Map contains additional verified components of the same location, supplement the Contact Page address.
-     * If the Map points to a different location, ignore it.
+     * If the Map points to a different location, ignore it and take the Contact Page address.
    - Scenario 5: All Three Addresses Are Different
      * Do not automatically select the longest address.
      * Do not merge different locations.
@@ -1163,7 +1165,8 @@ Field extraction guidelines:
      * Supplement it only when additional components are verified as belonging to the same physical HQ location.
      * If the difference cannot be resolved, flag "websiteStatus": "Manual Review", with reason "Manual Review Required: Conflicting addresses across Contact, Footer, and Map that cannot be reconciled".
    - Scenario 6: Contact Page Address Is Not Available
-     * Flag "websiteStatus": "Manual Review", with reason "Manual Review Required: Contact Page Address Is Not Available".
+     * If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
+     * If no verified address exists in Footer either, flag "websiteStatus": "Manual Review", with reason "Manual Review Required: Contact Page Address Is Not Available".
      * Do not automatically assume the Footer or Map represents the HQ.
 4. Address Completion Rules:
    Compare these components:
