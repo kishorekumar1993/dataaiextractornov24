@@ -3,7 +3,7 @@
 
 const CrawlerEngine = (() => {
   // Regex patterns for HTML processing in environments without DOM
-  const SCRIPT_STYLE_REGEX = /<(?:script|style|noscript|svg|canvas|iframe|template|nav|footer)\b[^<]*(?:(?!<\/(?:script|style|noscript|svg|canvas|iframe|template|nav|footer)>)<[^<]*)*<\/(?:script|style|noscript|svg|canvas|iframe|template|nav|footer)>/gi;
+  const SCRIPT_STYLE_REGEX = /<(?:script|style|noscript|svg|canvas|iframe|template|nav)\b[^<]*(?:(?!<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>)<[^<]*)*<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>/gi;
   const HTML_TAG_REGEX = /<[^>]+>/g;
   const A_HREF_REGEX = /<a\s+(?:[^>]*?\s+)?href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -224,6 +224,7 @@ Field extraction guidelines:
      * Remove brackets (parentheses, square brackets, curly brackets).
      * Priority: Always select the Headquarters (HQ) or Registered Head Office.
      * Select only one address (do NOT combine multiple branches).
+     * If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website. Note: HQ (Headquarters) address is always first priority.
      * Example: If website shows "Headquarters: Yashan Rd., Zhapu, Jiaxing City, Zhejiang Prov., 314201, China", output: "Yashan Road, Zhapu, Jiaxing City, Zhejiang Province".
 
 8. "state": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the state name itself):

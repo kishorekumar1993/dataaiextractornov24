@@ -698,16 +698,25 @@ document.addEventListener("DOMContentLoaded", async () => {
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, "text/html");
 
-      ["script", "style", "noscript", "svg", "canvas", "iframe", "nav", "footer"].forEach(tag => {
+      ["script", "style", "noscript", "svg", "canvas", "iframe", "nav"].forEach(tag => {
         doc.querySelectorAll(tag).forEach(el => el.remove());
       });
 
       const title = doc.title || "";
-      const text = (doc.body ? (doc.body.innerText || doc.body.textContent) : "")
+      let text = (doc.body ? (doc.body.innerText || doc.body.textContent) : "")
         .replace(/[\r\n]+/g, "\n")
         .replace(/[ \t]+/g, " ")
         .replace(/\n\s*\n/g, "\n\n")
         .trim();
+
+      // Preserve explicit footer text if present
+      const footerEl = doc.querySelector("footer, [class*='footer' i], [id*='footer' i]");
+      if (footerEl) {
+        const footerText = (footerEl.innerText || footerEl.textContent || "").trim();
+        if (footerText && !text.includes(footerText)) {
+          text += "\n\n--- FOOTER (CONTACT / ADDRESS INFO) ---\n" + footerText;
+        }
+      }
 
       const emails = Array.from(new Set(text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || []));
       const phones = Array.from(new Set(text.match(/(?:\+?\d{1,4}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5}/g) || []))
@@ -844,6 +853,7 @@ Field extraction guidelines:
      * Remove brackets (parentheses, square brackets, curly brackets).
      * Priority: Always select the Headquarters (HQ) or Registered Head Office.
      * Select only one address (do NOT combine multiple branches).
+     * If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website. Note: HQ (Headquarters) address is always first priority.
      * Example: If website shows "Headquarters: Yashan Rd., Zhapu, Jiaxing City, Zhejiang Prov., 314201, China", output: "Yashan Road, Zhapu, Jiaxing City, Zhejiang Province".
 
 8. "state": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the state name itself):

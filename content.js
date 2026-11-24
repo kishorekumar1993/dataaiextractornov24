@@ -777,12 +777,20 @@
     if (!rootNode) return "";
     const clone = rootNode.cloneNode(true);
 
-    const dropTags = ["script", "style", "noscript", "svg", "canvas", "iframe", "template", "nav", "footer"];
+    const dropTags = ["script", "style", "noscript", "svg", "canvas", "iframe", "template", "nav"];
     dropTags.forEach(tag => {
       clone.querySelectorAll(tag).forEach(el => el.remove());
     });
 
     let text = clone.innerText || clone.textContent || "";
+    // If there is an explicit footer, ensure its content is preserved
+    const footerEl = rootNode.querySelector("footer, [class*='footer' i], [id*='footer' i]");
+    if (footerEl) {
+      const footerText = (footerEl.innerText || footerEl.textContent || "").trim();
+      if (footerText && !text.includes(footerText)) {
+        text += "\n\n--- FOOTER (CONTACT / ADDRESS INFO) ---\n" + footerText;
+      }
+    }
     text = text.replace(/[\r\n]+/g, "\n")
                .replace(/[ \t]+/g, " ")
                .replace(/\n\s*\n/g, "\n\n")

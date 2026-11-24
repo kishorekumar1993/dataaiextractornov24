@@ -425,6 +425,28 @@ async function runPortalTests() {
     assert.strictEqual(elements.websiteInput.value, "http://www.new-target-site.com");
   });
 
+  // Test 5: Footer address preservation and prompt rule
+  test("Footer content is preserved when Contact Us is absent, HQ priority rule is present", () => {
+    const CrawlerEngine = require("../crawlerEngine.js");
+    const sampleHtml = `
+      <html>
+        <body>
+          <div class="content"><h1>Welcome to Oriental Chem</h1></div>
+          <footer>
+            <div class="footer-addr">Headquarters: No. 128 Industry Road, Chemical Zone, Hangzhou, Zhejiang Province, China</div>
+          </footer>
+        </body>
+      </html>
+    `;
+    const cleaned = CrawlerEngine.cleanHtmlToText(sampleHtml);
+    assert(cleaned.includes("No. 128 Industry Road"), "Footer address content must be preserved in cleaned text");
+    assert(cleaned.includes("Headquarters"), "Headquarters label in footer must be preserved");
+
+    const prompt = CrawlerEngine.buildSystemInstruction();
+    assert(prompt.includes("If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website"), "Prompt must instruct AI to use footer if Contact Us is missing");
+    assert(prompt.includes("HQ (Headquarters) address is always first priority"), "Prompt must emphasize HQ address priority");
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");
