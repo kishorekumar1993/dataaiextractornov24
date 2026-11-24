@@ -330,7 +330,7 @@ document.addEventListener("DOMContentLoaded", async () => {
               const pUrl = new URL(portalTargetUrl.startsWith("http") ? portalTargetUrl : "http://" + portalTargetUrl);
               siteDomainEl.textContent = pUrl.hostname + " (QC Portal Target)";
               siteUrlEl.textContent = portalTargetUrl;
-            } catch (e) {}
+            } catch (e) { }
           }
         } else {
           isPortalDetected = false;
@@ -477,7 +477,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           if (rawHtml) {
             internalLinks = CrawlerEngine.extractLinks(rawHtml, urlObj.origin);
           }
-        } catch (e) {}
+        } catch (e) { }
 
         baseData = {
           url: activeCrawlUrl,
@@ -706,7 +706,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const resp = await fetch(url, { headers: { "Accept": "text/html" } });
       if (resp.ok) return await resp.text();
-    } catch (e) {}
+    } catch (e) { }
     const bgRes = await new Promise(resolve => {
       chrome.runtime.sendMessage({ action: "fetchUrl", url: url }, resolve);
     });
@@ -918,47 +918,56 @@ Field extraction guidelines:
    - If the country name is not available directly on the site, check social media links/profiles, or infer it using the city and state name from the address. Locality must be considered for the country name.
    - Special Rule for United Kingdom:
      * For United Kingdom (England, Wales, Scotland, Northern Ireland): If "England" and "United Kingdom" both are mentioned, you must take England as the country name (prioritize the specific constituent country/locality: England, Wales, Scotland, Northern Ireland).
+### 7. companyAddress – Complete Address Extraction, Full-Form Expansion and Title Case Normalization
 
-7. "companyAddress": Complete address in full form preserving the original template and punctuation:
-   - First letter in each word must be capitalized only (Title Case), NOT all the characters.
-   - Preserve Original Template and Punctuation:
-     * Keep the original address structure, sequence, and internal commas EXACTLY as shown on the website.
-     * Special characters, hyphens, slashes, ampersands ("&"), numbers, and symbols within the address MUST be kept exactly the same as shown on the website.
-     * DO NOT change or expand special characters into words (e.g., NEVER replace "&" with "and", NEVER replace "@" with "at"). Keep special characters always as it is.
-     * DO NOT add any extra commas, and DO NOT remove commas from the middle of the address. Put it as it is.
-     * DO NOT insert artificial linking words like "in" or "of" that are not present in the original website address.
-     * ONLY remove special characters, symbols, and punctuation at the START and END of the address (e.g., remove leading ":", "-", bullets at the beginning, and remove trailing commas, periods, hyphens at the very end).
-   - Mandatory Abbreviation Expansion to Full Form:
-     * "Rd." / "Rd" -> "Road"
-     * "St." / "St" -> "Street"
-     * "Ave." / "Ave" -> "Avenue"
-     * "Blvd." / "Blvd" -> "Boulevard"
-     * "Bldg." / "Bldg" -> "Building"
-     * "Dist." / "Dist" -> "District"
-     * "Prov." / "Prov" -> "Province"
-     * "Ind." / "Ind" -> "Industrial"
-     * Floor Designations: Expand any floor abbreviation (such as "Fl.", "Fl", "F.", "F", or numeric prefixes like "[Number]F", "[Number]f.", "[Number]Fl.") into its complete ordinal/written floor form (e.g., 1F -> 1st Floor, 2F -> 2nd Floor, 3F / 3f. -> 3rd Floor, etc.). Retain any sub-unit hyphenated numbers intact.
-     * "Sec." / "Sec" -> "Section" (e.g., "Sec. 3" / "Sec 3" -> "Section 3")
-     * "Rm." / "Rm" -> "Room"
-     * "No." / "No" -> "Number"
-     * "Ste." / "Ste" -> "Suite"
-     * "Hwy." / "Hwy" -> "Highway"
-     * "Dr." / "Dr" -> "Drive"
-     * "Ln." / "Ln" -> "Lane"
-     * "Blk." / "Blk" -> "Block"
-     * "Sq." / "Sq" -> "Square"
-     * "Ctr." / "Ctr" -> "Center"
-     * "Plz." / "Plz" -> "Plaza"
-     * "Apt." / "Apt" -> "Apartment"
-   - Cleanup Rules:
-     * Remove the postal code / zip code.
-     * Remove the country name.
-     * Remove the company name if prefixed or included in the address line.
-     * Remove brackets (parentheses, square brackets, curly brackets).
-     * Priority: Always select the Headquarters (HQ) or Registered Head Office.
-     * Select only one address (do NOT combine multiple branches).
-     * If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website. Note: HQ (Headquarters) address is always first priority.
-     * Example: If website shows "Headquarters: Yashan Rd., Zhapu, Jiaxing City, Zhejiang Prov., 314201, China", output: "Yashan Road, Zhapu, Jiaxing City, Zhejiang Province".
+Extract the complete Headquarters (HQ) or Registered Head Office address from the official website and normalize it according to the following mandatory rules.
+
+**A. Address Selection Rules**
+1. Always prioritize the Headquarters (HQ) or Registered Head Office address.
+2. If the Contact Us page does not contain an address, check the website footer.
+3. Select only one address. Never combine multiple branch addresses.
+4. Use only information available on the official website.
+
+**B. Universal Abbreviation Expansion (MANDATORY)**
+1. Identify and expand all recognizable abbreviations, shortened words, and directional references into their complete standard English full forms.
+2. Apply expansion throughout the entire address, including street names, building names, directional references, administrative divisions, floor designations, and other address components.
+3. Expand recognizable abbreviations even when they are attached directly to numbers, provided their meaning is clear from the address context.
+4. Use contextual understanding to identify the correct full form. Do not restrict expansion to a predefined abbreviation list.
+5. Do not leave recognizable address abbreviations in shortened form when their full meaning is clear.
+6. Do not invent expansions for ambiguous identifiers, proper names, or reference codes.
+
+**C. Title Case Formatting (STRICT)**
+1. Capitalize only the first letter of each word.
+2. All remaining letters must be lowercase.
+3. Never convert ordinary address words into ALL CAPITAL LETTERS.
+4. Apply Title Case after completing abbreviation expansion.
+5. Preserve the intended meaning and correct word boundaries.
+
+**D. Original Address Structure and Punctuation**
+1. Preserve the original address sequence and structure.
+2. Keep internal commas in their original positions.
+3. Preserve meaningful hyphens, slashes, ampersands (&), numbers, and symbols.
+4. Never replace special characters with words.
+5. Do not add artificial linking words such as "in" or "of".
+6. Do not add extra commas or remove meaningful internal commas.
+
+**E. Mandatory Cleanup**
+1. Remove postal codes and ZIP codes.
+2. Remove the country name.
+3. Remove the company name if included or prefixed in the address.
+4. Remove parentheses, square brackets, and curly brackets.
+5. Remove unnecessary trailing punctuation.
+6. Do not remove meaningful internal address information.
+
+**F. Final Validation**
+Before returning companyAddress:
+- Verify that the selected address is the HQ or Registered Head Office.
+- Verify that all recognizable abbreviations have been expanded.
+- Verify that directional prefixes have been expanded when their meaning is clear, including prefixes attached to numerical identifiers.
+- Verify that all expanded words follow Title Case, not ALL CAPS.
+- Verify that the original numbers and meaningful punctuation are preserved.
+- Verify that postal codes, country names, company names, and brackets are removed.
+- Verify that only one complete address is returned.
 
 8. "state": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the state name itself):
    - Select "Available" ONLY if an actual State, County, Province, or Prefecture is explicitly present in the address.
