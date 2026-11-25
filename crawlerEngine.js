@@ -1552,53 +1552,37 @@ Before returning companyAddress:
    - If the state name is given in the address, select "Available"; if not, select "Not Available".
    - Note: (County, Province, Prefecture) should be considered as State.
    - Country Capitals (CRITICAL UNIVERSAL RULE): (If a country's capital is mentioned in the address, then both City and State are considered available.)
-   - Official States & Provinces: Any recognized first-level administrative division of any country worldwide (States, Counties, Provinces, Prefectures, Cantons, Departments, Federal Territories, Special/Direct-controlled Municipalities) qualifies as State = "Available", even when the word "State", "County", "Province", or "Prefecture" is not explicitly written after the name.
+   - Official States & Provinces: Any recognized first-level administrative division of any country worldwide qualifies as State = "Available", even when the word "State", "County", "Province", or "Prefecture" is omitted:
+     * States / Territories (e.g., Wisconsin, California, Texas, Victoria, New South Wales, Western Australia, Maharashtra, Karnataka, Bavaria, Queensland).
+     * Counties (e.g., UK counties like Bedfordshire, Norfolk, Essex, Yorkshire, Lancashire; Taiwan/US/Irish counties like Changhua County, Miaoli County).
+     * Provinces (e.g., Ontario, British Columbia, Quebec, Guangdong, Zhejiang, Jiangsu, Jawa Barat, Selangor).
+     * Prefectures (e.g., Osaka, Aichi, Kanagawa, Saitama, Shizuoka).
+     * Special / Direct-controlled Municipalities (e.g., Taichung City, Kaohsiung City, Tainan City, New Taipei City, Taoyuan City, Shanghai, Tianjin, Chongqing).
+     * Country Capitals (e.g., London, Paris, Tokyo, Beijing, New Delhi, Taipei, Washington D.C., Canberra, Ottawa, Berlin, Seoul, Bangkok, Kuala Lumpur, Singapore, etc.) -> ALWAYS set BOTH "state": "Available" AND "city": "Available".
    - Disregard State Names in Street Lines: If a state, county, or province name appears solely as part of a street name (e.g., "Pennsylvania Avenue", "Washington Boulevard"), it does NOT count as State.
-   - Do NOT consider an ordinary non-capital town, village, suburb, or industrial estate as State.
+   - If the address only has a non-capital city/town/suburb and NO State, County, Province, Prefecture, or Country Capital, select "Not Available".
 
 9. "city": STRICT CITY VS SUBURB CLASSIFICATION – MANDATORY (Strictly output ONLY the exact string "Available" or "Not Available", NEVER output the city name itself):
    - If the city name is given in the address, select "Available"; if not, select "Not Available".
    - Note: (Town, District, Municipality) should be considered as City.
    - Country Capitals: (If a country's capital is mentioned in the address, then both City and State are considered available.)
-   - CRITICAL ANTI-SUBURB RULE: NEVER assume a place name is a city just because it appears before a State/Province or at the end of an address! In many countries (Australia, UK, India, USA, Canada, etc.), addresses are written as [Street], [Suburb/Locality], [State] without the parent city (e.g., "41 Barry Street, Bayswater, Victoria" or "10 Smith Street, Silverwater, New South Wales"). Here Bayswater and Silverwater are SUBURBS, NOT cities — you MUST output "city": "Not Available"!
-   - Default to "Not Available" unless you can positively verify that the locality is an independently recognized official City, Town, Municipality, or Administrative District (or a Country Capital, which sets BOTH "city" and "state" to "Available").
-   Before marking "city": "Available", independently classify the extracted locality:
+   Before marking "city": "Available", evaluate the locality using the country's administrative structure:
    A. Qualifies as City – "Available":
-      - Officially recognized and independently identifiable cities (and country capitals).
-      - Official towns.
-      - Official municipalities.
-      - Official administrative districts, where the district is explicitly identified as an administrative division.
+      - Officially recognized Cities and Country Capitals.
+      - Official Towns (e.g., UK market/official towns, US/Canadian incorporated towns).
+      - Official Municipalities (e.g., city/special municipalities).
+      - Official Administrative Districts (e.g., East Asian/European administrative districts such as Taiping District, Wufeng District, Da'an District).
    B. Does NOT Qualify as City – "Not Available":
-      - Suburbs (e.g., Bayswater, Silverwater, Tullamarine, Dandenong South, Andheri, etc.).
-      - Neighborhoods & residential areas.
-      - Villages & localities.
-      - Industrial estates, industrial parks, business parks, MIDC/industrial zones.
-      - Housing colonies, postal delivery areas, informal settlement names.
-   C. AUSTRALIA ADDRESSES – GENERAL SUBURB VS CITY RULE:
-      - In Australia, street addresses typically follow the pattern [Street], [Suburb] [State] without writing the parent metropolitan city name.
-      - Any metropolitan or industrial suburb/locality before an Australian State/Territory is a SUBURB (NOT a city or town) -> mark "city": "Not Available".
-      - Mark "city": "Available" ONLY when an officially recognized Australian city, regional city, or the national capital is explicitly present in the address.
-      - If a country's capital is mentioned in the address, then both City and State are considered available.
-   D. Multiple Locality Components:
-      When an address contains both a suburb and an official city:
-      - Do not classify the suburb as the city.
-      - Identify the actual official city separately.
-      - Mark "Available" only when an official city, town, municipality, or qualifying administrative district is explicitly present.
-      - If only a suburb is present (without the parent official city), mark "Not Available".
-   D. Examples (FOLLOW STRICTLY):
-      - "41 Barry Street, Bayswater, Victoria" -> Bayswater is a suburb (Melbourne is not written) -> "city": "Not Available", "state": "Available".
-      - "10 Smith Street, Silverwater, New South Wales" -> Silverwater is a suburb (Sydney is not written) -> "city": "Not Available", "state": "Available".
-      - "Plot 14, Peenya Industrial Area, Karnataka" -> Industrial area/suburb (Bengaluru is not written) -> "city": "Not Available", "state": "Available".
-      - "12900 - 87th Avenue Surrey British Columbia" -> Surrey is an official incorporated city -> "city": "Available", "state": "Available".
-      - "500 Main Street, Bandra, Mumbai, Maharashtra" -> Mumbai is an official city explicitly present -> "city": "Available", "state": "Available".
-      - "Number 2, Wugong 2nd Road, Wufeng District, Taichung City" -> Official district & city -> "city": "Available".
-   E. Mandatory Validation:
-      Before returning the result, verify:
-      1. Is this locality an officially recognized city, town, municipality, or administrative district?
-      2. Is it merely a suburb, village, industrial estate, or neighborhood within a larger metropolitan city?
-      3. Am I mistaking it for a city only because it sits before the State or at the end of the address?
-      Never assume that the last locality in an address is the city.
-      Return only "Available" or "Not Available". Do not use geographical proximity or assumptions to convert a suburb into a city.
+      - Suburbs (e.g., metropolitan/industrial suburbs in Australia, UK, India, etc. when the parent city is NOT written in the address).
+      - Neighborhoods, residential areas, housing colonies, and informal settlements.
+      - Villages and small unincorporated localities.
+      - Industrial estates, industrial parks, business parks, and trading estates.
+      - Postal delivery areas.
+   C. Universal Country Check (NEVER GUESS):
+      - Do NOT assume a locality is a city just because it appears right before a State/Province or at the end of an address.
+      - In countries like Australia where addresses use [Street], [Suburb] [State] without the parent city, a suburb before the State is NOT a city -> mark "city": "Not Available" unless an official city/regional city/capital is explicitly written.
+      - When an address contains both a suburb and an official city, ignore the suburb and mark "city": "Available" based on the official city.
+      - If only a suburb, village, or industrial estate is present (and it is not a Town, District, Municipality, official City, or Country Capital), mark "city": "Not Available".
 
 10. "emailId": Primary contact email address.
 11. "secondaryEmailId": Alternative email if present, else "".
