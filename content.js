@@ -146,71 +146,107 @@
   function isValidUrlOrDomain(str) {
     if (!str || typeof str !== "string") return false;
     const clean = str.trim();
-    if (/^\d+$/.test(clean)) return false; // reject pure numbers/IDs like "538611"
+    if (/^\d+$/.test(clean)) return false; // reject pure numbers/IDs like "538611", "538613"
     if (/^https?:\/\//i.test(clean)) return true;
     if (/^www\.[a-z0-9-]+/i.test(clean)) return true;
-    if (/[a-z0-9-]+\.(?:com|org|net|co|io|biz|info|us|uk|ca|in|de|cn|jp|fr|au|nl|ru|tw|hk|site|online|tech)\b/i.test(clean)) return true;
+    if (/[a-z0-9-]+\.(?:com|org|net|co|io|biz|info|us|uk|ca|in|de|cn|jp|fr|au|nl|ru|tw|hk|site|online|tech|co\.uk)\b/i.test(clean)) return true;
     return false;
   }
 
+  function isVisibleTextInput(el) {
+    if (!el || el.tagName.toLowerCase() !== "input") return false;
+    const type = (el.getAttribute("type") || "text").toLowerCase();
+    if (type === "hidden" || type === "button" || type === "submit" || type === "checkbox" || type === "radio" || type === "image" || type === "file") {
+      return false;
+    }
+    const name = (el.getAttribute("name") || "").toLowerCase();
+    const id = (el.getAttribute("id") || "").toLowerCase();
+    if (name.endsWith("_id") || name === "id" || id.endsWith("_id") || id === "id") {
+      if (/^\d+$/.test((el.value || "").trim())) return false;
+    }
+    return true;
+  }
+
   function findWebsiteInputElement() {
-    // 1. High priority: Check labels strictly matching "website name" or "website url"
+    // 1. Absolute Highest Priority: Scan all visible text inputs for one whose CURRENT VALUE is a valid URL or domain
+    const allInputs = Array.from(document.querySelectorAll("input"));
+    const visibleInputs = allInputs.filter(isVisibleTextInput);
+
+    for (const inp of visibleInputs) {
+      const val = (inp.value || "").trim();
+      if (isValidUrlOrDomain(val)) {
+        return inp;
+      }
+    }
+
+    // 2. High priority: Check input immediately adjacent to a "click here" button (on cpworkportal.online)
+    const clickHereBtn = Array.from(document.querySelectorAll("button, a, input[type='button'], span, div")).find(el => {
+      const t = (el.innerText || el.textContent || el.getAttribute("value") || "").trim().toLowerCase();
+      return t === "click here";
+    });
+    if (clickHereBtn) {
+      // Check previous siblings
+      let prev = clickHereBtn.previousElementSibling;
+      while (prev) {
+        if (isVisibleTextInput(prev)) return prev;
+        const nestedInp = prev.querySelector("input");
+        if (isVisibleTextInput(nestedInp)) return nestedInp;
+        prev = prev.previousElementSibling;
+      }
+      // Check parent container
+      const container = clickHereBtn.closest(".input-group, .form-group, .field, .col, .row, div") || clickHereBtn.parentElement;
+      if (container) {
+        const inps = Array.from(container.querySelectorAll("input")).filter(isVisibleTextInput);
+        if (inps.length > 0) return inps[0];
+      }
+    }
+
+    // 3. Priority: Check elements labeled "Website Name" or "Website URL"
     const allLabels = Array.from(document.querySelectorAll("label, span, div, p, strong, b"));
     for (const lbl of allLabels) {
       const text = (lbl.innerText || lbl.textContent || "").trim().toLowerCase().replace(/[:*]/g, "").trim();
       if (text === "website name" || text === "website url" || text === "web site name" || text === "web site url") {
         if (lbl.htmlFor) {
           const target = document.getElementById(lbl.htmlFor);
-          if (target && isInputField(target)) return target;
+          if (isVisibleTextInput(target)) return target;
         }
         const container = lbl.closest(".form-group, .field, .form-item, .col, .row, div") || lbl.parentElement;
         if (container) {
-          const input = container.querySelector("input:not([type='button']):not([type='submit'])");
-          if (input) return input;
+          const inps = Array.from(container.querySelectorAll("input")).filter(isVisibleTextInput);
+          if (inps.length > 0) return inps[0];
         }
         let next = lbl.nextElementSibling;
         while (next) {
-          if (isInputField(next) && next.tagName.toLowerCase() === "input") return next;
-          const nested = next.querySelector("input:not([type='button']):not([type='submit'])");
-          if (nested) return nested;
+          if (isVisibleTextInput(next)) return next;
+          const nested = next.querySelector("input");
+          if (isVisibleTextInput(nested)) return nested;
           next = next.nextElementSibling;
         }
       }
     }
 
-    // 2. Check input immediately adjacent to a "click here" button (as on the QC portal)
-    const clickHereBtn = Array.from(document.querySelectorAll("button, a, input[type='button'], span, div")).find(el => {
-      const t = (el.innerText || el.textContent || el.getAttribute("value") || "").trim().toLowerCase();
-      return t === "click here";
-    });
-    if (clickHereBtn) {
-      if (clickHereBtn.previousElementSibling && clickHereBtn.previousElementSibling.tagName.toLowerCase() === "input") {
-        return clickHereBtn.previousElementSibling;
-      }
-      const parentContainer = clickHereBtn.closest(".form-group, .field, .form-item, .col, .row, div") || clickHereBtn.parentElement;
-      if (parentContainer) {
-        const input = parentContainer.querySelector("input:not([type='button']):not([type='submit'])");
-        if (input) return input;
-      }
-    }
-
-    // 3. Scan all inputs for any input whose current value is already a valid URL or domain
-    const allInputs = Array.from(document.querySelectorAll("input:not([type='hidden']):not([type='button']):not([type='submit'])"));
-    for (const inp of allInputs) {
-      const val = (inp.value || "").trim();
-      if (isValidUrlOrDomain(val)) return inp;
-    }
-
-    // 4. Scan placeholder containing "website" or "http"
-    for (const inp of allInputs) {
+    // 4. Scan placeholder containing "website" or "http" or "url"
+    for (const inp of visibleInputs) {
       const ph = (inp.placeholder || "").toLowerCase();
-      if (ph.includes("website") || ph.includes("http")) return inp;
+      if (ph.includes("website") || ph.includes("http") || ph.includes("url")) {
+        return inp;
+      }
     }
 
-    // 5. Fallback: standard field element for websiteUrl
+    // 5. Fallback: Check input with name/id containing "website_name" or "websiteurl"
+    for (const inp of visibleInputs) {
+      const n = (inp.name || "").toLowerCase();
+      const id = (inp.id || "").toLowerCase();
+      if ((n.includes("website") || id.includes("website")) && !n.endsWith("_id") && !id.endsWith("_id")) {
+        return inp;
+      }
+    }
+
+    // 6. Fallback: standard field element for websiteUrl
     const websiteSpec = PORTAL_FIELD_SPECS.find(s => s.key === "websiteUrl");
     if (websiteSpec) {
-      return findFieldElement(websiteSpec);
+      const fallbackEl = findFieldElement(websiteSpec);
+      if (isVisibleTextInput(fallbackEl)) return fallbackEl;
     }
 
     return null;
@@ -243,12 +279,15 @@
       }
     }
 
-    // Fallback: If targetUrl still not found or purely numeric, search for input with URL
+    // Fallback: If targetUrl still not found or purely numeric, search visible inputs for URL
     if (!targetUrl || /^\d+$/.test(targetUrl)) {
-      const queueInput = document.querySelector("input[value*='http'], input[placeholder*='http'], input[value*='www.']");
-      if (queueInput && isValidUrlOrDomain(queueInput.value)) {
-        targetUrl = queueInput.value.trim();
-        fieldMap.websiteUrl = queueInput;
+      const allTextInputs = Array.from(document.querySelectorAll("input:not([type='hidden'])"));
+      for (const inp of allTextInputs) {
+        if (isValidUrlOrDomain(inp.value)) {
+          targetUrl = inp.value.trim();
+          fieldMap.websiteUrl = inp;
+          break;
+        }
       }
     }
 
@@ -666,28 +705,48 @@
   let lastWidgetData = null;
 
   function setupFloatingWidget(initialUrl) {
-    if (document.getElementById("site-intel-portal-widget")) {
-      updateFloatingWidgetTarget(initialUrl);
+    let currentTargetUrl = initialUrl;
+    const currentWebEl = findWebsiteInputElement();
+    if (currentWebEl) {
+      const v = getElementValue(currentWebEl);
+      if (isValidUrlOrDomain(v)) {
+        currentTargetUrl = v.trim();
+      }
+    }
+
+    // If widget already exists, update target
+    const existingWidget = document.getElementById("site-intel-portal-widget");
+    if (existingWidget) {
+      updateFloatingWidgetTarget(currentTargetUrl);
       return;
     }
 
     // Read stored position from localStorage if available
     let savedPos = null;
     try {
-      savedPos = JSON.parse(localStorage.getItem("site_intel_widget_pos"));
+      const raw = localStorage.getItem("site_intel_widget_pos");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // If saved position has bottom (which covers submit button), reset it!
+        if (parsed.bottom && parsed.bottom !== "auto") {
+          savedPos = null;
+        } else {
+          savedPos = parsed;
+        }
+      }
     } catch (_) {}
 
-    // Default position: top: 20px, right: 20px (Top-Right avoids blocking bottom-right Submit button!)
+    // Default position: top: 20px, right: 20px (Top-Right NEVER blocks the bottom-right Submit button!)
     let defaultTop = "20px";
     let defaultRight = "20px";
     let defaultLeft = "auto";
     let defaultBottom = "auto";
 
     if (savedPos && (savedPos.left || savedPos.right) && (savedPos.top || savedPos.bottom)) {
-      defaultTop = savedPos.top || "auto";
+      defaultTop = savedPos.top || "20px";
       defaultLeft = savedPos.left || "auto";
-      defaultRight = savedPos.right || "auto";
-      defaultBottom = savedPos.bottom || "auto";
+      defaultRight = savedPos.right || (savedPos.left ? "auto" : "20px");
+      defaultBottom = "auto";
     }
 
     // Create container
@@ -741,7 +800,7 @@
         <div style="display:flex; flex-direction:column; gap:4px;">
           <div style="font-size:11px; color:#94a3b8; font-weight:600; letter-spacing:0.3px;">TARGET WEBSITE:</div>
           <div id="site-intel-widget-target" style="font-size:12px; font-weight:600; color:#f8fafc; word-break:break-all; background:#1e293b; padding:6px 10px; border-radius:6px; border:1px solid #334155;">
-            ${initialUrl || "Detecting URL from form..."}
+            ${currentTargetUrl || "Detecting URL from form..."}
           </div>
         </div>
 
@@ -949,19 +1008,36 @@
     });
 
     // Listen to input changes on Website Name field to update widget live
-    const websiteEl = findWebsiteInputElement();
-    if (websiteEl) {
-      const syncTarget = () => {
-        const val = getElementValue(websiteEl);
-        if (isValidUrlOrDomain(val)) {
-          updateFloatingWidgetTarget(val.trim());
-        } else if (val && val.includes(".")) {
-          updateFloatingWidgetTarget(val.trim());
+    const attachSync = () => {
+      const websiteEl = findWebsiteInputElement();
+      if (websiteEl) {
+        const syncTarget = () => {
+          const val = getElementValue(websiteEl);
+          if (isValidUrlOrDomain(val)) {
+            updateFloatingWidgetTarget(val.trim());
+          } else if (val && val.includes(".")) {
+            updateFloatingWidgetTarget(val.trim());
+          }
+        };
+        websiteEl.addEventListener("input", syncTarget);
+        websiteEl.addEventListener("change", syncTarget);
+      }
+    };
+    attachSync();
+
+    // Periodic check in case portal loads next task record asynchronously (e.g. Next Record on cpworkportal.online)
+    setInterval(() => {
+      const el = findWebsiteInputElement();
+      if (el) {
+        const v = getElementValue(el);
+        if (isValidUrlOrDomain(v)) {
+          const targetEl = document.getElementById("site-intel-widget-target");
+          if (targetEl && targetEl.textContent.trim() !== v.trim()) {
+            updateFloatingWidgetTarget(v.trim());
+          }
         }
-      };
-      websiteEl.addEventListener("input", syncTarget);
-      websiteEl.addEventListener("change", syncTarget);
-    }
+      }
+    }, 1500);
   }
 
   function updateFloatingWidgetTarget(url) {
