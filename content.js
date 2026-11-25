@@ -170,86 +170,123 @@
   }
 
   function findWebsiteInputElement() {
-    // 1. Absolute Highest Priority: Scan all inputs for one whose CURRENT VALUE is a valid URL or domain
-    const allInputs = Array.from(document.querySelectorAll("input:not([type='hidden']):not([type='button']):not([type='submit'])"));
-    for (const inp of allInputs) {
-      const val = (inp.value || "").trim();
-      if (isValidUrlOrDomain(val)) {
-        return inp;
+    // Never inspect inputs inside our own floating widget
+    const inputs = Array.from(
+      document.querySelectorAll(
+        "input:not([type='hidden']):not([type='button']):not([type='submit']):not([type='checkbox']):not([type='radio']):not([type='file'])"
+      )
+    ).filter(el => {
+      // In browser, check layout & visibility; in Node test runner fallback safely
+      const hasBounding = typeof el.getBoundingClientRect === "function";
+      const rect = hasBounding ? el.getBoundingClientRect() : { width: 100, height: 30 };
+      const style = (typeof window !== "undefined" && typeof window.getComputedStyle === "function" && el.ownerDocument && el.ownerDocument.defaultView)
+        ? window.getComputedStyle(el)
+        : { display: "block", visibility: "visible" };
+
+      return (
+        rect.width > 0 &&
+        rect.height > 0 &&
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        !el.disabled &&
+        !el.readOnly &&
+        !el.closest("#site-intel-portal-widget")
+      );
+    });
+
+    // Strict URL validation
+    const isWebsiteUrl = value => {
+      if (!value || typeof value !== "string" || /^\d+$/.test(value.trim())) return false;
+
+      try {
+        const normalized = /^https?:\/\//i.test(value.trim())
+          ? value.trim()
+          : "https://" + value.trim();
+
+        const url = new URL(normalized);
+
+        return (
+          ["http:", "https:"].includes(url.protocol) &&
+          url.hostname.includes(".") &&
+          !/^\d+$/.test(url.hostname)
+        );
+      } catch {
+        return false;
+      }
+    };
+
+    // PRIORITY 1: Exact Website Name / Website URL label
+    const labels = Array.from(
+      document.querySelectorAll("label, span, p, strong, b, div")
+    );
+
+    for (const label of labels) {
+      const text = (label.innerText || label.textContent || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[:*]/g, "")
+        .trim();
+
+      if (
+        !["website name", "website url", "web site name", "web site url"]
+          .includes(text)
+      ) continue;
+
+      if (label.htmlFor) {
+        const target = document.getElementById(label.htmlFor);
+        if (inputs.includes(target)) return target;
+      }
+
+      const container = label.closest(
+        ".form-group, .form-field, .form-item, .input-group, .col"
+      ) || label.parentElement;
+
+      if (container) {
+        const candidate = Array.from(
+          container.querySelectorAll("input")
+        ).find(el => inputs.includes(el));
+
+        if (candidate) return candidate;
       }
     }
 
-    // 2. High priority: Check input immediately adjacent to a "click here" button (on cpworkportal.online)
+    // PRIORITY 2: Website-specific placeholder
+    const placeholderMatch = inputs.find(el => {
+      const ph = (el.placeholder || "").toLowerCase();
+      return ph.includes("website") || ph.includes("enter website");
+    });
+
+    if (placeholderMatch) return placeholderMatch;
+
+    // PRIORITY 3: Input with website-specific name or ID
+    const namedMatch = inputs.find(el => {
+      const name = (el.name || "").toLowerCase();
+      const id = (el.id || "").toLowerCase();
+
+      return (
+        (name.includes("website") || id.includes("website")) &&
+        !name.endsWith("_id") &&
+        !id.endsWith("_id")
+      );
+    });
+
+    if (namedMatch) return namedMatch;
+
+    // PRIORITY 4: Check input immediately adjacent to "click here" button (on cpworkportal.online)
     const clickHereBtn = Array.from(document.querySelectorAll("button, a, input[type='button'], span, div")).find(el => {
       const t = (el.innerText || el.textContent || el.getAttribute("value") || "").trim().toLowerCase();
       return t === "click here";
     });
     if (clickHereBtn) {
-      // Check previous siblings
-      let prev = clickHereBtn.previousElementSibling;
-      while (prev) {
-        if (isVisibleTextInput(prev)) return prev;
-        const nestedInp = prev.querySelector("input");
-        if (isVisibleTextInput(nestedInp)) return nestedInp;
-        prev = prev.previousElementSibling;
-      }
-      // Check parent container
       const container = clickHereBtn.closest(".input-group, .form-group, .field, .col, .row, div") || clickHereBtn.parentElement;
       if (container) {
-        const inps = Array.from(container.querySelectorAll("input")).filter(isVisibleTextInput);
-        if (inps.length > 0) return inps[0];
+        const candidate = Array.from(container.querySelectorAll("input")).find(el => inputs.includes(el));
+        if (candidate) return candidate;
       }
     }
 
-    // 3. Priority: Check elements labeled "Website Name" or "Website URL"
-    const allLabels = Array.from(document.querySelectorAll("label, span, div, p, strong, b"));
-    for (const lbl of allLabels) {
-      const text = (lbl.innerText || lbl.textContent || "").trim().toLowerCase().replace(/[:*]/g, "").trim();
-      if (text === "website name" || text === "website url" || text === "web site name" || text === "web site url") {
-        if (lbl.htmlFor) {
-          const target = document.getElementById(lbl.htmlFor);
-          if (isVisibleTextInput(target)) return target;
-        }
-        const container = lbl.closest(".form-group, .field, .form-item, .col, .row, div") || lbl.parentElement;
-        if (container) {
-          const inps = Array.from(container.querySelectorAll("input")).filter(isVisibleTextInput);
-          if (inps.length > 0) return inps[0];
-        }
-        let next = lbl.nextElementSibling;
-        while (next) {
-          if (isVisibleTextInput(next)) return next;
-          const nested = next.querySelector("input");
-          if (isVisibleTextInput(nested)) return nested;
-          next = next.nextElementSibling;
-        }
-      }
-    }
-
-    // 4. Scan placeholder containing "website" or "http" or "url"
-    for (const inp of visibleInputs) {
-      const ph = (inp.placeholder || "").toLowerCase();
-      if (ph.includes("website") || ph.includes("http") || ph.includes("url")) {
-        return inp;
-      }
-    }
-
-    // 5. Fallback: Check input with name/id containing "website_name" or "websiteurl"
-    for (const inp of visibleInputs) {
-      const n = (inp.name || "").toLowerCase();
-      const id = (inp.id || "").toLowerCase();
-      if ((n.includes("website") || id.includes("website")) && !n.endsWith("_id") && !id.endsWith("_id")) {
-        return inp;
-      }
-    }
-
-    // 6. Fallback: standard field element for websiteUrl
-    const websiteSpec = PORTAL_FIELD_SPECS.find(s => s.key === "websiteUrl");
-    if (websiteSpec) {
-      const fallbackEl = findFieldElement(websiteSpec);
-      if (isVisibleTextInput(fallbackEl)) return fallbackEl;
-    }
-
-    return null;
+    // PRIORITY 5: Existing valid URL as last resort
+    return inputs.find(el => isWebsiteUrl(el.value)) || null;
   }
 
   function detectPortalForm() {
@@ -274,12 +311,10 @@
       const val = getElementValue(websiteInput);
       if (isValidUrlOrDomain(val)) {
         targetUrl = val.trim();
-      } else if (val && !/^\d+$/.test(val.trim()) && val.includes(".")) {
-        targetUrl = val.trim();
       }
     }
 
-    // Fallback: If targetUrl still not found or purely numeric, search visible inputs for URL
+    // Fallback: If targetUrl still not found or purely numeric, search inputs for validated URL
     if (!targetUrl || /^\d+$/.test(targetUrl)) {
       const allTextInputs = Array.from(document.querySelectorAll("input:not([type='hidden'])"));
       for (const inp of allTextInputs) {
@@ -708,7 +743,7 @@
   let lastWidgetData = null;
 
   function setupFloatingWidget(initialUrl) {
-    let currentTargetUrl = initialUrl;
+    let currentTargetUrl = isValidUrlOrDomain(initialUrl) ? initialUrl.trim() : "";
     const currentWebEl = findWebsiteInputElement();
     if (currentWebEl) {
       const v = getElementValue(currentWebEl);
@@ -993,8 +1028,8 @@
           const val = getElementValue(websiteEl);
           if (isValidUrlOrDomain(val)) {
             updateFloatingWidgetTarget(val.trim());
-          } else if (val && val.includes(".")) {
-            updateFloatingWidgetTarget(val.trim());
+          } else {
+            updateFloatingWidgetTarget("");
           }
         };
         websiteEl.addEventListener("input", syncTarget);
@@ -1002,6 +1037,23 @@
       }
     };
     attachSync();
+
+    // MutationObserver to detect when portal loads next record asynchronously via AJAX
+    if (typeof MutationObserver !== "undefined" && document.body) {
+      try {
+        const portalObserver = new MutationObserver(() => {
+          const el = findWebsiteInputElement();
+          if (el) {
+            const v = getElementValue(el);
+            if (isValidUrlOrDomain(v)) {
+              updateFloatingWidgetTarget(v.trim());
+              attachSync();
+            }
+          }
+        });
+        portalObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["value"] });
+      } catch (_) {}
+    }
 
     // Periodic check in case portal loads next task record asynchronously (e.g. Next Record on cpworkportal.online)
     setInterval(() => {
@@ -1015,13 +1067,13 @@
           }
         }
       }
-    }, 1500);
+    }, 1000);
   }
 
   function updateFloatingWidgetTarget(url) {
     const targetEl = document.getElementById("site-intel-widget-target");
     if (targetEl) {
-      targetEl.textContent = url || "Please enter URL in Website Name field";
+      targetEl.textContent = (url && isValidUrlOrDomain(url)) ? url.trim() : "Detecting URL from form...";
     }
   }
 

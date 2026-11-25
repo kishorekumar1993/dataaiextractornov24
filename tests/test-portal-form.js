@@ -655,6 +655,30 @@ async function runPortalTests() {
     assert.strictEqual(detectedTarget, "http://www.piercecocanvas.com", "Must extract http://www.piercecocanvas.com, NEVER 538611");
   });
 
+  // Test 14: Strict URL validation & rejection of record IDs (e.g., http://www.fongding.com.tw vs 538620 / 538620.com)
+  test("Strict URL validation accepts http://www.fongding.com.tw and rejects record IDs like 538620", () => {
+    const isWebsiteUrl = value => {
+      if (!value || typeof value !== "string" || /^\d+$/.test(value.trim())) return false;
+      try {
+        const normalized = /^https?:\/\//i.test(value.trim()) ? value.trim() : "https://" + value.trim();
+        const url = new URL(normalized);
+        return (
+          ["http:", "https:"].includes(url.protocol) &&
+          url.hostname.includes(".") &&
+          !/^\d+$/.test(url.hostname)
+        );
+      } catch {
+        return false;
+      }
+    };
+
+    assert.strictEqual(isWebsiteUrl("http://www.fongding.com.tw"), true, "Must accept valid Taiwan URL");
+    assert.strictEqual(isWebsiteUrl("538620"), false, "Must reject record ID 538620");
+    assert.strictEqual(isWebsiteUrl("538619"), false, "Must reject record ID 538619");
+    assert.strictEqual(isWebsiteUrl("www.example.com"), true, "Must accept www.example.com");
+    assert.strictEqual(isWebsiteUrl(""), false, "Must reject empty string");
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");
