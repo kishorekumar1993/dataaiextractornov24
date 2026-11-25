@@ -143,11 +143,85 @@
   // ==========================================
   // 2. Portal Form Detection Logic
   // ==========================================
+  function isValidUrlOrDomain(str) {
+    if (!str || typeof str !== "string") return false;
+    const clean = str.trim();
+    if (/^\d+$/.test(clean)) return false; // reject pure numbers/IDs like "538611"
+    if (/^https?:\/\//i.test(clean)) return true;
+    if (/^www\.[a-z0-9-]+/i.test(clean)) return true;
+    if (/[a-z0-9-]+\.(?:com|org|net|co|io|biz|info|us|uk|ca|in|de|cn|jp|fr|au|nl|ru|tw|hk|site|online|tech)\b/i.test(clean)) return true;
+    return false;
+  }
+
+  function findWebsiteInputElement() {
+    // 1. High priority: Check labels strictly matching "website name" or "website url"
+    const allLabels = Array.from(document.querySelectorAll("label, span, div, p, strong, b"));
+    for (const lbl of allLabels) {
+      const text = (lbl.innerText || lbl.textContent || "").trim().toLowerCase().replace(/[:*]/g, "").trim();
+      if (text === "website name" || text === "website url" || text === "web site name" || text === "web site url") {
+        if (lbl.htmlFor) {
+          const target = document.getElementById(lbl.htmlFor);
+          if (target && isInputField(target)) return target;
+        }
+        const container = lbl.closest(".form-group, .field, .form-item, .col, .row, div") || lbl.parentElement;
+        if (container) {
+          const input = container.querySelector("input:not([type='button']):not([type='submit'])");
+          if (input) return input;
+        }
+        let next = lbl.nextElementSibling;
+        while (next) {
+          if (isInputField(next) && next.tagName.toLowerCase() === "input") return next;
+          const nested = next.querySelector("input:not([type='button']):not([type='submit'])");
+          if (nested) return nested;
+          next = next.nextElementSibling;
+        }
+      }
+    }
+
+    // 2. Check input immediately adjacent to a "click here" button (as on the QC portal)
+    const clickHereBtn = Array.from(document.querySelectorAll("button, a, input[type='button'], span, div")).find(el => {
+      const t = (el.innerText || el.textContent || el.getAttribute("value") || "").trim().toLowerCase();
+      return t === "click here";
+    });
+    if (clickHereBtn) {
+      if (clickHereBtn.previousElementSibling && clickHereBtn.previousElementSibling.tagName.toLowerCase() === "input") {
+        return clickHereBtn.previousElementSibling;
+      }
+      const parentContainer = clickHereBtn.closest(".form-group, .field, .form-item, .col, .row, div") || clickHereBtn.parentElement;
+      if (parentContainer) {
+        const input = parentContainer.querySelector("input:not([type='button']):not([type='submit'])");
+        if (input) return input;
+      }
+    }
+
+    // 3. Scan all inputs for any input whose current value is already a valid URL or domain
+    const allInputs = Array.from(document.querySelectorAll("input:not([type='hidden']):not([type='button']):not([type='submit'])"));
+    for (const inp of allInputs) {
+      const val = (inp.value || "").trim();
+      if (isValidUrlOrDomain(val)) return inp;
+    }
+
+    // 4. Scan placeholder containing "website" or "http"
+    for (const inp of allInputs) {
+      const ph = (inp.placeholder || "").toLowerCase();
+      if (ph.includes("website") || ph.includes("http")) return inp;
+    }
+
+    // 5. Fallback: standard field element for websiteUrl
+    const websiteSpec = PORTAL_FIELD_SPECS.find(s => s.key === "websiteUrl");
+    if (websiteSpec) {
+      return findFieldElement(websiteSpec);
+    }
+
+    return null;
+  }
+
   function detectPortalForm() {
     const fieldMap = {};
     let matchedCount = 0;
 
     for (const spec of PORTAL_FIELD_SPECS) {
+      if (spec.key === "websiteUrl") continue;
       const el = findFieldElement(spec);
       if (el) {
         fieldMap[spec.key] = el;
@@ -155,22 +229,31 @@
       }
     }
 
-    // A portal is detected if at least 3 distinct portal fields match
-    const isPortal = matchedCount >= 3;
+    // Dedicated detection for website URL input
+    const websiteInput = findWebsiteInputElement();
     let targetUrl = "";
-
-    if (fieldMap.websiteUrl) {
-      targetUrl = getElementValue(fieldMap.websiteUrl);
+    if (websiteInput) {
+      fieldMap.websiteUrl = websiteInput;
+      matchedCount++;
+      const val = getElementValue(websiteInput);
+      if (isValidUrlOrDomain(val)) {
+        targetUrl = val.trim();
+      } else if (val && !/^\d+$/.test(val.trim()) && val.includes(".")) {
+        targetUrl = val.trim();
+      }
     }
 
-    // If websiteUrl wasn't found by spec, search by input near "http" or "Queue URL"
-    if (!targetUrl) {
-      const queueInput = document.querySelector("input[value*='http'], input[placeholder*='http']");
-      if (queueInput) {
-        targetUrl = queueInput.value;
+    // Fallback: If targetUrl still not found or purely numeric, search for input with URL
+    if (!targetUrl || /^\d+$/.test(targetUrl)) {
+      const queueInput = document.querySelector("input[value*='http'], input[placeholder*='http'], input[value*='www.']");
+      if (queueInput && isValidUrlOrDomain(queueInput.value)) {
+        targetUrl = queueInput.value.trim();
         fieldMap.websiteUrl = queueInput;
       }
     }
+
+    // A portal is detected if at least 3 distinct portal fields match
+    const isPortal = matchedCount >= 3;
 
     // Clean target URL
     if (targetUrl) {
@@ -588,13 +671,34 @@
       return;
     }
 
+    // Read stored position from localStorage if available
+    let savedPos = null;
+    try {
+      savedPos = JSON.parse(localStorage.getItem("site_intel_widget_pos"));
+    } catch (_) {}
+
+    // Default position: top: 20px, right: 20px (Top-Right avoids blocking bottom-right Submit button!)
+    let defaultTop = "20px";
+    let defaultRight = "20px";
+    let defaultLeft = "auto";
+    let defaultBottom = "auto";
+
+    if (savedPos && (savedPos.left || savedPos.right) && (savedPos.top || savedPos.bottom)) {
+      defaultTop = savedPos.top || "auto";
+      defaultLeft = savedPos.left || "auto";
+      defaultRight = savedPos.right || "auto";
+      defaultBottom = savedPos.bottom || "auto";
+    }
+
     // Create container
     const widget = document.createElement("div");
     widget.id = "site-intel-portal-widget";
     widget.style.cssText = `
       position: fixed;
-      bottom: 24px;
-      right: 84px;
+      top: ${defaultTop};
+      right: ${defaultRight};
+      left: ${defaultLeft};
+      bottom: ${defaultBottom};
       z-index: 999999;
       background: #0f172a;
       color: #f8fafc;
@@ -609,21 +713,25 @@
       display: flex;
       flex-direction: column;
       backdrop-filter: blur(8px);
-      transition: all 0.2s ease;
       overflow: hidden;
+      user-select: none;
     `;
 
     widget.innerHTML = `
-      <!-- Header -->
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding:10px 14px; background:#1e293b; cursor:move;">
-        <div style="display:flex; align-items:center; gap:6px; font-weight:600; font-size:13px; color:#38bdf8;">
+      <!-- Header (Draggable) -->
+      <div id="site-intel-widget-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #1e293b; padding:10px 14px; background:#1e293b; cursor:grab; user-select:none;">
+        <div style="display:flex; align-items:center; gap:6px; font-weight:600; font-size:13px; color:#38bdf8; pointer-events:none;">
           <span>🕷️</span>
           <span>AI QC Autofill</span>
           <span style="background:rgba(16,185,129,0.15); color:#34d399; font-size:10px; padding:2px 6px; border-radius:4px; font-weight:700;">PROVISIONED</span>
         </div>
-        <div style="display:flex; align-items:center; gap:8px;">
-          <button id="site-intel-min-btn" title="Minimize / Expand" style="background:none; border:none; color:#94a3b8; font-size:14px; cursor:pointer; line-height:1; padding:2px;">—</button>
-          <button id="site-intel-close-btn" title="Close" style="background:none; border:none; color:#94a3b8; font-size:15px; cursor:pointer; line-height:1; padding:2px;">✕</button>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <!-- Move / Switch Corner Button -->
+          <button id="site-intel-dock-btn" title="Move to Other Corner (Top-Right / Top-Left / Bottom-Left)" style="background:none; border:none; color:#94a3b8; font-size:13px; cursor:pointer; line-height:1; padding:2px 4px; border-radius:4px;">↔️</button>
+          <!-- Minimize Button -->
+          <button id="site-intel-min-btn" title="Minimize / Expand" style="background:none; border:none; color:#94a3b8; font-size:14px; cursor:pointer; line-height:1; padding:2px 4px; border-radius:4px;">—</button>
+          <!-- Close Button -->
+          <button id="site-intel-close-btn" title="Hide Widget (Re-open with pill)" style="background:none; border:none; color:#94a3b8; font-size:15px; cursor:pointer; line-height:1; padding:2px 4px; border-radius:4px;">✕</button>
         </div>
       </div>
 
@@ -690,10 +798,122 @@
 
     document.body.appendChild(widget);
 
+    // Draggable Implementation on Header
+    const header = widget.querySelector("#site-intel-widget-header");
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let widgetStartLeft = 0;
+    let widgetStartTop = 0;
+
+    header.addEventListener("mousedown", (e) => {
+      if (e.target.closest("button")) return;
+      isDragging = true;
+      header.style.cursor = "grabbing";
+
+      const rect = widget.getBoundingClientRect();
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      widgetStartLeft = rect.left;
+      widgetStartTop = rect.top;
+
+      widget.style.right = "auto";
+      widget.style.bottom = "auto";
+      widget.style.left = `${widgetStartLeft}px`;
+      widget.style.top = `${widgetStartTop}px`;
+      e.preventDefault();
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+
+      let newLeft = widgetStartLeft + dx;
+      let newTop = widgetStartTop + dy;
+
+      const maxLeft = Math.max(10, window.innerWidth - widget.offsetWidth - 10);
+      const maxTop = Math.max(10, window.innerHeight - widget.offsetHeight - 10);
+      newLeft = Math.max(10, Math.min(maxLeft, newLeft));
+      newTop = Math.max(10, Math.min(maxTop, newTop));
+
+      widget.style.left = `${newLeft}px`;
+      widget.style.top = `${newTop}px`;
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (isDragging) {
+        isDragging = false;
+        header.style.cursor = "grab";
+        try {
+          localStorage.setItem("site_intel_widget_pos", JSON.stringify({
+            left: widget.style.left,
+            top: widget.style.top,
+            right: "auto",
+            bottom: "auto"
+          }));
+        } catch (_) {}
+      }
+    });
+
+    // Corner dock toggle button (Top-Right -> Top-Left -> Bottom-Left -> Mid-Right)
+    const dockBtn = widget.querySelector("#site-intel-dock-btn");
+    const corners = [
+      { top: "20px", right: "20px", left: "auto", bottom: "auto" },  // Top-Right
+      { top: "20px", left: "20px", right: "auto", bottom: "auto" },   // Top-Left
+      { bottom: "20px", left: "20px", top: "auto", right: "auto" },  // Bottom-Left (Submit is on bottom-right, so bottom-left is safe!)
+      { top: "120px", right: "20px", left: "auto", bottom: "auto" }  // Mid-Right
+    ];
+    let currentCornerIdx = 0;
+    dockBtn.addEventListener("click", () => {
+      currentCornerIdx = (currentCornerIdx + 1) % corners.length;
+      const c = corners[currentCornerIdx];
+      widget.style.top = c.top;
+      widget.style.right = c.right;
+      widget.style.left = c.left;
+      widget.style.bottom = c.bottom;
+      try {
+        localStorage.setItem("site_intel_widget_pos", JSON.stringify(c));
+      } catch (_) {}
+    });
+
+    // Floating launcher button to restore widget when closed
+    let launcher = document.getElementById("site-intel-launcher-btn");
+    if (!launcher) {
+      launcher = document.createElement("button");
+      launcher.id = "site-intel-launcher-btn";
+      launcher.title = "Open AI QC Autofill Widget";
+      launcher.innerHTML = "🕷️ <span style='font-size:12px; font-weight:600;'>AI QC</span>";
+      launcher.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 999998;
+        background: #0f172a;
+        color: #38bdf8;
+        border: 1px solid #334155;
+        border-radius: 20px;
+        padding: 6px 12px;
+        display: none;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 13px;
+      `;
+      launcher.addEventListener("click", () => {
+        widget.style.display = "flex";
+        launcher.style.display = "none";
+      });
+      document.body.appendChild(launcher);
+    }
+
     // Event listeners
     const closeBtn = widget.querySelector("#site-intel-close-btn");
     closeBtn.addEventListener("click", () => {
       widget.style.display = "none";
+      launcher.style.display = "flex";
     });
 
     const minBtn = widget.querySelector("#site-intel-min-btn");
@@ -704,11 +924,13 @@
       if (isMinimized) {
         widgetBody.style.display = "none";
         minBtn.textContent = "+";
-        widget.style.width = "220px";
+        widget.style.width = "auto";
+        widget.style.maxHeight = "45px";
       } else {
         widgetBody.style.display = "flex";
         minBtn.textContent = "—";
         widget.style.width = "380px";
+        widget.style.maxHeight = "85vh";
       }
     });
 
@@ -727,15 +949,18 @@
     });
 
     // Listen to input changes on Website Name field to update widget live
-    const websiteSpec = PORTAL_FIELD_SPECS[0];
-    const websiteEl = findFieldElement(websiteSpec);
+    const websiteEl = findWebsiteInputElement();
     if (websiteEl) {
-      websiteEl.addEventListener("input", () => {
-        updateFloatingWidgetTarget(getElementValue(websiteEl));
-      });
-      websiteEl.addEventListener("change", () => {
-        updateFloatingWidgetTarget(getElementValue(websiteEl));
-      });
+      const syncTarget = () => {
+        const val = getElementValue(websiteEl);
+        if (isValidUrlOrDomain(val)) {
+          updateFloatingWidgetTarget(val.trim());
+        } else if (val && val.includes(".")) {
+          updateFloatingWidgetTarget(val.trim());
+        }
+      };
+      websiteEl.addEventListener("input", syncTarget);
+      websiteEl.addEventListener("change", syncTarget);
     }
   }
 
@@ -861,8 +1086,8 @@
     const detection = detectPortalForm();
     let url = detection.targetUrl;
 
-    if (!url) {
-      alert("Please enter a valid website URL in the 'Website Name' field first.");
+    if (!url || !isValidUrlOrDomain(url)) {
+      alert("Please enter a valid website URL in the 'Website Name' field first (e.g. http://www.piercecocanvas.com).");
       return;
     }
 

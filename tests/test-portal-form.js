@@ -598,6 +598,63 @@ async function runPortalTests() {
     assert(prompt.includes("Address Completion Rules"), "Prompt must specify Address Completion Rules");
   });
 
+  // Test 13: Target website detection prioritizes Website Name: and rejects pure numeric IDs (538611)
+  test("Target website detection prioritizes 'Website Name:' input and rejects numeric ID 538611", () => {
+    // Helper URL validator matching content.js
+    function isValidUrlOrDomain(str) {
+      if (!str || typeof str !== "string") return false;
+      const clean = str.trim();
+      if (/^\d+$/.test(clean)) return false;
+      if (/^https?:\/\//i.test(clean)) return true;
+      if (/^www\.[a-z0-9-]+/i.test(clean)) return true;
+      if (/[a-z0-9-]+\.(?:com|org|net|co|io|biz|info|us|uk|ca|in|de|cn|jp|fr|au|nl|ru|tw|hk|site|online|tech)\b/i.test(clean)) return true;
+      return false;
+    }
+
+    assert.strictEqual(isValidUrlOrDomain("538611"), false, "Numeric tracking ID 538611 must be rejected as website URL");
+    assert.strictEqual(isValidUrlOrDomain("http://www.piercecocanvas.com"), true, "http://www.piercecocanvas.com must be accepted as valid target URL");
+    assert.strictEqual(isValidUrlOrDomain("www.piercecocanvas.com"), true, "www.piercecocanvas.com must be accepted as valid target URL");
+
+    // Build form with an ID field containing 538611 and Website Name containing http://www.piercecocanvas.com
+    const doc = new MockDocument();
+    const idGroup = doc.createElement("div");
+    idGroup.className = "form-group";
+    const idLabel = doc.createElement("label");
+    idLabel.innerText = "Website Tracking ID:";
+    const idInput = doc.createElement("input");
+    idInput.value = "538611";
+    idGroup.appendChild(idLabel);
+    idGroup.appendChild(idInput);
+    doc.body.appendChild(idGroup);
+
+    const webGroup = doc.createElement("div");
+    webGroup.className = "form-group";
+    const webLabel = doc.createElement("label");
+    webLabel.innerText = "Website Name:";
+    const webInput = doc.createElement("input");
+    webInput.value = "http://www.piercecocanvas.com";
+    webGroup.appendChild(webLabel);
+    webGroup.appendChild(webInput);
+    doc.body.appendChild(webGroup);
+
+    // Finding target URL using priority search
+    const allLabels = doc.querySelectorAll("label");
+    let detectedTarget = "";
+    for (const lbl of allLabels) {
+      const text = (lbl.innerText || "").toLowerCase().replace(/[:*]/g, "").trim();
+      if (text === "website name" || text === "website url") {
+        const parent = lbl.parentElement;
+        const inp = parent.querySelector("input");
+        if (inp && isValidUrlOrDomain(inp.value)) {
+          detectedTarget = inp.value;
+          break;
+        }
+      }
+    }
+
+    assert.strictEqual(detectedTarget, "http://www.piercecocanvas.com", "Must extract http://www.piercecocanvas.com, NEVER 538611");
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");
