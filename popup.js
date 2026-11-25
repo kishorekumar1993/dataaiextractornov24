@@ -1591,38 +1591,38 @@ Before returning companyAddress:
    - Do NOT consider an ordinary non-capital town, village, suburb, or industrial estate as State.
 
 9. "city": STRICT CITY VS SUBURB CLASSIFICATION – MANDATORY (Strictly output ONLY the exact string "Available" or "Not Available", NEVER output the city name itself):
-   - If the city name is given in the selected companyAddress, select "Available"; if not, select "Not Available".
-   - Note: Town, District, and Municipality MUST be considered as City (where District is an official administrative district).
-   - Country Capitals: If a country's capital is mentioned in the address, then BOTH "city" AND "state" MUST be marked "Available".
-   Before marking "city": "Available", independently classify the extracted locality.
+   - CRITICAL ANTI-SUBURB RULE: NEVER assume a place name is a city just because it appears before a State/Province or at the end of an address! In many countries (Australia, UK, India, USA, Canada, etc.), addresses are written as [Street], [Suburb/Locality], [State] without the parent city (e.g., "41 Barry Street, Bayswater, Victoria" or "10 Smith Street, Silverwater, New South Wales"). Here Bayswater and Silverwater are SUBURBS, NOT cities — you MUST output "city": "Not Available"!
+   - Default to "Not Available" unless you can positively verify that the locality is an independently recognized official City, Town, Municipality, or Administrative District (or a Country Capital, which sets BOTH "city" and "state" to "Available").
+   Before marking "city": "Available", independently classify the extracted locality:
    A. Qualifies as City – "Available":
       - Officially recognized and independently identifiable cities (and country capitals).
       - Official towns.
       - Official municipalities.
       - Official administrative districts, where the district is explicitly identified as an administrative division.
    B. Does NOT Qualify as City – "Not Available":
-      - Suburbs.
-      - Neighborhoods.
-      - Residential areas.
-      - Villages.
-      - Localities.
-      - Industrial estates.
-      - Industrial parks.
-      - Business parks.
-      - Housing colonies.
-      - Postal delivery areas.
-      - Informal settlement names.
+      - Suburbs (e.g., Bayswater, Silverwater, Tullamarine, Dandenong South, Andheri, etc.).
+      - Neighborhoods & residential areas.
+      - Villages & localities.
+      - Industrial estates, industrial parks, business parks, MIDC/industrial zones.
+      - Housing colonies, postal delivery areas, informal settlement names.
    C. Multiple Locality Components:
       When an address contains both a suburb and an official city:
       - Do not classify the suburb as the city.
       - Identify the actual official city separately.
       - Mark "Available" only when an official city, town, municipality, or qualifying administrative district is explicitly present.
-      - If only a suburb is present, mark "Not Available".
-   D. Mandatory Validation:
+      - If only a suburb is present (without the parent official city), mark "Not Available".
+   D. Examples (FOLLOW STRICTLY):
+      - "41 Barry Street, Bayswater, Victoria" -> Bayswater is a suburb (Melbourne is not written) -> "city": "Not Available", "state": "Available".
+      - "10 Smith Street, Silverwater, New South Wales" -> Silverwater is a suburb (Sydney is not written) -> "city": "Not Available", "state": "Available".
+      - "Plot 14, Peenya Industrial Area, Karnataka" -> Industrial area/suburb (Bengaluru is not written) -> "city": "Not Available", "state": "Available".
+      - "12900 - 87th Avenue Surrey British Columbia" -> Surrey is an official incorporated city -> "city": "Available", "state": "Available".
+      - "500 Main Street, Bandra, Mumbai, Maharashtra" -> Mumbai is an official city explicitly present -> "city": "Available", "state": "Available".
+      - "Number 2, Wugong 2nd Road, Wufeng District, Taichung City" -> Official district & city -> "city": "Available".
+   E. Mandatory Validation:
       Before returning the result, verify:
       1. Is this locality an officially recognized city, town, municipality, or administrative district?
-      2. Is it merely a suburb or neighborhood within another city?
-      3. Is the locality being mistaken for a city because it appears at the end of the address?
+      2. Is it merely a suburb, village, industrial estate, or neighborhood within a larger metropolitan city?
+      3. Am I mistaking it for a city only because it sits before the State or at the end of the address?
       Never assume that the last locality in an address is the city.
       Return only "Available" or "Not Available". Do not use geographical proximity or assumptions to convert a suburb into a city.
 
