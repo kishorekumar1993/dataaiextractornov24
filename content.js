@@ -551,7 +551,8 @@
     if (!data) return { filledCount: 0, errors: ["No data provided"] };
     applyBusinessTypeEligibility(data);
 
-    const isNotWorking = String(data.websiteStatus || "").trim().toLowerCase() === "not working";
+    const statusLower = String(data.websiteStatus || "").trim().toLowerCase();
+    const isNotWorking = statusLower === "not working" || statusLower === "redirect site";
     if (isNotWorking) {
       data.websiteStatus = "Not Working";
       // When site is Not Working, empty all other extracted items
@@ -1152,8 +1153,13 @@
     // Load global settings from chrome.storage.local
     loadGlobalAutomationSettings().then(() => {
       syncCheckboxesFromGlobals();
-      if (globalAutoCrawl && currentTargetUrl) {
-        scheduleAutoCrawl(currentTargetUrl);
+      if (globalAutoCrawl) {
+        const targetEl = document.getElementById("site-intel-widget-target");
+        const liveTarget = targetEl ? (targetEl.innerText || targetEl.textContent || "").trim() : "";
+        const urlToCrawl = isValidUrlOrDomain(liveTarget) ? liveTarget : currentTargetUrl;
+        if (isValidUrlOrDomain(urlToCrawl)) {
+          scheduleAutoCrawl(urlToCrawl);
+        }
       }
     });
 
@@ -1170,6 +1176,13 @@
           try { localStorage.setItem("site_intel_auto_submit_not_working", globalAutoSubmitNotWorking ? "true" : "false"); } catch (_) {}
         }
         syncCheckboxesFromGlobals();
+        if (globalAutoCrawl) {
+          const targetEl = document.getElementById("site-intel-widget-target");
+          const liveTarget = targetEl ? (targetEl.innerText || targetEl.textContent || "").trim() : "";
+          if (isValidUrlOrDomain(liveTarget)) {
+            scheduleAutoCrawl(liveTarget);
+          }
+        }
       });
     }
 
@@ -1418,10 +1431,18 @@
       const hasBounding = typeof el.getBoundingClientRect === "function";
       const rect = hasBounding ? el.getBoundingClientRect() : { width: 100, height: 30 };
       if (hasBounding && (rect.width <= 0 || rect.height <= 0)) return false;
+      const style = (typeof window !== "undefined" && typeof window.getComputedStyle === "function")
+        ? window.getComputedStyle(el)
+        : { display: "block", visibility: "visible" };
+      if (style.display === "none" || style.visibility === "hidden") return false;
       const text = (el.innerText || el.textContent || el.value || "").trim().toLowerCase();
-      return text === "submit" || text.includes("submit");
+      return text === "submit" || text.includes("submit") || el.type === "submit";
     });
-    return candidates[0] || null;
+    // Prefer exact "submit" text or native type="submit" first
+    const exact = candidates.find(el => (el.innerText || el.textContent || el.value || "").trim().toLowerCase() === "submit");
+    if (exact) return exact;
+    const nativeSubmit = candidates.find(el => el.type === "submit");
+    return nativeSubmit || candidates[0] || null;
   }
 
   function updateFloatingWidgetTarget(url) {
@@ -1525,6 +1546,7 @@
   }
 
   let isWidgetCrawling = false;
+  let buttonResetTimer = null;
 
   async function handleWidgetCrawlAndFill(e) {
     if (e) {
@@ -1534,6 +1556,10 @@
     if (isWidgetCrawling) {
       console.log("Crawl already in progress, ignoring double-click.");
       return;
+    }
+    if (buttonResetTimer) {
+      clearTimeout(buttonResetTimer);
+      buttonResetTimer = null;
     }
     isWidgetCrawling = true;
 
@@ -1662,19 +1688,24 @@
       if (actionBtn) actionBtn.style.background = "#10b981";
       if (statusLine) statusLine.textContent = `✅ Successfully filled ${fillResult.filledCount} fields! All details shown below.`;
 
-      // Auto Submit if websiteStatus is Not Working and Auto Submit (Not Working) is enabled
-      const isNotWorkingSite = String(extractedData.websiteStatus || "").trim().toLowerCase() === "not working";
+      // Auto Submit if websiteStatus is Not Working (or Redirect Site) and Auto Submit (Not Working) is enabled
+      const statusLower = String(extractedData.websiteStatus || "").trim().toLowerCase();
+      const isNotWorkingSite = statusLower === "not working" || statusLower === "redirect site";
       if (isNotWorkingSite && getAutoSubmitNotWorkingEnabled()) {
         const submitBtn = findPortalSubmitButton();
         if (submitBtn) {
           if (statusLine) statusLine.textContent = "🚀 Not Working — Auto-submitting form...";
           setTimeout(() => {
-            try { submitBtn.click(); } catch (_) {}
+            try {
+              submitBtn.click();
+            } catch (_) {}
           }, 800);
         }
       }
 
-      setTimeout(() => {
+      buttonResetTimer = setTimeout(() => {
+        buttonResetTimer = null;
+        if (isWidgetCrawling) return;
         if (actionBtn) {
           actionBtn.disabled = false;
           actionBtn.style.opacity = "1";
