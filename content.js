@@ -159,20 +159,20 @@
     if (type === "hidden" || type === "button" || type === "submit" || type === "checkbox" || type === "radio" || type === "image" || type === "file") {
       return false;
     }
+    const val = (el.value || "").trim();
+    if (/^\d+$/.test(val)) return false; // Pure number like 538619 is an ID, NEVER a website URL!
     const name = (el.getAttribute("name") || "").toLowerCase();
     const id = (el.getAttribute("id") || "").toLowerCase();
     if (name.endsWith("_id") || name === "id" || id.endsWith("_id") || id === "id") {
-      if (/^\d+$/.test((el.value || "").trim())) return false;
+      return false;
     }
     return true;
   }
 
   function findWebsiteInputElement() {
-    // 1. Absolute Highest Priority: Scan all visible text inputs for one whose CURRENT VALUE is a valid URL or domain
-    const allInputs = Array.from(document.querySelectorAll("input"));
-    const visibleInputs = allInputs.filter(isVisibleTextInput);
-
-    for (const inp of visibleInputs) {
+    // 1. Absolute Highest Priority: Scan all inputs for one whose CURRENT VALUE is a valid URL or domain
+    const allInputs = Array.from(document.querySelectorAll("input:not([type='hidden']):not([type='button']):not([type='submit'])"));
+    for (const inp of allInputs) {
       const val = (inp.value || "").trim();
       if (isValidUrlOrDomain(val)) {
         return inp;
@@ -1136,12 +1136,24 @@
       return;
     }
 
-    // Get latest URL from form
-    const detection = detectPortalForm();
-    let url = detection.targetUrl;
+    // Get latest URL dynamically from the form
+    let url = "";
+    const websiteEl = findWebsiteInputElement();
+    if (websiteEl) {
+      const v = getElementValue(websiteEl);
+      if (isValidUrlOrDomain(v)) {
+        url = v.trim();
+      }
+    }
+    if (!url) {
+      const detection = detectPortalForm();
+      if (isValidUrlOrDomain(detection.targetUrl)) {
+        url = detection.targetUrl.trim();
+      }
+    }
 
     if (!url || !isValidUrlOrDomain(url)) {
-      alert("Please enter a valid website URL in the 'Website Name' field first (e.g. http://www.piercecocanvas.com).");
+      alert("Please enter a valid website URL in the 'Website Name' field first (e.g. http://www.taragrinna-swimwear.com).");
       return;
     }
 
