@@ -970,17 +970,6 @@
         widget.style.maxHeight = "440px";
       }
     });
-        widgetBody.style.display = "none";
-        minBtn.textContent = "+";
-        widget.style.width = "auto";
-        widget.style.maxHeight = "45px";
-      } else {
-        widgetBody.style.display = "flex";
-        minBtn.textContent = "—";
-        widget.style.width = "380px";
-        widget.style.maxHeight = "85vh";
-      }
-    });
 
     const actionBtn = widget.querySelector("#site-intel-action-btn");
     actionBtn.addEventListener("mouseenter", () => { actionBtn.style.background = "#1d4ed8"; });
