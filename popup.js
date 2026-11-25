@@ -901,6 +901,24 @@ document.addEventListener("DOMContentLoaded", async () => {
         extractedJson = CrawlerEngine.applyBusinessTypeEligibilityRule(extractedJson, initialPageData?.html || "", crawledPages);
       }
 
+      // If Not Working, mark Not Working and empty all other items
+      if (String(extractedJson.websiteStatus || "").trim().toLowerCase() === "not working") {
+        extractedJson.websiteStatus = "Not Working";
+        extractedJson.businessType = "";
+        extractedJson.companyProfile = "";
+        extractedJson.companyName = "";
+        extractedJson.companyAddress = "";
+        extractedJson.countryName = "";
+        extractedJson.state = "";
+        extractedJson.city = "";
+        extractedJson.emailId = "";
+        extractedJson.secondaryEmailId = "";
+        extractedJson.phoneNumber = "";
+        extractedJson.numberOfProducts = "";
+        extractedJson.productImages = "";
+        extractedJson.numberOfProductDescriptions = "";
+      }
+
       if (statusResult) {
         statusResult.websiteStatus = extractedJson.websiteStatus;
         if (extractedJson.notWorkingReason) {

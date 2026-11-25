@@ -536,7 +536,8 @@
   function applyBusinessTypeEligibility(data) {
     if (!data) return data;
     const rawType = String(data.businessType || "").trim();
-    if (!isEligibleWorkingBusinessType(rawType)) {
+    const alreadyNotWorking = String(data.websiteStatus || "").trim().toLowerCase() === "not working";
+    if (!alreadyNotWorking && !isEligibleWorkingBusinessType(rawType)) {
       data.websiteStatus = "Not Working";
       const reason = `Ineligible Business Type: "${rawType || 'Other'}". Only businesses from Manufacturer to Wholesaler (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler) are eligible Working sites; all other types are marked Not Working.`;
       data.notWorkingReason = reason;
@@ -549,6 +550,25 @@
   function prefillPortalForm(data) {
     if (!data) return { filledCount: 0, errors: ["No data provided"] };
     applyBusinessTypeEligibility(data);
+
+    const isNotWorking = String(data.websiteStatus || "").trim().toLowerCase() === "not working";
+    if (isNotWorking) {
+      data.websiteStatus = "Not Working";
+      // When site is Not Working, empty all other extracted items
+      data.businessType = "";
+      data.companyProfile = "";
+      data.companyName = "";
+      data.companyAddress = "";
+      data.countryName = "";
+      data.state = "";
+      data.city = "";
+      data.emailId = "";
+      data.secondaryEmailId = "";
+      data.phoneNumber = "";
+      data.numberOfProducts = "";
+      data.productImages = "";
+      data.numberOfProductDescriptions = "";
+    }
 
     let filledCount = 0;
     const filledFields = [];
@@ -581,23 +601,40 @@
       return (!isNaN(n) && n >= 0 && n <= 3) ? String(n) : "3";
     }
 
-    // Map extracted JSON to portal fields
-    const fillPlan = [
-      { key: "websiteStatus", value: data.websiteStatus || "Working" },
-      { key: "businessType", value: data.businessType || "" },
-      { key: "companyProfile", value: data.companyProfile || "Available" },
-      { key: "companyName", value: (data.companyName || "").trim() },
-      { key: "companyAddress", value: data.companyAddress || "" },
-      { key: "countryName", value: normalizeCountryName(data.countryName || "") },
-      { key: "state", value: data.state || "Available" },
-      { key: "city", value: data.city || "Available" },
-      { key: "emailId", value: data.emailId || "" },
-      { key: "secondaryEmailId", value: data.secondaryEmailId || "" },
-      { key: "phoneNumber", value: data.phoneNumber || "" },
-      { key: "numberOfProducts", value: resolveProductCountDefault(data.numberOfProducts) },
-      { key: "productImages", value: resolveProductCountDefault(data.productImages) },
-      { key: "numberOfProductDescriptions", value: resolveProductCountDefault(data.numberOfProductDescriptions) }
-    ];
+    // Map extracted JSON to portal fields (if Not Working, mark Not Working and empty all other fields)
+    const fillPlan = isNotWorking
+      ? [
+          { key: "websiteStatus", value: "Not Working" },
+          { key: "businessType", value: "" },
+          { key: "companyProfile", value: "" },
+          { key: "companyName", value: "" },
+          { key: "companyAddress", value: "" },
+          { key: "countryName", value: "" },
+          { key: "state", value: "" },
+          { key: "city", value: "" },
+          { key: "emailId", value: "" },
+          { key: "secondaryEmailId", value: "" },
+          { key: "phoneNumber", value: "" },
+          { key: "numberOfProducts", value: "" },
+          { key: "productImages", value: "" },
+          { key: "numberOfProductDescriptions", value: "" }
+        ]
+      : [
+          { key: "websiteStatus", value: data.websiteStatus || "Working" },
+          { key: "businessType", value: data.businessType || "" },
+          { key: "companyProfile", value: data.companyProfile || "Available" },
+          { key: "companyName", value: (data.companyName || "").trim() },
+          { key: "companyAddress", value: data.companyAddress || "" },
+          { key: "countryName", value: normalizeCountryName(data.countryName || "") },
+          { key: "state", value: data.state || "Available" },
+          { key: "city", value: data.city || "Available" },
+          { key: "emailId", value: data.emailId || "" },
+          { key: "secondaryEmailId", value: data.secondaryEmailId || "" },
+          { key: "phoneNumber", value: data.phoneNumber || "" },
+          { key: "numberOfProducts", value: resolveProductCountDefault(data.numberOfProducts) },
+          { key: "productImages", value: resolveProductCountDefault(data.productImages) },
+          { key: "numberOfProductDescriptions", value: resolveProductCountDefault(data.numberOfProductDescriptions) }
+        ];
 
     for (const item of fillPlan) {
       const spec = PORTAL_FIELD_SPECS.find(s => s.key === item.key);
@@ -666,7 +703,24 @@
 
   function setSelectValue(selectEl, value) {
     if (!selectEl || !selectEl.options) return false;
-    const targetStr = String(value).trim().toLowerCase();
+    const targetStr = String(value === undefined || value === null ? "" : value).trim().toLowerCase();
+
+    // If clearing/emptying a select (e.g. Not Working), reset to empty/placeholder option
+    if (targetStr === "") {
+      let emptyIdx = 0;
+      for (let i = 0; i < selectEl.options.length; i++) {
+        if (selectEl.options[i].value.trim() === "") {
+          emptyIdx = i;
+          break;
+        }
+      }
+      selectEl.selectedIndex = emptyIdx;
+      selectEl.value = selectEl.options[emptyIdx] ? selectEl.options[emptyIdx].value : "";
+      selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+      selectEl.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    }
+
     let matchIdx = -1;
 
     // 1. Exact match on value or text

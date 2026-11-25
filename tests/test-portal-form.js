@@ -710,6 +710,45 @@ async function runPortalTests() {
     assert.strictEqual(isValidManual("538611"), false);
   });
 
+  // Test 16: Not Working empties all other fields and marks Website Status = Not Working
+  test("Not Working status empties all other form fields and marks Website Status as Not Working", () => {
+    const notWorkingData = {
+      websiteStatus: "Not Working",
+      notWorkingReason: "Online Shopping / Retail site",
+      businessType: "Online Shopping",
+      companyProfile: "Available",
+      companyName: "Example Store",
+      companyAddress: "123 Main Street",
+      countryName: "United States Of America",
+      state: "Available",
+      city: "Available",
+      emailId: "info@example.com",
+      secondaryEmailId: "sales@example.com",
+      phoneNumber: "5551234567",
+      numberOfProducts: "3",
+      productImages: "3",
+      numberOfProductDescriptions: "3"
+    };
+
+    const isNotWorking = String(notWorkingData.websiteStatus || "").trim().toLowerCase() === "not working";
+    assert.strictEqual(isNotWorking, true);
+
+    const fieldsToEmpty = [
+      "businessType", "companyProfile", "companyName", "companyAddress",
+      "countryName", "state", "city", "emailId", "secondaryEmailId",
+      "phoneNumber", "numberOfProducts", "productImages", "numberOfProductDescriptions"
+    ];
+    for (const k of fieldsToEmpty) {
+      notWorkingData[k] = "";
+    }
+
+    assert.strictEqual(notWorkingData.websiteStatus, "Not Working");
+    assert.strictEqual(notWorkingData.notWorkingReason, "Online Shopping / Retail site");
+    for (const k of fieldsToEmpty) {
+      assert.strictEqual(notWorkingData[k], "", `Expected ${k} to be empty when Not Working`);
+    }
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");

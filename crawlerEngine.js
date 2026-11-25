@@ -842,7 +842,7 @@ const CrawlerEngine = (() => {
       footerText = extractFooterText(html);
     }
     let text = html.replace(SCRIPT_STYLE_REGEX, " ");
-    text = text.replace(/<br\s*\/?>/gi, ", ")
+    text = text.replace(/<br\s*\/?>/gi, "\n")
                .replace(/<\/(p|div|tr|li|h[1-6]|section|article)>/gi, "\n");
     text = text.replace(HTML_TAG_REGEX, " ");
     text = text.replace(/&nbsp;/g, " ")
@@ -1667,19 +1667,19 @@ ${context.crawledText}`;
           websiteStatus: statusResult.websiteStatus,
           notWorkingReason: statusResult.nonWorkingReason,
           websiteName: targetUrl,
-          businessType: "Not Available",
-          companyProfile: "Not Available",
-          companyName: "Not Available",
-          countryName: "Not Available",
-          companyAddress: "Not Available",
-          state: "Not Available",
-          city: "Not Available",
-          emailId: "Not Available",
-          secondaryEmailId: "Not Available",
-          phoneNumber: "Not Available",
-          numberOfProducts: "Not Available",
-          productImages: "Not Available",
-          numberOfProductDescriptions: "Not Available"
+          businessType: "",
+          companyProfile: "",
+          companyName: "",
+          countryName: "",
+          companyAddress: "",
+          state: "",
+          city: "",
+          emailId: "",
+          secondaryEmailId: "",
+          phoneNumber: "",
+          numberOfProducts: "",
+          productImages: "",
+          numberOfProductDescriptions: ""
         },
         meta: {
           isExtractionSkipped: true,
