@@ -1194,6 +1194,23 @@ CORE RULE - SPECIAL CHARACTER PRESERVATION:
   * NEVER remove, replace, or alter hyphens "-", slashes "/", apostrophes "'", dots, or symbols within words or names.
 - Special characters MUST ALWAYS be kept AS IT IS.
 
+Address Formatting Rules:
+1. Preserve the Original Address: Extract the address exactly as provided by the official website. Do not add unwanted words, missing details, or information that is not present in the source.
+2. Special Characters: Do not add, remove, replace, or modify special characters appearing between words or address components. Preserve them exactly as provided.
+3. Abbreviation Expansion: Expand all abbreviated words into their complete full forms wherever applicable. Do not abbreviate any words.
+4. Capitalization: Start every word with a capital letter (Title Case).
+5. Unwanted Content: Remove unnecessary words or unwanted special characters only when they are not part of the actual address. Do not remove meaningful address details.
+6. Address Accuracy: Do not change the original meaning, word order, or address structure while applying formatting rules.
+
+Company Name Formatting Rules:
+1. Abbreviation Expansion: Expand all abbreviated words in the company name into their complete full forms wherever applicable.
+2. Capitalization: Start every word with a capital letter (Title Case).
+3. Special Characters: Preserve all special characters in the original company name exactly as provided. Do not add, remove, or modify them.
+4. Name Accuracy: Do not add unwanted words or modify the actual company name.
+5. Brand Names: Preserve officially established brand names, trademarks, and acronyms when expanding them would change the registered or recognized name.
+
+Important Rule: Apply abbreviation expansion only to words. Never modify special characters. Preserve the original address and company name accurately while correcting word capitalization and expanding applicable abbreviations.
+
 Field extraction guidelines:
 1. "websiteStatus": Keep "websiteStatus" strictly as "Working" or "Not Working" (and skip redirect/subdomain sites as required by QC). "Working" ONLY IF the site loaded AND its Business Type is an eligible category from "Manufacturer" to "Wholesaler" (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler).
    - CRITICAL ELIGIBILITY RULE: If the business type is anything outside Manufacturer to Wholesaler (such as Service Provider, Online Shopping, Restricted Site, Other, Retailer), "websiteStatus" MUST be marked as "Not Working", and state the reason in "notWorkingReason".
