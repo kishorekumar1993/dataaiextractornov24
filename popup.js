@@ -72,6 +72,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   let isPortalDetected = false;
   let portalTargetUrl = "";
 
+  function isValidUrlOrDomain(str) {
+    if (!str || typeof str !== "string") return false;
+    const clean = str.trim();
+    if (/^\d+$/.test(clean)) return false; // reject pure numbers/IDs like "538611", "538613"
+    if (/^https?:\/\//i.test(clean)) return true;
+    if (/^www\.[a-z0-9-]+/i.test(clean)) return true;
+    if (/[a-z0-9-]+\.(?:com|org|net|co|io|biz|info|us|uk|ca|in|de|cn|jp|fr|au|nl|ru|tw|hk|site|online|tech|co\.uk)\b/i.test(clean)) return true;
+    return false;
+  }
+
   // Initialize Queue Manager
   const queueManager = new CrawlerQueueManager({
     concurrency: 1,
@@ -318,10 +328,45 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       // Query content script for initial scan and portal detection
-      chrome.tabs.sendMessage(tab.id, { action: "detectPortalForm" }, (portalRes) => {
-        if (!chrome.runtime.lastError && portalRes && portalRes.isPortal) {
+      chrome.tabs.sendMessage(tab.id, { action: "detectPortalForm" }, async (portalRes) => {
+        let detectedUrl = (portalRes && portalRes.targetUrl) || "";
+        const isPortal = portalRes && portalRes.isPortal;
+
+        // If returned targetUrl is empty or pure numeric (like 538613), extract directly from DOM
+        if (!isValidUrlOrDomain(detectedUrl)) {
+          try {
+            const [evalResult] = await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              func: () => {
+                const isValid = (s) => s && typeof s === "string" && !/^\d+$/.test(s.trim()) && (/^https?:\/\//i.test(s.trim()) || /^www\.[a-z0-9-]+/i.test(s.trim()) || /[a-z0-9-]+\.(?:com|org|net|co|io|biz|info|us|uk|ca|in|de|cn|jp|fr|au|nl|ru|tw|hk|site|online|tech|co\.uk)\b/i.test(s.trim()));
+                const inps = Array.from(document.querySelectorAll("input:not([type='hidden']):not([type='button']):not([type='submit'])"));
+                for (const inp of inps) {
+                  const v = (inp.value || "").trim();
+                  if (isValid(v)) return v;
+                }
+                const clickBtn = Array.from(document.querySelectorAll("button, a, input[type='button'], span, div")).find(el => (el.innerText || el.textContent || el.value || "").trim().toLowerCase() === "click here");
+                if (clickBtn) {
+                  const c = clickBtn.closest("div, .input-group, .form-group") || clickBtn.parentElement;
+                  if (c) {
+                    const textInps = Array.from(c.querySelectorAll("input:not([type='hidden'])"));
+                    for (const inp of textInps) {
+                      const v = (inp.value || "").trim();
+                      if (isValid(v)) return v;
+                    }
+                  }
+                }
+                return "";
+              }
+            });
+            if (evalResult && evalResult.result && isValidUrlOrDomain(evalResult.result)) {
+              detectedUrl = evalResult.result;
+            }
+          } catch (_) {}
+        }
+
+        if (isPortal || isValidUrlOrDomain(detectedUrl)) {
           isPortalDetected = true;
-          portalTargetUrl = portalRes.targetUrl || "";
+          portalTargetUrl = isValidUrlOrDomain(detectedUrl) ? detectedUrl.trim() : "";
           portalBanner.classList.remove("hidden");
           portalTargetUrlText.textContent = portalTargetUrl || "(No URL in form yet)";
           startCrawlBtnText.textContent = "⚡ Crawl Target & Autofill Portal";
@@ -330,7 +375,10 @@ document.addEventListener("DOMContentLoaded", async () => {
               const pUrl = new URL(portalTargetUrl.startsWith("http") ? portalTargetUrl : "http://" + portalTargetUrl);
               siteDomainEl.textContent = pUrl.hostname + " (QC Portal Target)";
               siteUrlEl.textContent = portalTargetUrl;
-            } catch (e) { }
+            } catch (e) {
+              siteDomainEl.textContent = portalTargetUrl + " (QC Portal Target)";
+              siteUrlEl.textContent = portalTargetUrl;
+            }
           }
         } else {
           isPortalDetected = false;
@@ -393,13 +441,44 @@ document.addEventListener("DOMContentLoaded", async () => {
       const urlRes = await new Promise(resolve => {
         chrome.tabs.sendMessage(currentTab.id, { action: "getPortalTargetUrl" }, resolve);
       });
-      if (urlRes && urlRes.targetUrl) {
+      if (urlRes && isValidUrlOrDomain(urlRes.targetUrl)) {
         portalTargetUrl = urlRes.targetUrl.trim();
         portalTargetUrlText.textContent = portalTargetUrl;
+      } else {
+        // Fallback: direct DOM extraction if content script returned empty or numeric ID
+        try {
+          const [evalResult] = await chrome.scripting.executeScript({
+            target: { tabId: currentTab.id },
+            func: () => {
+              const isValid = (s) => s && typeof s === "string" && !/^\d+$/.test(s.trim()) && (/^https?:\/\//i.test(s.trim()) || /^www\.[a-z0-9-]+/i.test(s.trim()) || /[a-z0-9-]+\.(?:com|org|net|co|io|biz|info|us|uk|ca|in|de|cn|jp|fr|au|nl|ru|tw|hk|site|online|tech|co\.uk)\b/i.test(s.trim()));
+              const inps = Array.from(document.querySelectorAll("input:not([type='hidden']):not([type='button']):not([type='submit'])"));
+              for (const inp of inps) {
+                const v = (inp.value || "").trim();
+                if (isValid(v)) return v;
+              }
+              const clickBtn = Array.from(document.querySelectorAll("button, a, input[type='button'], span, div")).find(el => (el.innerText || el.textContent || el.value || "").trim().toLowerCase() === "click here");
+              if (clickBtn) {
+                const c = clickBtn.closest("div, .input-group, .form-group") || clickBtn.parentElement;
+                if (c) {
+                  const textInps = Array.from(c.querySelectorAll("input:not([type='hidden'])"));
+                  for (const inp of textInps) {
+                    const v = (inp.value || "").trim();
+                    if (isValid(v)) return v;
+                  }
+                }
+              }
+              return "";
+            }
+          });
+          if (evalResult && evalResult.result && isValidUrlOrDomain(evalResult.result)) {
+            portalTargetUrl = evalResult.result.trim();
+            portalTargetUrlText.textContent = portalTargetUrl;
+          }
+        } catch (_) {}
       }
 
-      if (!portalTargetUrl) {
-        alert("Please enter a website URL in the 'Website Name' field of the portal form first.");
+      if (!portalTargetUrl || !isValidUrlOrDomain(portalTargetUrl)) {
+        alert("Please enter a valid website URL in the 'Website Name' field of the portal form first (e.g. http://www.wmwatson.co.uk).");
         return;
       }
     }

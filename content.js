@@ -301,6 +301,9 @@
         targetUrl = "http://" + targetUrl;
       }
     }
+    if (!isValidUrlOrDomain(targetUrl)) {
+      targetUrl = "";
+    }
 
     // If portal is detected, ensure floating widget is mounted
     if (isPortal) {
@@ -727,8 +730,10 @@
       const raw = localStorage.getItem("site_intel_widget_pos");
       if (raw) {
         const parsed = JSON.parse(raw);
-        // If saved position has bottom (which covers submit button), reset it!
-        if (parsed.bottom && parsed.bottom !== "auto") {
+        const topNum = parseInt(parsed.top, 10);
+        // Clear any saved position that was near the bottom or could block Submit/Reset!
+        if ((parsed.bottom && parsed.bottom !== "auto") || (!isNaN(topNum) && topNum > 200)) {
+          localStorage.removeItem("site_intel_widget_pos");
           savedPos = null;
         } else {
           savedPos = parsed;
