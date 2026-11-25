@@ -1608,8 +1608,8 @@ Before returning companyAddress:
       - When an address contains both a suburb and an official city, ignore the suburb and mark "city": "Available" based on the official city.
       - If only a suburb, village, or industrial estate is present (and it is not a Town, District, Municipality, official City, or Country Capital), mark "city": "Not Available".
 
-10. "emailId": Primary official company contact email address found on the website (prefer Contact Us / Footer HQ email). Never invent or output placeholder emails; return "" if no real contact email exists.
-11. "secondaryEmailId": Alternative company email if present on the website, else "".
+10. "emailId": Primary official company contact email address explicitly found on the website (prefer Contact Us / Footer HQ email). NEVER guess or fabricate an email (such as info@domain or contact@domain) if none is explicitly written in the crawled text or detected emails; return "" if no real contact email exists.
+11. "secondaryEmailId": Alternative company email explicitly present on the website, else "".
 12. "phoneNumber": Primary contact phone number strictly formatted according to these rules:
     - Take the complete phone number, but ALWAYS REMOVE the international country code for ANY country (e.g., strip +1 for USA/Canada, +44 for UK, +91 for India, +86 for China, +49 for Germany, +33 for France, +81 for Japan, +61 for Australia, +971 for UAE, +65 for Singapore, or ANY other country calling code).
     - Remove all special characters, hyphens, plus signs, brackets, dots, and slashes.

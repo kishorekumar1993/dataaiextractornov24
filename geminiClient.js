@@ -614,11 +614,20 @@
       const dom = lower.split("@")[1] || "";
       return !["example.com", "domain.com", "email.com", "test.com", "sentry.io", "wixpress.com", "wix.com"].some(d => dom === d || dom.endsWith("." + d));
     };
-    if (!isRealEmail(clean.emailId)) {
+    const isPresentInSource = (e) => {
+      if (!e) return false;
+      // Only enforce source presence in real crawls where detectedEmails array is provided
+      if (!context || !Array.isArray(context.detectedEmails)) return true;
+      const lower = e.trim().toLowerCase();
+      if (context.detectedEmails.some(de => String(de).trim().toLowerCase() === lower)) return true;
+      if (context.crawledText && context.crawledText.toLowerCase().includes(lower)) return true;
+      return false;
+    };
+    if (!isRealEmail(clean.emailId) || !isPresentInSource(clean.emailId)) {
       const fallbackEmail = (context && Array.isArray(context.detectedEmails)) ? context.detectedEmails.find(isRealEmail) : "";
       clean.emailId = fallbackEmail || "";
     }
-    if (!isRealEmail(clean.secondaryEmailId) || clean.secondaryEmailId.trim().toLowerCase() === clean.emailId.trim().toLowerCase()) {
+    if (!isRealEmail(clean.secondaryEmailId) || !isPresentInSource(clean.secondaryEmailId) || clean.secondaryEmailId.trim().toLowerCase() === clean.emailId.trim().toLowerCase()) {
       clean.secondaryEmailId = "";
     }
 
