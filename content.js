@@ -717,53 +717,35 @@
       }
     }
 
-    // If widget already exists, update target
+    // Clean up any existing widget or launcher to guarantee fresh mounting at the top
     const existingWidget = document.getElementById("site-intel-portal-widget");
     if (existingWidget) {
-      updateFloatingWidgetTarget(currentTargetUrl);
-      return;
+      existingWidget.remove();
+    }
+    const existingLauncher = document.getElementById("site-intel-launcher-btn");
+    if (existingLauncher) {
+      existingLauncher.remove();
     }
 
-    // Read stored position from localStorage if available
-    let savedPos = null;
+    // Always clear old bottom position from localStorage
     try {
-      const raw = localStorage.getItem("site_intel_widget_pos");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const topNum = parseInt(parsed.top, 10);
-        // Clear any saved position that was near the bottom or could block Submit/Reset!
-        if ((parsed.bottom && parsed.bottom !== "auto") || (!isNaN(topNum) && topNum > 200)) {
-          localStorage.removeItem("site_intel_widget_pos");
-          savedPos = null;
-        } else {
-          savedPos = parsed;
-        }
-      }
+      localStorage.removeItem("site_intel_widget_pos");
     } catch (_) {}
 
-    // Default position: top: 20px, right: 20px (Top-Right NEVER blocks the bottom-right Submit button!)
-    let defaultTop = "20px";
-    let defaultRight = "20px";
-    let defaultLeft = "auto";
-    let defaultBottom = "auto";
-
-    if (savedPos && (savedPos.left || savedPos.right) && (savedPos.top || savedPos.bottom)) {
-      defaultTop = savedPos.top || "20px";
-      defaultLeft = savedPos.left || "auto";
-      defaultRight = savedPos.right || (savedPos.left ? "auto" : "20px");
-      defaultBottom = "auto";
-    }
+    // Default position: Top-Right (top: 15px, right: 20px, bottom: auto !important)
+    const defaultTop = "15px";
+    const defaultRight = "20px";
 
     // Create container
     const widget = document.createElement("div");
     widget.id = "site-intel-portal-widget";
     widget.style.cssText = `
-      position: fixed;
-      top: ${defaultTop};
-      right: ${defaultRight};
-      left: ${defaultLeft};
-      bottom: ${defaultBottom};
-      z-index: 999999;
+      position: fixed !important;
+      top: ${defaultTop} !important;
+      right: ${defaultRight} !important;
+      left: auto !important;
+      bottom: auto !important;
+      z-index: 999999 !important;
       background: #0f172a;
       color: #f8fafc;
       border: 1px solid #334155;
@@ -771,8 +753,8 @@
       box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.6), 0 8px 12px -6px rgba(0, 0, 0, 0.5);
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 13px;
-      width: 380px;
-      max-height: 85vh;
+      width: 360px;
+      max-height: 440px !important;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
@@ -897,36 +879,28 @@
       let newTop = widgetStartTop + dy;
 
       const maxLeft = Math.max(10, window.innerWidth - widget.offsetWidth - 10);
-      const maxTop = Math.max(10, window.innerHeight - widget.offsetHeight - 10);
+      const maxTop = Math.max(10, window.innerHeight - widget.offsetHeight - 80);
       newLeft = Math.max(10, Math.min(maxLeft, newLeft));
       newTop = Math.max(10, Math.min(maxTop, newTop));
 
       widget.style.left = `${newLeft}px`;
       widget.style.top = `${newTop}px`;
+      widget.style.bottom = "auto";
     });
 
     window.addEventListener("mouseup", () => {
       if (isDragging) {
         isDragging = false;
         header.style.cursor = "grab";
-        try {
-          localStorage.setItem("site_intel_widget_pos", JSON.stringify({
-            left: widget.style.left,
-            top: widget.style.top,
-            right: "auto",
-            bottom: "auto"
-          }));
-        } catch (_) {}
       }
     });
 
-    // Corner dock toggle button (Top-Right -> Top-Left -> Bottom-Left -> Mid-Right)
+    // Corner dock toggle button (Cycles strictly between Top-Right -> Top-Left -> Upper-Right, NEVER Bottom!)
     const dockBtn = widget.querySelector("#site-intel-dock-btn");
     const corners = [
-      { top: "20px", right: "20px", left: "auto", bottom: "auto" },  // Top-Right
-      { top: "20px", left: "20px", right: "auto", bottom: "auto" },   // Top-Left
-      { bottom: "20px", left: "20px", top: "auto", right: "auto" },  // Bottom-Left (Submit is on bottom-right, so bottom-left is safe!)
-      { top: "120px", right: "20px", left: "auto", bottom: "auto" }  // Mid-Right
+      { top: "15px", right: "20px", left: "auto", bottom: "auto" },   // Top-Right
+      { top: "15px", left: "240px", right: "auto", bottom: "auto" },  // Top-Left (beside portal title)
+      { top: "70px", right: "20px", left: "auto", bottom: "auto" }    // Upper-Right
     ];
     let currentCornerIdx = 0;
     dockBtn.addEventListener("click", () => {
@@ -935,13 +909,10 @@
       widget.style.top = c.top;
       widget.style.right = c.right;
       widget.style.left = c.left;
-      widget.style.bottom = c.bottom;
-      try {
-        localStorage.setItem("site_intel_widget_pos", JSON.stringify(c));
-      } catch (_) {}
+      widget.style.bottom = "auto";
     });
 
-    // Floating launcher button to restore widget when closed
+    // Floating launcher button to restore widget when closed (Always placed at Top-Right, NEVER Bottom!)
     let launcher = document.getElementById("site-intel-launcher-btn");
     if (!launcher) {
       launcher = document.createElement("button");
@@ -949,10 +920,12 @@
       launcher.title = "Open AI QC Autofill Widget";
       launcher.innerHTML = "🕷️ <span style='font-size:12px; font-weight:600;'>AI QC</span>";
       launcher.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        z-index: 999998;
+        position: fixed !important;
+        top: 15px !important;
+        right: 20px !important;
+        bottom: auto !important;
+        left: auto !important;
+        z-index: 999998 !important;
         background: #0f172a;
         color: #38bdf8;
         border: 1px solid #334155;
@@ -986,6 +959,17 @@
     minBtn.addEventListener("click", () => {
       isMinimized = !isMinimized;
       if (isMinimized) {
+        widgetBody.style.display = "none";
+        minBtn.textContent = "+";
+        widget.style.width = "auto";
+        widget.style.maxHeight = "42px";
+      } else {
+        widgetBody.style.display = "flex";
+        minBtn.textContent = "—";
+        widget.style.width = "360px";
+        widget.style.maxHeight = "440px";
+      }
+    });
         widgetBody.style.display = "none";
         minBtn.textContent = "+";
         widget.style.width = "auto";
