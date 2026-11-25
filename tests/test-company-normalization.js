@@ -99,6 +99,22 @@ test("Preserve acronyms and proper casing (IBM, BMW, 4CPlus)", () => {
   assert.strictEqual(norm2, "4CPlus Internet Company");
 });
 
+// 6. Expanded industry & business descriptors (Bros., Assoc., Mach., Mgmt., Natl., Elec., Fab., Prec., comma-followed)
+test("Expand extended industry/business abbreviations (Bros., Assoc., Mach., Mgmt., Natl., Elec., Fab., Prec.)", () => {
+  assert.strictEqual(
+    CompanyNormalizer.normalizeCompanyName("Smith Bros. Mach. & Equip. Co., Ltd."),
+    "Smith Brothers Machinery & Equipment Company, Limited"
+  );
+  assert.strictEqual(
+    CompanyNormalizer.normalizeCompanyName("Natl. Prec. Fab. & Elec. Assoc. Inc."),
+    "National Precision Fabrication & Electrical Associates Incorporated"
+  );
+  assert.strictEqual(
+    CompanyNormalizer.normalizeCompanyName("Apex Mfg., Inc."),
+    "Apex Manufacturing, Incorporated"
+  );
+});
+
 console.log("==========================================================");
 console.log(`  COMPANY NAME RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
 console.log("==========================================================");

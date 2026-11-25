@@ -1245,7 +1245,7 @@ Field extraction guidelines:
        - "Sdn. Bhd." / "Sdn Bhd" -> "Sendirian Berhad"
        - "Bhd." / "Bhd" -> "Berhad"
        - Example: "Zhejiang Jiangnan Steel Structure Co., Ltd." MUST be expanded to "Zhejiang Jiangnan Steel Structure Company, Limited".
-     * Internal Industry & Business Descriptors Inside Company Name:
+     * Internal Industry & Business Descriptors Inside Company Name (EXPAND EVERY ABBREVIATED WORD):
        - "Mfg." / "Mfg" -> "Manufacturing"
        - "Ind." / "Inds." -> "Industrial" / "Industries"
        - "Tech." / "Technol." -> "Technology"
@@ -1260,6 +1260,15 @@ Field extraction guidelines:
        - "Dev." -> "Development"
        - "Chem." -> "Chemical"
        - "Equip." / "Eqpt." -> "Equipment"
+        - "Mfr." / "Mfr" -> "Manufacturer", "Mfrs." -> "Manufacturers", "Mach." -> "Machinery", "Instr." -> "Instruments"
+        - "Assoc." -> "Associates", "Bros." -> "Brothers", "Mgmt." / "Mgmt" -> "Management", "Mktg." -> "Marketing"
+        - "Natl." / "Nat'l" -> "National", "Mech." -> "Mechanical", "Elec." -> "Electrical", "Electr." -> "Electronics"
+        - "Const." / "Constr." -> "Construction", "Fab." -> "Fabrication", "Pkg." -> "Packaging", "Prec." -> "Precision"
+        - "Lab." -> "Laboratory", "Labs." -> "Laboratories", "Mat." / "Matl." -> "Material", "Matls." -> "Materials"
+        - "Comm." / "Comms." -> "Communications", "Dist." / "Distr." -> "Distribution", "Sci." -> "Scientific"
+        - "Std." -> "Standard", "Struct." -> "Structural", "Telecom." / "Telecomm." -> "Telecommunications"
+        - "Transp." -> "Transportation", "Whsle." -> "Wholesale", "Hdwe." / "Hdw." -> "Hardware", "Auto." -> "Automotive"
+        - Always expand any other recognizable abbreviated business word into its full English form.
      * Country-Specific Company Name & Legal Entity Expansions:
        - United States & Canada: "Inc." -> "Incorporated", "Corp." -> "Corporation", "LLC" / "L.L.C." -> "Limited Liability Company", "LP" -> "Limited Partnership", "LLP" -> "Limited Liability Partnership", "PLLC" -> "Professional Limited Liability Company".
        - United Kingdom, Australia, New Zealand, South Africa, India, Singapore, Malaysia, Hong Kong (Commonwealth): "Ltd." -> "Limited", "Pvt. Ltd." -> "Private Limited", "Pte. Ltd." (Singapore/Southeast Asia) -> "Private Limited", "Pty. Ltd." (Australia/South Africa) -> "Proprietary Limited", "PLC" / "Plc" -> "Public Limited Company", "LLP" -> "Limited Liability Partnership", "Sdn. Bhd." (Malaysia) -> "Sendirian Berhad", "Bhd." -> "Berhad".
@@ -1824,7 +1833,11 @@ ${context.crawledText}`;
         const mainPart = domainParts[0] || "Company";
         compName = mainPart.charAt(0).toUpperCase() + mainPart.slice(1);
       }
-      compName = compName.trim();
+      if (companyNorm && companyNorm.normalizeCompanyName) {
+        compName = companyNorm.normalizeCompanyName(compName);
+      } else {
+        compName = compName.trim();
+      }
 
       // Country from TLD or detected phone
       let cName = "Not Available";
@@ -1975,7 +1988,11 @@ ${context.crawledText}`;
         }
       }
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
-        aiResult.data.companyName = aiResult.data.companyName.trim();
+        if (companyNorm && companyNorm.normalizeCompanyName) {
+          aiResult.data.companyName = companyNorm.normalizeCompanyName(aiResult.data.companyName);
+        } else {
+          aiResult.data.companyName = aiResult.data.companyName.trim();
+        }
       }
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
         if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
