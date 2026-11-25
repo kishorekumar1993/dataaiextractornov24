@@ -1525,19 +1525,22 @@ Before returning companyAddress:
 - Verify that only one complete address is returned.
 
 8. "state": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the state name itself):
+   - If the state name is given in the selected companyAddress, select "Available"; if not, select "Not Available".
+   - Note: County, Province, and Prefecture MUST be considered as State.
    - What Qualifies as State = "Available":
-     * Official States & Provinces: Any recognized first-level administrative division of any country worldwide (e.g., States, Provinces, Counties, Prefectures, Cantons, Departments, Federal Territories, or Special/Direct-controlled Municipalities), even when the word "State" or "Province" is not explicitly written after the name.
-     * Country Capitals (CRITICAL UNIVERSAL RULE): If the address contains the Country's Capital city (any national capital or capital city of any country/region worldwide, e.g. Taipei / Taipei City for Taiwan, Washington D.C., London, Paris, Tokyo, Beijing, New Delhi, Berlin, Ottawa, etc., whether written with or without the word "City"), "state" MUST ALWAYS be marked as "Available"! Capital cities hold primary state-level administrative status.
+     * Official States & Provinces: Any recognized first-level administrative division of any country worldwide — including States, Counties, Provinces, Prefectures, Cantons, Departments, Federal Territories, and Special/Direct-controlled Municipalities — even when the word "State", "County", "Province", or "Prefecture" is not explicitly written after the name (e.g. "Bedfordshire" = County -> State "Available"; "Wisconsin" / "WI" = State -> "Available"; "Ontario" = Province -> "Available"; "Osaka" = Prefecture -> "Available").
+     * Country Capitals (CRITICAL UNIVERSAL RULE): If a country's capital is mentioned in the address (e.g. Taipei, Washington D.C., London, Paris, Tokyo, Beijing, New Delhi, Berlin, Ottawa, Bangkok, Seoul, etc.), then BOTH "city" AND "state" MUST be marked "Available".
    - Disregard State Names in Street Lines:
-     * If a state or province name appears solely as part of a street name (e.g., "Pennsylvania Avenue", "Washington Boulevard"), it does not count as the state. Only count it if an actual state, province, or capital division is present in the address location itself.
-   - Select "Available" whenever an official State, Province, County, Prefecture, or Country Capital is present.
-   - Select "Not Available" ONLY when the address contains strictly an ordinary non-capital local town/suburb without any state, province, county, or country capital present.
-   - DO NOT consider an ordinary local town, village, or suburb as a State.
+     * If a state, county, or province name appears solely as part of a street name (e.g., "Pennsylvania Avenue", "Washington Boulevard"), it does NOT count as the state.
+   - Do NOT consider an ordinary non-capital town, village, suburb, or industrial estate as State.
 
 9. "city": STRICT CITY VS SUBURB CLASSIFICATION – MANDATORY (Strictly output ONLY the exact string "Available" or "Not Available", NEVER output the city name itself):
+   - If the city name is given in the selected companyAddress, select "Available"; if not, select "Not Available".
+   - Note: Town, District, and Municipality MUST be considered as City (where District is an official administrative district).
+   - Country Capitals: If a country's capital is mentioned in the address, then BOTH "city" AND "state" MUST be marked "Available".
    Before marking "city": "Available", independently classify the extracted locality.
    A. Qualifies as City – "Available":
-      - Officially recognized and independently identifiable cities.
+      - Officially recognized and independently identifiable cities (and country capitals).
       - Official towns.
       - Official municipalities.
       - Official administrative districts, where the district is explicitly identified as an administrative division.
