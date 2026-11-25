@@ -467,6 +467,60 @@ async function runTestSuite() {
     assert.strictEqual(validated2.phoneNumber, "", "Toll-free numbers must be rejected to empty string");
   });
 
+  // 16. Secondary Phone Fallback when primary is toll-free or Not Available
+  await test("Scenario 16: Secondary Phone Fallback when primary phone is toll-free (ionthis.com)", async () => {
+    const testTollFreePrimary = {
+      ...validExtractedResponse,
+      phoneNumber: "1-800-276-2792", // primary main phone is toll-free
+      countryName: "United States Of America"
+    };
+
+    const contextWithSecondary = {
+      detectedPhones: ["1-800-276-2792", "+1-832-955-1531", "+1 713 983 8528"]
+    };
+
+    const validated = GeminiClient.validateExtractedJson(testTollFreePrimary, contextWithSecondary);
+    assert.strictEqual(validated.phoneNumber, "8329551531", "Secondary non-toll-free phone must be taken");
+
+    // Also test when primary was 'Not Available'
+    const testNotAvailable = {
+      ...validExtractedResponse,
+      phoneNumber: "Not Available",
+      countryName: "United States Of America"
+    };
+    const validated2 = GeminiClient.validateExtractedJson(testNotAvailable, contextWithSecondary);
+    assert.strictEqual(validated2.phoneNumber, "8329551531", "When primary is Not Available, secondary must be taken");
+  });
+
+  // 16. Secondary Phone Fallback from detectedPhones when primary is toll-free or Not Available
+  await test("Scenario 16: Secondary Phone Fallback from detectedPhones (Toll-Free handling like ionthis.com)", async () => {
+    const contextWithSecondary = {
+      detectedPhones: [
+        "1-800-276-2792", // primary toll-free
+        "+1-832-955-1531", // secondary local phone
+        "+1 713 983 8528"
+      ]
+    };
+
+    const aiResponseWithTollFree = {
+      ...validExtractedResponse,
+      countryName: "United States Of America",
+      phoneNumber: "1-800-276-2792"
+    };
+
+    const validated = GeminiClient.validateExtractedJson(aiResponseWithTollFree, contextWithSecondary);
+    assert.strictEqual(validated.phoneNumber, "8329551531", "Toll-free primary phone must fallback to secondary local phone");
+
+    // Also test when AI returns "Not Available"
+    const aiResponseNotAvail = {
+      ...validExtractedResponse,
+      countryName: "United States Of America",
+      phoneNumber: "Not Available"
+    };
+    const validatedNotAvail = GeminiClient.validateExtractedJson(aiResponseNotAvail, contextWithSecondary);
+    assert.strictEqual(validatedNotAvail.phoneNumber, "8329551531", "'Not Available' must trigger secondary fallback");
+  });
+
   console.log("\n==========================================================");
   console.log(`  TEST RESULTS: ${passed} PASSED, ${failed} FAILED (TOTAL 15)`);
   console.log("==========================================================");

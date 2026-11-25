@@ -609,8 +609,8 @@
       clean.phoneNumber = sanitizePhoneNumber(clean.phoneNumber, clean.countryName);
     }
 
-    // Secondary Phone Fallback: If phone is empty (e.g. main was toll-free), scan detectedPhones in context
-    if (!clean.phoneNumber && context && Array.isArray(context.detectedPhones)) {
+    // Secondary Phone Fallback: If phone is empty (e.g. main was toll-free) or Not Available, scan detectedPhones in context
+    if ((!clean.phoneNumber || clean.phoneNumber === "Not Available") && context && Array.isArray(context.detectedPhones)) {
       for (const rawCandidate of context.detectedPhones) {
         const sanitized = sanitizePhoneNumber(rawCandidate, clean.countryName);
         if (sanitized && sanitized.length >= 7 && sanitized.length <= 15) {

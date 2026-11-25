@@ -1123,6 +1123,19 @@ const CrawlerEngine = (() => {
     const phones = Array.from(new Set(text.match(PHONE_REGEX) || []))
       .filter(p => p.replace(/\D/g, "").length >= 7 && p.replace(/\D/g, "").length <= 15);
 
+    if (html) {
+      const telRegex = /href=["']tel:([^"']+)["']/gi;
+      let tm;
+      while ((tm = telRegex.exec(html)) !== null) {
+        try {
+          const rawTel = decodeURIComponent(tm[1]).trim();
+          if (rawTel.replace(/\D/g, "").length >= 7 && rawTel.replace(/\D/g, "").length <= 15) {
+            phones.push(rawTel);
+          }
+        } catch (_) {}
+      }
+    }
+
     // Heuristics for product images and descriptions
     let productCount = 0;
     let imgCount = 0;
@@ -1331,7 +1344,7 @@ Field extraction guidelines:
        - "No." / "Number" Availability: If "No." or "No" or "Number" is available in the original source address, expand it to "Number" (e.g. "No.2, Wugong 2nd Rd." -> "Number 2, Wugong 2nd Road, Beiliu Village, Wufeng District, Taichung City"). If "No." or "Number" is NOT available in the source address (e.g. "45 Main St." or "Unit B3"), DO NOT add or put "Number" or "No." — keep pure numbers as-is, and if not available, remove/do not include "Number"!
        - Clean and remove any trailing company name, Chinese corporate name, or slash-separated business registration name appended to the map address (e.g., strip "安頌液壓工業股份有限公司/ANSON Hydraulics Industrial Co., Ltd." or "/Company Name").
        - Remove country name (e.g., "Taiwan") and postal/ZIP codes (e.g., "413", "41353").
-       - Clean native building/lot numbers (e.g., convert "No. 2號" or "2號" to "Number 2" or "2").
+       - Clean native building/lot numbers (e.g., convert "No. 2號" to "Number 2", but if "No." was not present, e.g. "2號", keep as "2").
        - Expand street, district, and administrative abbreviations (e.g., "Rd" -> "Road", "Dist." -> "District") in Title Case while preserving original commas.
      * Fallback (Only when NO Contact Map is present): If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
      * Only flag "websiteStatus": "Manual Review" with reason "Manual Review Required: Conflicting addresses across Contact, Footer, and Map that cannot be reconciled" if no valid address exists across all sources.
@@ -1352,6 +1365,11 @@ Field extraction guidelines:
    - Never add unrelated branch addresses, nearby landmarks, or guessed geographic details.
 
 5. Address Normalization:
+   CRITICAL NEGATIVE RULE - UNWANTED "NUMBER" PROHIBITION:
+   - NEVER prepend or add the word "Number" to street numbers or addresses starting with digits!
+   - Example: "12900 - 87th Avenue, Surrey, BC V3W 3H9, Canada" MUST BE "12900 - 87th Avenue, Surrey, British Columbia" (NEVER "Number 12900 - 87th Avenue")!
+   - Pure street/building numbers (e.g. "12900", "45 Main Street", "100 Parkway", "Unit B3") must NEVER have "Number" added.
+   - ONLY include "Number" if the original source text explicitly had "No." or "Number".
    Apply the existing address formatting rules:
    - Expand abbreviated words into their full forms.
    - Use Title Case (first letter of each word capitalized).
@@ -1512,8 +1530,8 @@ Before returning companyAddress:
     - Remove all spaces (digits only).
     - TOLL-FREE NUMBERS & SECONDARY PHONE SELECTION (MANDATORY RULE):
       * Do NOT take toll-free numbers (e.g., numbers starting with 1800, 800, 888, 877, 866, 855, 844, 400).
-      * IF MAIN CONTACT NUMBER IS TOLL-FREE: If the main or primary contact number displayed on the website / contact page is a toll-free number, YOU MUST TAKE THE SECOND PHONE OR CONTACT NUMBER INSTEAD (such as the second telephone number, secondary office phone, direct local landline, or mobile contact number).
-      * Never output a toll-free number. Always check for a second contact number or local line.
+      * IF MAIN CONTACT NUMBER IS TOLL-FREE: If the primary contact number on the website/contact page is toll-free (e.g., "1-800-276-2792" as on ionthis.com), YOU MUST EXTRACT THE SECOND DIRECT LOCAL PHONE NUMBER (e.g., "+1-832-955-1531" -> "8329551531", or "+1 713 983 8528" -> "7139838528").
+      * NEVER return empty string "" if a secondary direct phone or local contact number is present on the website, contact page, or in heuristically detected phone numbers! Always check for a second contact number or local line.
     - Do NOT take numbers starting with zero. Strip any leading zeros so the phone number never starts with 0.
     - Examples:
       * USA: "+1 (555) 234-5678" -> "5552345678"
@@ -1740,14 +1758,20 @@ ${context.crawledText}`;
 
     // Apply Business Type eligibility & Unpaid Category conditions (Manufacturer to Wholesaler only are Working, non-manufacturer cart options marked Not Working)
     if (aiResult && aiResult.data) {
-      if (!aiResult.data.phoneNumber && context && Array.isArray(context.detectedPhones)) {
-        for (const rawCandidate of context.detectedPhones) {
-          const sanitized = GeminiClient.sanitizePhoneNumber(rawCandidate, aiResult.data.countryName);
-          if (sanitized && sanitized.length >= 7 && sanitized.length <= 15) {
-            aiResult.data.phoneNumber = sanitized;
-            break;
+      const currentPhone = aiResult.data.phoneNumber;
+      const sanitizedPhone = GeminiClient.sanitizePhoneNumber(currentPhone, aiResult.data.countryName);
+      if (!sanitizedPhone || currentPhone === "Not Available") {
+        if (context && Array.isArray(context.detectedPhones)) {
+          for (const rawCandidate of context.detectedPhones) {
+            const sanitized = GeminiClient.sanitizePhoneNumber(rawCandidate, aiResult.data.countryName);
+            if (sanitized && sanitized.length >= 7 && sanitized.length <= 15) {
+              aiResult.data.phoneNumber = sanitized;
+              break;
+            }
           }
         }
+      } else {
+        aiResult.data.phoneNumber = sanitizedPhone;
       }
       aiResult.data = applyBusinessTypeEligibilityRule(aiResult.data, mainHtml, crawledPages);
       if (aiResult.data.countryName && aiResult.data.countryName !== "Not Available") {

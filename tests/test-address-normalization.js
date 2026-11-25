@@ -134,6 +134,21 @@ test("Preserve source commas and clean trailing clutter", () => {
   assert.strictEqual(normalized, "B-14, Shashi Park Road, I, Mayur Vihar, New Delhi, Delhi");
 });
 
+// 8. Number prefix handling (Never add Number before pure street digits, strip if artificially injected)
+test("Strip unwanted leading Number before pure street numbers or hyphenated addresses (12900 - 87th Avenue)", () => {
+  const input1 = "Number 12900 - 87th Avenue, Surrey, British Columbia";
+  const normalized1 = AddressNormalizer.normalizeAddress(input1);
+  assert.strictEqual(normalized1, "12900 - 87th Avenue, Surrey, British Columbia");
+
+  const input2 = "12900 - 87th Avenue, Surrey, BC";
+  const normalized2 = AddressNormalizer.normalizeAddress(input2);
+  assert.strictEqual(normalized2, "12900 - 87th Avenue, Surrey, British Columbia");
+
+  const inputWithExplicitNo = "No. 2, Wugong 2nd Rd, Wufeng Dist, Taichung City";
+  const normalizedExplicit = AddressNormalizer.normalizeAddress(inputWithExplicitNo);
+  assert(normalizedExplicit.startsWith("Number 2"), `Expected 'Number 2' when No. was explicit, got: ${normalizedExplicit}`);
+});
+
 console.log("==========================================================");
 console.log(`  ADDRESS NORMALIZATION RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
 console.log("==========================================================");
