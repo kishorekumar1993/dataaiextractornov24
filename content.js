@@ -184,12 +184,10 @@
         : { display: "block", visibility: "visible" };
 
       return (
-        rect.width > 0 &&
-        rect.height > 0 &&
+        ((rect.width > 0 && rect.height > 0) || !hasBounding) &&
         style.display !== "none" &&
         style.visibility !== "hidden" &&
         !el.disabled &&
-        !el.readOnly &&
         !el.closest("#site-intel-portal-widget")
       );
     });
@@ -1009,6 +1007,7 @@
     const actionBtn = widget.querySelector("#site-intel-action-btn");
     actionBtn.addEventListener("mouseenter", () => { actionBtn.style.background = "#1d4ed8"; });
     actionBtn.addEventListener("mouseleave", () => { actionBtn.style.background = "#2563eb"; });
+    actionBtn.onclick = handleWidgetCrawlAndFill;
     actionBtn.addEventListener("click", handleWidgetCrawlAndFill);
 
     const copyBtn = widget.querySelector("#site-intel-copy-btn");
@@ -1166,7 +1165,11 @@
     }
   }
 
-  async function handleWidgetCrawlAndFill() {
+  async function handleWidgetCrawlAndFill(e) {
+    if (e) {
+      try { e.preventDefault?.(); e.stopPropagation?.(); } catch (_) {}
+    }
+
     const actionBtn = document.getElementById("site-intel-action-btn");
     const btnText = document.getElementById("site-intel-btn-text");
     const statusLine = document.getElementById("site-intel-status-line");
@@ -1188,15 +1191,28 @@
       return;
     }
 
-    // Get latest URL dynamically from the form
+    // Get latest URL: Priority 1 is the widget's displayed target (what is literally visible on the widget)
     let url = "";
-    const websiteEl = findWebsiteInputElement();
-    if (websiteEl) {
-      const v = getElementValue(websiteEl);
-      if (isValidUrlOrDomain(v)) {
-        url = v.trim();
+    const targetEl = document.getElementById("site-intel-widget-target");
+    if (targetEl) {
+      const displayed = (targetEl.innerText || targetEl.textContent || "").trim();
+      if (isValidUrlOrDomain(displayed)) {
+        url = displayed;
       }
     }
+
+    // Priority 2: Direct inspection of Website Name input element
+    if (!url) {
+      const websiteEl = findWebsiteInputElement();
+      if (websiteEl) {
+        const v = getElementValue(websiteEl);
+        if (isValidUrlOrDomain(v)) {
+          url = v.trim();
+        }
+      }
+    }
+
+    // Priority 3: Fallback detectPortalForm
     if (!url) {
       const detection = detectPortalForm();
       if (isValidUrlOrDomain(detection.targetUrl)) {
@@ -1205,7 +1221,11 @@
     }
 
     if (!url || !isValidUrlOrDomain(url)) {
-      alert("Please enter a valid website URL in the 'Website Name' field first (e.g. http://www.taragrinna-swimwear.com).");
+      if (statusLine) {
+        statusLine.style.display = "block";
+        statusLine.textContent = "⚠️ Please enter a valid website URL in Website Name.";
+      }
+      alert("Please enter a valid website URL in the 'Website Name' field first (e.g. http://www.fongding.com.tw).");
       return;
     }
 
@@ -1213,17 +1233,23 @@
       url = "http://" + url;
     }
 
-    // Set UI to loading state
-    actionBtn.disabled = true;
-    actionBtn.style.opacity = "0.7";
-    actionBtn.style.cursor = "not-allowed";
-    btnText.textContent = "Crawling & Analyzing...";
-    statusLine.style.display = "block";
-    statusLine.textContent = "⏳ Fetching website pages...";
+    // Set UI to loading state immediately
+    if (actionBtn) {
+      actionBtn.disabled = true;
+      actionBtn.style.opacity = "0.7";
+      actionBtn.style.cursor = "not-allowed";
+    }
+    if (btnText) {
+      btnText.textContent = "Crawling & Analyzing...";
+    }
+    if (statusLine) {
+      statusLine.style.display = "block";
+      statusLine.textContent = "⏳ Fetching website pages...";
+    }
 
     try {
       // Send crawl request to background service worker
-      statusLine.textContent = "🤖 Analyzing with Gemini AI...";
+      if (statusLine) statusLine.textContent = "🤖 Analyzing with Gemini AI...";
       const response = await new Promise((resolve, reject) => {
         try {
           if (!chrome.runtime || !chrome.runtime.id) {
@@ -1244,26 +1270,34 @@
         }
       });
 
-      if (!response || !response.success) {
-        throw new Error(response?.error || "Crawl & AI extraction failed");
+      if (!response) {
+        throw new Error("No response received from crawler engine.");
       }
 
-      statusLine.textContent = "📝 Prefilling portal form fields...";
-      const fillResult = prefillPortalForm(response.data);
+      if (!response.success && !response.data) {
+        throw new Error(response.error || "Crawl & AI extraction failed");
+      }
+
+      const extractedData = response.data || { websiteStatus: "Not Working", notWorkingReason: response.error };
+
+      if (statusLine) statusLine.textContent = "📝 Prefilling portal form fields...";
+      const fillResult = prefillPortalForm(extractedData);
 
       // Render full extracted details in widget
-      renderWidgetDetails(response.data, response.meta);
+      renderWidgetDetails(extractedData, response.meta);
 
-      btnText.textContent = "✓ Form Filled!";
-      actionBtn.style.background = "#10b981";
-      statusLine.textContent = `✅ Successfully filled ${fillResult.filledCount} fields! All details shown below.`;
+      if (btnText) btnText.textContent = "✓ Form Filled!";
+      if (actionBtn) actionBtn.style.background = "#10b981";
+      if (statusLine) statusLine.textContent = `✅ Successfully filled ${fillResult.filledCount} fields! All details shown below.`;
 
       setTimeout(() => {
-        actionBtn.disabled = false;
-        actionBtn.style.opacity = "1";
-        actionBtn.style.cursor = "pointer";
-        actionBtn.style.background = "#2563eb";
-        btnText.textContent = "⚡ Crawl & Autofill Again";
+        if (actionBtn) {
+          actionBtn.disabled = false;
+          actionBtn.style.opacity = "1";
+          actionBtn.style.cursor = "pointer";
+          actionBtn.style.background = "#2563eb";
+        }
+        if (btnText) btnText.textContent = "⚡ Crawl & Autofill Again";
       }, 3500);
 
     } catch (err) {
@@ -1275,26 +1309,43 @@
           statusLine.textContent = "🔄 Extension was updated or reloaded. Please refresh this page (F5) to reconnect.";
         }
         if (btnText) btnText.textContent = "🔄 Refresh Page to Reconnect";
-        actionBtn.style.background = "#f59e0b";
-        actionBtn.disabled = false;
-        actionBtn.style.opacity = "1";
-        actionBtn.style.cursor = "pointer";
-        actionBtn.onclick = () => window.location.reload();
+        if (actionBtn) {
+          actionBtn.style.background = "#f59e0b";
+          actionBtn.disabled = false;
+          actionBtn.style.opacity = "1";
+          actionBtn.style.cursor = "pointer";
+          actionBtn.onclick = () => window.location.reload();
+        }
         return;
       }
 
+      const isApiKeyError = /api key/i.test(err?.message || "");
       console.error("Widget crawl error:", err);
-      btnText.textContent = "Error";
-      actionBtn.style.background = "#ef4444";
-      statusLine.textContent = `❌ ${err.message}`;
-
-      setTimeout(() => {
+      if (btnText) btnText.textContent = isApiKeyError ? "⚙️ API Key Required" : "Error";
+      if (actionBtn) {
+        actionBtn.style.background = isApiKeyError ? "#f59e0b" : "#ef4444";
         actionBtn.disabled = false;
         actionBtn.style.opacity = "1";
         actionBtn.style.cursor = "pointer";
-        actionBtn.style.background = "#2563eb";
-        btnText.textContent = "⚡ Crawl & Autofill Form";
-      }, 3500);
+      }
+      if (statusLine) {
+        statusLine.style.display = "block";
+        statusLine.textContent = isApiKeyError
+          ? "⚠️ Gemini API key is missing. Click the extension toolbar icon to set your API key."
+          : `❌ ${err.message}`;
+      }
+
+      if (!isApiKeyError) {
+        setTimeout(() => {
+          if (actionBtn) {
+            actionBtn.disabled = false;
+            actionBtn.style.opacity = "1";
+            actionBtn.style.cursor = "pointer";
+            actionBtn.style.background = "#2563eb";
+          }
+          if (btnText) btnText.textContent = "⚡ Crawl & Autofill Form";
+        }, 3500);
+      }
     }
   }
 
