@@ -1140,17 +1140,48 @@
     actionBtn.addEventListener("mouseleave", () => { actionBtn.style.background = "#2563eb"; });
     actionBtn.addEventListener("click", handleWidgetCrawlAndFill);
 
-    // Automation toggles (persisted in localStorage)
+    // Automation toggles (synced globally via chrome.storage.local across all portal tabs)
     const autoCrawlChk = widget.querySelector("#site-intel-auto-crawl-chk");
     const autoSubmitNwChk = widget.querySelector("#site-intel-auto-submit-nw-chk");
-    if (autoCrawlChk) {
-      autoCrawlChk.checked = getAutoCrawlEnabled();
-      if (autoCrawlChk.checked && currentTargetUrl) {
+
+    const syncCheckboxesFromGlobals = () => {
+      if (autoCrawlChk) autoCrawlChk.checked = globalAutoCrawl;
+      if (autoSubmitNwChk) autoSubmitNwChk.checked = globalAutoSubmitNotWorking;
+    };
+
+    // Load global settings from chrome.storage.local
+    loadGlobalAutomationSettings().then(() => {
+      syncCheckboxesFromGlobals();
+      if (globalAutoCrawl && currentTargetUrl) {
         scheduleAutoCrawl(currentTargetUrl);
       }
+    });
+
+    // Sync live if changed from popup settings or another tab
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes, areaName) => {
+        if (areaName !== "local") return;
+        if (changes.autoCrawl) {
+          globalAutoCrawl = Boolean(changes.autoCrawl.newValue);
+          try { localStorage.setItem("site_intel_auto_crawl", globalAutoCrawl ? "true" : "false"); } catch (_) {}
+        }
+        if (changes.autoSubmitNotWorking) {
+          globalAutoSubmitNotWorking = Boolean(changes.autoSubmitNotWorking.newValue);
+          try { localStorage.setItem("site_intel_auto_submit_not_working", globalAutoSubmitNotWorking ? "true" : "false"); } catch (_) {}
+        }
+        syncCheckboxesFromGlobals();
+      });
+    }
+
+    if (autoCrawlChk) {
+      autoCrawlChk.checked = getAutoCrawlEnabled();
       autoCrawlChk.addEventListener("change", () => {
-        try { localStorage.setItem("site_intel_auto_crawl", autoCrawlChk.checked ? "true" : "false"); } catch (_) {}
-        if (autoCrawlChk.checked) {
+        globalAutoCrawl = Boolean(autoCrawlChk.checked);
+        try { localStorage.setItem("site_intel_auto_crawl", globalAutoCrawl ? "true" : "false"); } catch (_) {}
+        if (isExtensionContextValid() && chrome.storage && chrome.storage.local) {
+          try { chrome.storage.local.set({ autoCrawl: globalAutoCrawl }); } catch (_) {}
+        }
+        if (globalAutoCrawl) {
           const targetEl = document.getElementById("site-intel-widget-target");
           const displayed = targetEl ? (targetEl.innerText || targetEl.textContent || "").trim() : "";
           if (isValidUrlOrDomain(displayed)) {
@@ -1165,7 +1196,11 @@
     if (autoSubmitNwChk) {
       autoSubmitNwChk.checked = getAutoSubmitNotWorkingEnabled();
       autoSubmitNwChk.addEventListener("change", () => {
-        try { localStorage.setItem("site_intel_auto_submit_not_working", autoSubmitNwChk.checked ? "true" : "false"); } catch (_) {}
+        globalAutoSubmitNotWorking = Boolean(autoSubmitNwChk.checked);
+        try { localStorage.setItem("site_intel_auto_submit_not_working", globalAutoSubmitNotWorking ? "true" : "false"); } catch (_) {}
+        if (isExtensionContextValid() && chrome.storage && chrome.storage.local) {
+          try { chrome.storage.local.set({ autoSubmitNotWorking: globalAutoSubmitNotWorking }); } catch (_) {}
+        }
       });
     }
 
@@ -1309,12 +1344,41 @@
     }
   }
 
-  function getAutoCrawlEnabled() {
+  let globalAutoCrawl = (() => {
     try { return localStorage.getItem("site_intel_auto_crawl") === "true"; } catch (_) { return false; }
+  })();
+  let globalAutoSubmitNotWorking = (() => {
+    try { return localStorage.getItem("site_intel_auto_submit_not_working") === "true"; } catch (_) { return false; }
+  })();
+
+  function loadGlobalAutomationSettings() {
+    return new Promise((resolve) => {
+      if (isExtensionContextValid() && typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
+        try {
+          chrome.storage.local.get(["autoCrawl", "autoSubmitNotWorking"], (res) => {
+            if (res && typeof res.autoCrawl === "boolean") {
+              globalAutoCrawl = res.autoCrawl;
+              try { localStorage.setItem("site_intel_auto_crawl", globalAutoCrawl ? "true" : "false"); } catch (_) {}
+            }
+            if (res && typeof res.autoSubmitNotWorking === "boolean") {
+              globalAutoSubmitNotWorking = res.autoSubmitNotWorking;
+              try { localStorage.setItem("site_intel_auto_submit_not_working", globalAutoSubmitNotWorking ? "true" : "false"); } catch (_) {}
+            }
+            resolve();
+          });
+          return;
+        } catch (_) {}
+      }
+      resolve();
+    });
+  }
+
+  function getAutoCrawlEnabled() {
+    return globalAutoCrawl;
   }
 
   function getAutoSubmitNotWorkingEnabled() {
-    try { return localStorage.getItem("site_intel_auto_submit_not_working") === "true"; } catch (_) { return false; }
+    return globalAutoSubmitNotWorking;
   }
 
   let lastAutoCrawledUrl = "";

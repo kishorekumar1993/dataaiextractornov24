@@ -211,6 +211,18 @@
             </p>
           </div>
 
+          <div class="form-group" style="display:flex; flex-direction:column; gap:8px; background:#0f172a; padding:10px; border-radius:6px; border:1px solid #334155;">
+            <label style="margin:0; font-size:11px; color:#38bdf8; font-weight:700;">GLOBAL PORTAL AUTOMATION</label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:#e2e8f0; margin:0;">
+              <input type="checkbox" id="autoCrawlToggle" style="accent-color:#38bdf8; cursor:pointer;" />
+              <span>Auto Crawl (automatically crawl when new URL loads)</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:12px; color:#e2e8f0; margin:0;">
+              <input type="checkbox" id="autoSubmitNotWorkingToggle" style="accent-color:#10b981; cursor:pointer;" />
+              <span>Auto Submit (Not Working tasks only)</span>
+            </label>
+          </div>
+
           <div class="form-actions">
             <button id="testApiKeyBtn" class="secondary-btn">Test Connection</button>
             <button id="saveSettingsBtn" class="primary-btn">Save Settings</button>

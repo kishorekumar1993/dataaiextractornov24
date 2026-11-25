@@ -136,7 +136,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       "geminiModel",
       "fallbackModel",
       "backendProxyUrl",
-      "crawlDepth"
+      "crawlDepth",
+      "autoCrawl",
+      "autoSubmitNotWorking"
     ]);
 
     if (data.geminiApiKey) {
@@ -169,6 +171,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (data.crawlDepth) {
       crawlDepthSelect.value = data.crawlDepth;
     }
+
+    const autoCrawlToggle = document.getElementById("autoCrawlToggle");
+    const autoSubmitNotWorkingToggle = document.getElementById("autoSubmitNotWorkingToggle");
+    if (autoCrawlToggle) autoCrawlToggle.checked = Boolean(data.autoCrawl);
+    if (autoSubmitNotWorkingToggle) autoSubmitNotWorkingToggle.checked = Boolean(data.autoSubmitNotWorking);
   }
 
   function openSettings() {
@@ -196,12 +203,19 @@ document.addEventListener("DOMContentLoaded", async () => {
       return;
     }
 
+    const autoCrawlToggle = document.getElementById("autoCrawlToggle");
+    const autoSubmitNotWorkingToggle = document.getElementById("autoSubmitNotWorkingToggle");
+    const autoCrawlVal = autoCrawlToggle ? Boolean(autoCrawlToggle.checked) : false;
+    const autoSubmitNwVal = autoSubmitNotWorkingToggle ? Boolean(autoSubmitNotWorkingToggle.checked) : false;
+
     await chrome.storage.local.set({
       geminiApiKey: key,
       geminiModel: model,
       fallbackModel: fallback,
       backendProxyUrl: proxyUrl,
-      crawlDepth: depth
+      crawlDepth: depth,
+      autoCrawl: autoCrawlVal,
+      autoSubmitNotWorking: autoSubmitNwVal
     });
 
     apiKey = key;
