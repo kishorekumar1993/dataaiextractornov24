@@ -179,6 +179,10 @@ test("Zero artificial commas inserted during normalization or postal/country rem
     AddressNormalizer.normalizeAddress("Number 4/95 Garling St, O'Connor Western Australia"),
     "4/95 Garling Street, O'Connor Western Australia"
   );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("Number 6/97 Lewis Road, Wantirna South Victoria"),
+    "6/97 Lewis Road, Wantirna South Victoria"
+  );
 });
 
 console.log("==========================================================");

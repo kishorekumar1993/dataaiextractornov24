@@ -1400,7 +1400,9 @@ Field extraction guidelines:
 
 5. Address Normalization:
    CRITICAL NEGATIVE RULE - UNWANTED "NUMBER" PROHIBITION:
-   - NEVER prepend or add the word "Number" to street numbers or addresses starting with digits!
+   - NEVER prepend or add the word "Number" to street numbers, slash unit/street numbers (e.g. "6/97", "4/95"), or addresses starting with digits!
+   - Example: "6/97 Lewis Rd, Wantirna South VIC 3152" MUST BE "6/97 Lewis Road, Wantirna South Victoria" (NEVER "Number 6/97").
+   - Example: "4/95 Garling St, O'Connor WA 6163" MUST BE "4/95 Garling Street, O'Connor Western Australia" (NEVER "Number 4, 95").
    - Example: "12900 - 87th Avenue, Surrey, BC V3W 3H9, Canada" MUST BE "12900 - 87th Avenue, Surrey, British Columbia" (NEVER "Number 12900 - 87th Avenue")!
    - Pure street/building numbers (e.g. "12900", "45 Main Street", "100 Parkway", "Unit B3") must NEVER have "Number" added.
    - ONLY include "Number" if the original source text explicitly had "No." or "Number".
