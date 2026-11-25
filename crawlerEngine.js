@@ -1470,10 +1470,19 @@ Expand every recognizable abbreviation, shortened word, delivery and box abbrevi
 - Expand abbreviations and remove postal/ZIP codes and country names BEFORE finalizing the string—do NOT leave abbreviations unexpanded just because they appeared short in the raw text.
 - Preserve existing commas, hyphens ("-"), slashes ("/"), ampersands ("&"), and numbers from the chosen source address; NEVER expand "&" to "and" or "@" to "at", and NEVER add extra commas or special characters that were not in the source text.
 - Trim leading/trailing spaces and strip stray leading/trailing punctuation or brackets.
-1. CRITICAL: PRESERVE SOURCE COMMAS & DO NOT ADD ARTIFICIAL PUNCTUATION:
-   - If a comma or special character is available in the source address (Contact Page or Map), you MUST preserve and provide it (do NOT strip away existing commas!).
-   - If a comma or special character is NOT available in the original address, DO NOT PROVIDE OR ADD IT!
-   - NEVER add artificial commas, hyphens, slashes, dots, or any other punctuation between address elements if they were not in the original address.
+1. STRICT SOURCE COMMA PRESERVATION – ZERO ARTIFICIAL COMMAS:
+   - Preserve commas ONLY when they exist in the original selected address.
+   - NEVER insert a comma between address components during normalization or abbreviation expansion.
+   - NEVER automatically insert commas before City, District, State, Province, or Suburb.
+   - Do not use standard address formatting conventions to introduce additional commas.
+   - When removing postal codes, country names, company names, or unwanted text, do not introduce new commas.
+   - If removing a component leaves duplicate or unnecessary commas, clean them without removing meaningful original separators.
+   - Compare the final address against the original source character by character to validate comma positions.
+   - Examples:
+     * Original: "12900 - 87th Avenue Surrey BC V3W 3H9 Canada" -> Expected: "12900 - 87th Avenue Surrey British Columbia"
+     * Original: "45 Main Street, Richmond, BC V6X 1A1, Canada" -> Expected: "45 Main Street, Richmond, British Columbia"
+     * Original: "Building 12 Sector 5 Noida Uttar Pradesh" -> Expected: "Building 12 Sector 5 Noida Uttar Pradesh"
+   - Never insert commas that were not present in the original address.
    - UNIVERSAL STATE / PROVINCE COMMA RULE (CRITICAL):
      * NEVER insert an artificial comma before a state, province, or territory if the original address text did not contain a comma there!
      * For example, if the original address wrote "Bayswater Vic" or "Jackson WI" or "Concord ON" without a comma, you MUST expand to "Bayswater Victoria", "Jackson Wisconsin", "Concord Ontario" WITHOUT inserting a comma (do NOT output "Bayswater, Victoria").
@@ -1524,11 +1533,38 @@ Before returning companyAddress:
    - Select "Not Available" ONLY when the address contains strictly an ordinary non-capital local town/suburb without any state, province, county, or country capital present.
    - DO NOT consider an ordinary local town, village, or suburb as a State.
 
-9. "city": Strictly output ONLY the exact string "Available" or "Not Available" (NEVER output the city name itself):
-   - Select "Available" ONLY if an actual official City, Town, District, or Municipality is explicitly present in the address.
-   - CRITICAL SUBURB RULE (SUBURB IS NOT A CITY): A suburb is NOT a city! Suburbs, neighborhoods, residential areas, communities, localities, and villages MUST NEVER be considered as City. If an address contains only a suburb, neighborhood, or village (or if the only locality is a suburb), "city" MUST BE MARKED AS "Not Available".
-   - Select "Not Available" if no official City, Town, District, or Municipality is present.
-   - Note: ONLY an official (Town, District, Municipality, or incorporated City) should be considered as City. Do NOT take any suburb, neighborhood, locality, or village as City.
+9. "city": STRICT CITY VS SUBURB CLASSIFICATION – MANDATORY (Strictly output ONLY the exact string "Available" or "Not Available", NEVER output the city name itself):
+   Before marking "city": "Available", independently classify the extracted locality.
+   A. Qualifies as City – "Available":
+      - Officially recognized and independently identifiable cities.
+      - Official towns.
+      - Official municipalities.
+      - Official administrative districts, where the district is explicitly identified as an administrative division.
+   B. Does NOT Qualify as City – "Not Available":
+      - Suburbs.
+      - Neighborhoods.
+      - Residential areas.
+      - Villages.
+      - Localities.
+      - Industrial estates.
+      - Industrial parks.
+      - Business parks.
+      - Housing colonies.
+      - Postal delivery areas.
+      - Informal settlement names.
+   C. Multiple Locality Components:
+      When an address contains both a suburb and an official city:
+      - Do not classify the suburb as the city.
+      - Identify the actual official city separately.
+      - Mark "Available" only when an official city, town, municipality, or qualifying administrative district is explicitly present.
+      - If only a suburb is present, mark "Not Available".
+   D. Mandatory Validation:
+      Before returning the result, verify:
+      1. Is this locality an officially recognized city, town, municipality, or administrative district?
+      2. Is it merely a suburb or neighborhood within another city?
+      3. Is the locality being mistaken for a city because it appears at the end of the address?
+      Never assume that the last locality in an address is the city.
+      Return only "Available" or "Not Available". Do not use geographical proximity or assumptions to convert a suburb into a city.
 
 10. "emailId": Primary contact email address.
 11. "secondaryEmailId": Alternative email if present, else "".
@@ -1776,9 +1812,7 @@ ${context.crawledText}`;
         const mainPart = domainParts[0] || "Company";
         compName = mainPart.charAt(0).toUpperCase() + mainPart.slice(1);
       }
-      if (companyNorm && companyNorm.normalizeCompanyName) {
-        compName = companyNorm.normalizeCompanyName(compName);
-      }
+      compName = compName.trim();
 
       // Country from TLD or detected phone
       let cName = "Not Available";
@@ -1929,9 +1963,7 @@ ${context.crawledText}`;
         }
       }
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
-        if (companyNorm && companyNorm.normalizeCompanyName) {
-          aiResult.data.companyName = companyNorm.normalizeCompanyName(aiResult.data.companyName);
-        }
+        aiResult.data.companyName = aiResult.data.companyName.trim();
       }
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
         if (AddressNormalizer && AddressNormalizer.normalizeAddress) {

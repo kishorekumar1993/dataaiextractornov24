@@ -149,6 +149,26 @@ test("Strip unwanted leading Number before pure street numbers or hyphenated add
   assert(normalizedExplicit.startsWith("Number 2"), `Expected 'Number 2' when No. was explicit, got: ${normalizedExplicit}`);
 });
 
+// 9. Strict Source Comma Preservation (Zero Artificial Commas)
+test("Zero artificial commas inserted during normalization or postal/country removal", () => {
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("12900 - 87th Avenue Surrey BC V3W 3H9 Canada"),
+    "12900 - 87th Avenue Surrey British Columbia"
+  );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("45 Main Street, Richmond, BC V6X 1A1, Canada"),
+    "45 Main Street, Richmond, British Columbia"
+  );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("Building 12 Sector 5 Noida Uttar Pradesh"),
+    "Building 12 Sector 5 Noida Uttar Pradesh"
+  );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("12900 - 87th Avenue\nSurrey BC V3W 3H9\nCanada"),
+    "12900 - 87th Avenue Surrey British Columbia"
+  );
+});
+
 console.log("==========================================================");
 console.log(`  ADDRESS NORMALIZATION RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
 console.log("==========================================================");

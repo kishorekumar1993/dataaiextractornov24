@@ -586,7 +586,7 @@
       { key: "websiteStatus", value: data.websiteStatus || "Working" },
       { key: "businessType", value: data.businessType || "" },
       { key: "companyProfile", value: data.companyProfile || "Available" },
-      { key: "companyName", value: (typeof CompanyNormalizer !== "undefined" && CompanyNormalizer.normalizeCompanyName) ? CompanyNormalizer.normalizeCompanyName(data.companyName) : (data.companyName || "") },
+      { key: "companyName", value: (data.companyName || "").trim() },
       { key: "companyAddress", value: data.companyAddress || "" },
       { key: "countryName", value: normalizeCountryName(data.countryName || "") },
       { key: "state", value: data.state || "Available" },

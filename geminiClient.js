@@ -620,9 +620,9 @@
       }
     }
 
-    // First letter in each word capitalized only (Title Case), NOT all characters
+    // Preserve extracted companyName without altering casing or inserting commas
     if (clean.companyName) {
-      clean.companyName = toTitleCase(clean.companyName);
+      clean.companyName = clean.companyName.trim();
     }
     if (clean.companyAddress) {
       clean.companyAddress = toTitleCase(clean.companyAddress);

@@ -165,9 +165,9 @@ const AddressNormalizer = (() => {
     // Remove outer brackets or parentheses
     addr = addr.replace(/^\(([^)]+)\)$/, "$1").replace(/^\[([^\]]+)\]$/, "$1");
 
-    // Clean multiple spaces and normalize line breaks into comma-separated lines
+    // Clean multiple spaces and preserve newlines as spaces (NEVER insert artificial commas for newlines)
     addr = addr.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    addr = addr.replace(/,\s*\n/g, ", ").replace(/\n+/g, ", ");
+    addr = addr.replace(/,\s*\n/g, ", ").replace(/\n+/g, " ");
     addr = addr.replace(/[ \t]+/g, " ").trim();
 
     // 1. Clean Chinese 號 character on building numbers (e.g. "No. 2號" -> "Number 2", "2號" -> "2")
@@ -316,12 +316,15 @@ const AddressNormalizer = (() => {
                    .trim();
 
     // Strip unwanted leading "Number " before pure street numbers or hyphenated numbers (e.g. "Number 12900 - 87th Avenue" -> "12900 - 87th Avenue")
-    // ONLY keep "Number" if the original raw address explicitly contained "no." or "number"
-    const hadExplicitNo = /\b(?:no\.?|number)\b/i.test(rawAddress);
+    // ONLY keep "Number" if the original raw address explicitly contained "no." or "no"
+    const hadExplicitNo = /\bno\.?\b/i.test(rawAddress);
     if (!hadExplicitNo) {
       result = result.replace(/^Number\s+(\d+\s*[-–—]\s*\d+)/i, "$1")
                      .replace(/^Number\s+(\d+\s+[A-Za-z])/i, "$1");
     }
+
+    // Expand common Canadian province abbreviations (without inserting any commas)
+    result = result.replace(/\bBC\b/gi, "British Columbia");
 
     return result;
   }
