@@ -749,6 +749,17 @@ async function runPortalTests() {
     }
   });
 
+  // Test 17: Auto Submit (Not Working) & Auto Crawl toggles exist in content.js
+  test("Auto Submit (Not Working) and Auto Crawl options are present in content.js widget", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const contentJs = fs.readFileSync(path.join(__dirname, "../content.js"), "utf8");
+    assert(contentJs.includes("site-intel-auto-crawl-chk"), "Auto Crawl checkbox must exist in widget");
+    assert(contentJs.includes("site-intel-auto-submit-nw-chk"), "Auto Submit (Not Working) checkbox must exist in widget");
+    assert(contentJs.includes("findPortalSubmitButton"), "findPortalSubmitButton helper must exist");
+    assert(contentJs.includes("scheduleAutoCrawl"), "scheduleAutoCrawl helper must exist");
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");

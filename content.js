@@ -948,6 +948,18 @@
           Ready to analyze and fill portal form.
         </div>
 
+        <!-- Automation Toggles -->
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; background:#1e293b; padding:6px 10px; border-radius:6px; border:1px solid #334155; font-size:11px;">
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:#cbd5e1;">
+            <input type="checkbox" id="site-intel-auto-crawl-chk" style="accent-color:#38bdf8; cursor:pointer; margin:0;" />
+            <span>Auto Crawl</span>
+          </label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer; color:#cbd5e1;">
+            <input type="checkbox" id="site-intel-auto-submit-nw-chk" style="accent-color:#10b981; cursor:pointer; margin:0;" />
+            <span>Auto Submit (Not Working)</span>
+          </label>
+        </div>
+
         <!-- Main Action Button -->
         <button id="site-intel-action-btn" style="
           background: #2563eb;
@@ -1128,6 +1140,35 @@
     actionBtn.addEventListener("mouseleave", () => { actionBtn.style.background = "#2563eb"; });
     actionBtn.addEventListener("click", handleWidgetCrawlAndFill);
 
+    // Automation toggles (persisted in localStorage)
+    const autoCrawlChk = widget.querySelector("#site-intel-auto-crawl-chk");
+    const autoSubmitNwChk = widget.querySelector("#site-intel-auto-submit-nw-chk");
+    if (autoCrawlChk) {
+      autoCrawlChk.checked = getAutoCrawlEnabled();
+      if (autoCrawlChk.checked && currentTargetUrl) {
+        scheduleAutoCrawl(currentTargetUrl);
+      }
+      autoCrawlChk.addEventListener("change", () => {
+        try { localStorage.setItem("site_intel_auto_crawl", autoCrawlChk.checked ? "true" : "false"); } catch (_) {}
+        if (autoCrawlChk.checked) {
+          const targetEl = document.getElementById("site-intel-widget-target");
+          const displayed = targetEl ? (targetEl.innerText || targetEl.textContent || "").trim() : "";
+          if (isValidUrlOrDomain(displayed)) {
+            scheduleAutoCrawl(displayed);
+          }
+        } else if (autoCrawlTimer) {
+          clearTimeout(autoCrawlTimer);
+          autoCrawlTimer = null;
+        }
+      });
+    }
+    if (autoSubmitNwChk) {
+      autoSubmitNwChk.checked = getAutoSubmitNotWorkingEnabled();
+      autoSubmitNwChk.addEventListener("change", () => {
+        try { localStorage.setItem("site_intel_auto_submit_not_working", autoSubmitNwChk.checked ? "true" : "false"); } catch (_) {}
+      });
+    }
+
     const copyBtn = widget.querySelector("#site-intel-copy-btn");
     copyBtn.addEventListener("click", () => {
       if (!lastWidgetData) return;
@@ -1268,10 +1309,65 @@
     }
   }
 
+  function getAutoCrawlEnabled() {
+    try { return localStorage.getItem("site_intel_auto_crawl") === "true"; } catch (_) { return false; }
+  }
+
+  function getAutoSubmitNotWorkingEnabled() {
+    try { return localStorage.getItem("site_intel_auto_submit_not_working") === "true"; } catch (_) { return false; }
+  }
+
+  let lastAutoCrawledUrl = "";
+  let autoCrawlTimer = null;
+
+  function normalizeTargetKey(url) {
+    if (!url || typeof url !== "string") return "";
+    const trimmed = url.trim();
+    if (!isValidUrlOrDomain(trimmed)) return "";
+    return (/^https?:\/\//i.test(trimmed) ? trimmed : "http://" + trimmed).toLowerCase();
+  }
+
+  function scheduleAutoCrawl(url) {
+    if (!getAutoCrawlEnabled()) return;
+    if (isWidgetCrawling) return;
+    const key = normalizeTargetKey(url);
+    if (!key || key === lastAutoCrawledUrl) return;
+    if (autoCrawlTimer) clearTimeout(autoCrawlTimer);
+    autoCrawlTimer = setTimeout(() => {
+      autoCrawlTimer = null;
+      if (!getAutoCrawlEnabled() || isWidgetCrawling) return;
+      const targetEl = document.getElementById("site-intel-widget-target");
+      const latest = targetEl ? (targetEl.innerText || targetEl.textContent || "").trim() : url;
+      const latestKey = normalizeTargetKey(latest);
+      if (latestKey && latestKey !== lastAutoCrawledUrl) {
+        handleWidgetCrawlAndFill();
+      }
+    }, 900);
+  }
+
+  function findPortalSubmitButton() {
+    const candidates = Array.from(
+      document.querySelectorAll("button, input[type='submit'], input[type='button'], a.btn")
+    ).filter(el => {
+      if (el.closest("#site-intel-portal-widget")) return false;
+      if (el.disabled) return false;
+      const hasBounding = typeof el.getBoundingClientRect === "function";
+      const rect = hasBounding ? el.getBoundingClientRect() : { width: 100, height: 30 };
+      if (hasBounding && (rect.width <= 0 || rect.height <= 0)) return false;
+      const text = (el.innerText || el.textContent || el.value || "").trim().toLowerCase();
+      return text === "submit" || text.includes("submit");
+    });
+    return candidates[0] || null;
+  }
+
   function updateFloatingWidgetTarget(url) {
     const targetEl = document.getElementById("site-intel-widget-target");
     if (targetEl) {
-      targetEl.textContent = (url && isValidUrlOrDomain(url)) ? url.trim() : "Detecting URL from form...";
+      const valid = Boolean(url && isValidUrlOrDomain(url));
+      targetEl.textContent = valid ? url.trim() : "Detecting URL from form...";
+      if (valid) {
+        scheduleAutoCrawl(url.trim());
+      }
     }
   }
 
@@ -1496,9 +1592,23 @@
       // Render full extracted details in widget
       renderWidgetDetails(extractedData, response.meta);
 
+      lastAutoCrawledUrl = normalizeTargetKey(url);
+
       if (btnText) btnText.textContent = "✓ Form Filled!";
       if (actionBtn) actionBtn.style.background = "#10b981";
       if (statusLine) statusLine.textContent = `✅ Successfully filled ${fillResult.filledCount} fields! All details shown below.`;
+
+      // Auto Submit if websiteStatus is Not Working and Auto Submit (Not Working) is enabled
+      const isNotWorkingSite = String(extractedData.websiteStatus || "").trim().toLowerCase() === "not working";
+      if (isNotWorkingSite && getAutoSubmitNotWorkingEnabled()) {
+        const submitBtn = findPortalSubmitButton();
+        if (submitBtn) {
+          if (statusLine) statusLine.textContent = "🚀 Not Working — Auto-submitting form...";
+          setTimeout(() => {
+            try { submitBtn.click(); } catch (_) {}
+          }, 800);
+        }
+      }
 
       setTimeout(() => {
         if (actionBtn) {
