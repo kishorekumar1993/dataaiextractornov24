@@ -29,7 +29,7 @@ test("Expand Co., Ltd. / Co.,Ltd / Co. Ltd. -> Company, Limited", () => {
   assert.strictEqual(norm2, "Anson Hydraulics Industrial Company, Limited");
 
   const norm3 = CompanyNormalizer.normalizeCompanyName("Oriental Chem Co. Ltd.");
-  assert.strictEqual(norm3, "Oriental Chem Company, Limited");
+  assert.strictEqual(norm3, "Oriental Chem Company Limited");
 });
 
 test("Expand Ltd. / Ltd -> Limited with apostrophes and symbols", () => {
@@ -78,7 +78,7 @@ test("Expand Mfg. -> Manufacturing, Ind. -> Industrial, Tech. -> Technology", ()
 // 3. Remove parentheses and bracketed secondary names
 test("Clean secondary bracketed terms (e.g. Four C Plus (Internet) Company Limited)", () => {
   const norm = CompanyNormalizer.normalizeCompanyName("Four C Plus (Internet) Company Limited");
-  assert.strictEqual(norm, "Four C Plus Internet Company, Limited");
+  assert.strictEqual(norm, "Four C Plus Internet Company Limited");
 });
 
 // 4. Strip copyright and website title clutter

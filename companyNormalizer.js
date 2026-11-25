@@ -11,8 +11,9 @@
 const CompanyNormalizer = (() => {
   // Common corporate legal suffixes mapped to their complete expanded form
   const LEGAL_ENTITY_EXPANSIONS = [
-    // Multi-part compound types first
-    { regex: /\b(?:co\.,?\s*ltd\.?|co\.,ltd\.?|co\s+ltd\.?|co\.\s+ltd)\b/gi, replacement: "Company, Limited" },
+    // Multi-part compound types first (preserve comma ONLY if comma existed in source)
+    { regex: /\b(?:co\.,\s*ltd\.?|co\.,ltd\.?)\b/gi, replacement: "Company, Limited" },
+    { regex: /\b(?:co\.\s+ltd\.?|co\s+ltd\.?)\b/gi, replacement: "Company Limited" },
     { regex: /\b(?:pvt\.,?\s*ltd\.?|pvt\s+ltd\.?|private\s+ltd\.?)\b/gi, replacement: "Private Limited" },
     { regex: /\b(?:pte\.,?\s*ltd\.?|pte\s+ltd\.?)\b/gi, replacement: "Private Limited" },
     { regex: /\b(?:pty\.,?\s*ltd\.?|pty\s+ltd\.?)\b/gi, replacement: "Proprietary Limited" },
@@ -165,9 +166,8 @@ const CompanyNormalizer = (() => {
     // Clean multiple spaces and trim
     raw = raw.replace(/[ \t]+/g, " ").trim();
 
-    // 7. Ensure clean comma formatting for Company, Limited
-    raw = raw.replace(/\bCompany\s+Limited\b/g, "Company, Limited");
-    raw = raw.replace(/\bCompany,\s*,?\s*Limited\b/g, "Company, Limited");
+    // Clean duplicate commas if any, without inserting artificial commas
+    raw = raw.replace(/\bCompany,\s*,+\s*Limited\b/g, "Company, Limited");
 
     // 8. Title Case the tokens while preserving special characters
     const words = raw.split(" ");
@@ -192,10 +192,6 @@ const CompanyNormalizer = (() => {
 
     // 9. Clean up unnecessary trailing punctuation but keep meaningful symbols
     result = result.replace(/[,;.\-:]+$/, "").trim();
-
-    // If company ends with "Company Limited" ensure standard comma: "Company, Limited"
-    result = result.replace(/\bCompany\s+Limited\b/g, "Company, Limited");
-    result = result.replace(/\bCompany,\s*Limited\b/g, "Company, Limited");
 
     return result;
   }

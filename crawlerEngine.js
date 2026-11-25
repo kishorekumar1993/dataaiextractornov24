@@ -1244,7 +1244,7 @@ Field extraction guidelines:
        - If a website displays both a short trade/brand name (e.g. "ANSON") and a full legal corporate name (e.g. "ANSON Hydraulics Industrial Co., Ltd."), YOU MUST ALWAYS SELECT THE FULL LEGAL CORPORATE NAME: "Anson Hydraulics Industrial Company, Limited".
    - Mandatory Abbreviation Expansion to Full Form:
      * General / English Legal & Corporate Types:
-       - "Co., Ltd." / "Co.,Ltd" / "Co. Ltd." / "Co Ltd" -> "Company, Limited"
+       - "Co., Ltd." / "Co.,Ltd" (comma in source) -> "Company, Limited"; "Co. Ltd." / "Co Ltd" (NO comma in source) -> "Company Limited" (NEVER insert an artificial comma!)
        - "Co." / "Co" -> "Company"
        - "Ltd." / "Ltd" -> "Limited"
        - "Pvt. Ltd." / "Pvt Ltd" -> "Private Limited"
