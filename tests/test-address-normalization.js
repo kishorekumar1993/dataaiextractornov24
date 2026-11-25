@@ -167,6 +167,10 @@ test("Zero artificial commas inserted during normalization or postal/country rem
     AddressNormalizer.normalizeAddress("12900 - 87th Avenue\nSurrey BC V3W 3H9\nCanada"),
     "12900 - 87th Avenue Surrey British Columbia"
   );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("A3/A4 Barton Industrial Estate\nFaldo Road\nBarton-Le-Clay\nBedford, Bedfordshire\nMK45 4RP\nUnited Kingdom"),
+    "A3/A4 Barton Industrial Estate Faldo Road Barton-Le-Clay Bedford, Bedfordshire"
+  );
 });
 
 console.log("==========================================================");

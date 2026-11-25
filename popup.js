@@ -1511,6 +1511,7 @@ Expand every recognizable abbreviation, shortened word, delivery and box abbrevi
 1. STRICT SOURCE COMMA PRESERVATION – ZERO ARTIFICIAL COMMAS:
    - Preserve commas ONLY when they exist in the original selected address.
    - NEVER insert a comma between address components during normalization or abbreviation expansion.
+   - MULTI-LINE ADDRESS RULE (CRITICAL): When an address on a webpage is formatted across multiple lines (<br>, <p>, <div>, or line breaks) WITHOUT commas at the end of the lines, join those lines with a SINGLE SPACE, NEVER with a comma! Only preserve commas that were explicitly written in the source text (e.g. "A3/A4 Barton Industrial Estate\nFaldo Road\nBarton-Le-Clay\nBedford, Bedfordshire\nMK45 4RP\nUnited Kingdom" -> "A3/A4 Barton Industrial Estate Faldo Road Barton-Le-Clay Bedford, Bedfordshire").
    - NEVER automatically insert commas before City, District, State, Province, or Suburb.
    - Do not use standard address formatting conventions to introduce additional commas.
    - When removing postal codes, country names, company names, or unwanted text, do not introduce new commas.

@@ -90,6 +90,11 @@ const AddressNormalizer = (() => {
       return floorMatch[1] + "Floor";
     }
 
+    // If token contains slash (e.g. "A3/A4", "12/14")
+    if (token.includes("/")) {
+      return token.split("/").map(p => titleCaseToken(p)).join("/");
+    }
+
     // If token contains hyphen (e.g. "B-14", "VC-2", "Sector-3")
     if (token.includes("-")) {
       const parts = token.split("-");
@@ -185,8 +190,8 @@ const AddressNormalizer = (() => {
     addr = addr.replace(/\/[a-zA-Z0-9\s.,&\-]+(?:Co\.|Ltd\.|Inc\.|Corp\.|Limited|Company)[^,]*$/i, "").trim();
     addr = addr.replace(/[\u4e00-\u9fa5]{2,}[^,]*$/i, "").trim();
 
-    // 5. Ensure UK postcodes are strictly uppercase (e.g. NR6 6NN, SW1A 1AA)
-    addr = addr.replace(/\b([a-zA-Z]{1,2}\d[a-zA-Z0-9]?)\s*(\d[a-zA-Z]{2})\b/gi, (m, p1, p2) => p1.toUpperCase() + " " + p2.toUpperCase());
+    // 5. Remove UK postcodes (e.g. NR6 6NN, SW1A 1AA, MK45 4RP)
+    addr = addr.replace(/(?:,\s*|\s+)\b[a-zA-Z]{1,2}\d[a-zA-Z0-9]?\s*\d[a-zA-Z]{2}\b/gi, "");
     // Canadian postcodes (e.g. M5V 2T6)
     addr = addr.replace(/(?:,\s*|\s+)\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/gi, "");
     // Dutch postcodes (e.g. 1012 JS)
@@ -202,10 +207,8 @@ const AddressNormalizer = (() => {
     // Trailing 5-digit US zip with optional 4-digit extension at end of string
     addr = addr.replace(/(?<!\b(?:box|suite|ste|number|no|kb|room|rm|apt|unit|building|bldg|sector|house|fl|floor|lot|plot)\s+)(?:,\s*|\s+)\b\d{5}(?:-\d{4})?\s*$/, "");
 
-    // 6. Remove country names at the end of the address unless preceded by a UK postcode
-    if (!/\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b/i.test(addr)) {
-      addr = addr.replace(/(?:,\s*|\s+)\b(?:Afghanistan|Albania|Algeria|Andorra|Angola|Argentina|Armenia|Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cambodia|Cameroon|Canada|Cape Verde|Central African Republic|Chad|Chile|China|Colombia|Comoros|Congo|Costa Rica|Croatia|Cuba|Cyprus|Czech Republic|Denmark|Djibouti|Dominica|Dominican Republic|East Timor|Ecuador|Egypt|El Salvador|Equatorial Guinea|Eritrea|Estonia|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Grenada|Guatemala|Guinea|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Ivory Coast|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kiribati|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Macedonia|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Marshall Islands|Mauritania|Mauritius|Mexico|Micronesia|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nauru|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|Norway|Oman|Pakistan|Palau|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Romania|Russia|Rwanda|Saint Kitts and Nevis|Saint Lucia|Saint Vincent|Samoa|San Marino|Saudi Arabia|Senegal|Serbia|Seychelles|Sierra Leone|Singapore|Slovakia|Slovenia|Solomon Islands|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Swaziland|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Togo|Tonga|Trinidad and Tobago|Tunisia|Turkey|Turkmenistan|Tuvalu|Uganda|Ukraine|United Arab Emirates|UAE|United Kingdom|UK|U\.K\.|United States|United States of America|USA|U\.S\.A\.|Uruguay|Uzbekistan|Vanuatu|Vatican City|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe)\s*$/i, "");
-    }
+    // 6. Remove country names at the end of the address
+    addr = addr.replace(/(?:,\s*|\s+)\b(?:Afghanistan|Albania|Algeria|Andorra|Angola|Argentina|Armenia|Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cambodia|Cameroon|Canada|Cape Verde|Central African Republic|Chad|Chile|China|Colombia|Comoros|Congo|Costa Rica|Croatia|Cuba|Cyprus|Czech Republic|Denmark|Djibouti|Dominica|Dominican Republic|East Timor|Ecuador|Egypt|El Salvador|Equatorial Guinea|Eritrea|Estonia|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Grenada|Guatemala|Guinea|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Ivory Coast|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kiribati|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Macedonia|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Marshall Islands|Mauritania|Mauritius|Mexico|Micronesia|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nauru|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|Norway|Oman|Pakistan|Palau|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Romania|Russia|Rwanda|Saint Kitts and Nevis|Saint Lucia|Saint Vincent|Samoa|San Marino|Saudi Arabia|Senegal|Serbia|Seychelles|Sierra Leone|Singapore|Slovakia|Slovenia|Solomon Islands|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Swaziland|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Togo|Tonga|Trinidad and Tobago|Tunisia|Turkey|Turkmenistan|Tuvalu|Uganda|Ukraine|United Arab Emirates|UAE|United Kingdom|UK|U\.K\.|United States|United States of America|USA|U\.S\.A\.|Uruguay|Uzbekistan|Vanuatu|Vatican City|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe)\s*$/i, "");
 
     // Remove trailing unwanted punctuation at the end of the entire address
     addr = addr.replace(/,\s*,/g, ",").replace(/[,;.\-:]+$/, "").trim();
@@ -308,9 +311,9 @@ const AddressNormalizer = (() => {
     // Rejoin segments with original commas
     let result = normalizedSegments.filter(Boolean).join(", ");
 
-    // Clean up spacing around punctuation while preserving building hyphens (like B-14, VC-2)
+    // Clean up spacing around punctuation while preserving tight hyphens (like Barton-Le-Clay) and spaced hyphens (like Phase - II)
     result = result.replace(/\s*,\s*/g, ", ")
-                   .replace(/([a-zA-Z]{2,})\s*-\s*([a-zA-Z0-9]+)/g, "$1 - $2")
+                   .replace(/([a-zA-Z]{2,})(?:\s+-\s*|\s*-\s+)([a-zA-Z0-9]+)/g, "$1 - $2")
                    .replace(/\s+/g, " ")
                    .replace(/[,;.\-:]+$/, "")
                    .trim();
