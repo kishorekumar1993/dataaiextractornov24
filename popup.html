@@ -42,13 +42,24 @@
 
     <!-- Active Site Info -->
     <div class="card current-site-card">
-      <div class="card-label">CURRENT TARGET</div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <span class="card-label" style="margin-bottom: 0;">CURRENT TARGET</span>
+        <button id="manualUrlToggleBtn" class="text-link" style="font-size: 11px; color: #38bdf8; text-decoration: none; display: flex; align-items: center; gap: 3px; cursor: pointer;">✏️ Edit / Load URL</button>
+      </div>
       <div class="site-row">
         <span class="site-icon">🌐</span>
         <div class="site-details">
           <div id="siteDomain" class="site-domain">Detecting site...</div>
           <div id="siteUrl" class="site-url">Please open an active webpage</div>
         </div>
+      </div>
+      <!-- Manual URL Edit / Load Option -->
+      <div id="manualUrlSection" class="manual-url-section hidden">
+        <div class="manual-url-input-group">
+          <input type="text" id="manualUrlInput" class="manual-url-input" placeholder="Paste or type URL (e.g. http://www.techmarkets.co.uk)" />
+          <button id="loadManualUrlBtn" class="manual-url-btn">⚡ Load</button>
+        </div>
+        <div id="manualUrlFeedback" class="manual-url-feedback hidden"></div>
       </div>
     </div>
 

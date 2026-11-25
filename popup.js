@@ -44,10 +44,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   const downloadJsonBtn = document.getElementById("downloadJsonBtn");
   const autofillPortalBtn = document.getElementById("autofillPortalBtn");
 
-  // Portal Form Banner Elements
+  // Portal Form Banner & Manual URL Elements
   const portalBanner = document.getElementById("portalBanner");
   const portalTargetUrlText = document.getElementById("portalTargetUrlText");
   const quickAutofillBtn = document.getElementById("quickAutofillBtn");
+  const manualUrlToggleBtn = document.getElementById("manualUrlToggleBtn");
+  const manualUrlSection = document.getElementById("manualUrlSection");
+  const manualUrlInput = document.getElementById("manualUrlInput");
+  const loadManualUrlBtn = document.getElementById("loadManualUrlBtn");
+  const manualUrlFeedback = document.getElementById("manualUrlFeedback");
 
   // Settings Modal
   const settingsModal = document.getElementById("settingsModal");
@@ -294,6 +299,110 @@ document.addEventListener("DOMContentLoaded", async () => {
     alert(`Re-enqueued ${count} failed tasks for processing.`);
   }
 
+  // Known QC Portal URL detection
+  function isKnownPortalUrl(url) {
+    if (!url || typeof url !== "string") return false;
+    const lower = url.toLowerCase();
+    return lower.includes("cpworkportal") ||
+           lower.includes("user_data_url_work") ||
+           lower.includes("kishorekumar1993.github.io") ||
+           lower.includes("/dataextraction");
+  }
+
+  // Robust asynchronous inspection of active tab DOM for portal and website URL
+  async function detectPortalTargetUrlFromTab(tabId, tabUrl) {
+    let target = "";
+    let isPortal = isKnownPortalUrl(tabUrl);
+
+    // 1. Try sending message to content script
+    try {
+      const res = await new Promise(resolve => {
+        chrome.tabs.sendMessage(tabId, { action: "detectPortalForm" }, (response) => {
+          if (chrome.runtime && chrome.runtime.lastError) return resolve(null);
+          resolve(response);
+        });
+      });
+      if (res) {
+        if (res.isPortal) isPortal = true;
+        if (res.targetUrl && isValidUrlOrDomain(res.targetUrl)) {
+          target = res.targetUrl.trim();
+        }
+      }
+    } catch (_) {}
+
+    // 2. Direct script execution in tab to inspect live DOM elements
+    if (!target) {
+      try {
+        const [evalRes] = await chrome.scripting.executeScript({
+          target: { tabId },
+          func: () => {
+            const isValid = (val) => {
+              if (!val || typeof val !== "string") return false;
+              const c = val.trim();
+              if (/^\d+$/.test(c)) return false;
+              if (/^https?:\/\//i.test(c)) return true;
+              if (/^www\.[a-z0-9-]+/i.test(c)) return true;
+              if (/[a-z0-9-]+\.(?:com|org|net|co|io|biz|info|us|uk|ca|in|de|cn|jp|fr|au|nl|ru|tw|hk|site|online|tech|co\.uk)\b/i.test(c)) return true;
+              return false;
+            };
+
+            const inputs = Array.from(document.querySelectorAll("input:not([type='hidden']):not([type='button']):not([type='submit'])"));
+
+            // A. Check labels matching website name / website url
+            const allLabels = Array.from(document.querySelectorAll("label, span, div, p, strong, b"));
+            for (const el of allLabels) {
+              const txt = (el.innerText || el.textContent || "").trim().toLowerCase().replace(/[:*]/g, "").trim();
+              if (["website name", "website url", "web site name", "web site url", "website"].some(a => txt === a || txt.startsWith(a) || txt.includes(a))) {
+                if (el.htmlFor) {
+                  const targetInput = document.getElementById(el.htmlFor);
+                  if (targetInput && isValid(targetInput.value)) return { isPortal: true, targetUrl: targetInput.value.trim() };
+                }
+                const container = el.closest(".form-group, .form-field, .input-group, .col, .row, div") || el.parentElement;
+                if (container) {
+                  const inps = Array.from(container.querySelectorAll("input:not([type='hidden'])"));
+                  for (const inp of inps) {
+                    if (isValid(inp.value)) return { isPortal: true, targetUrl: inp.value.trim() };
+                  }
+                }
+              }
+            }
+
+            // B. Input adjacent to "click here" button
+            const clickBtn = Array.from(document.querySelectorAll("button, a, input[type='button'], span, div")).find(el => {
+              const t = (el.innerText || el.textContent || el.value || "").trim().toLowerCase();
+              return t === "click here";
+            });
+            if (clickBtn) {
+              const container = clickBtn.closest(".input-group, .form-group, .field, .col, .row, div") || clickBtn.parentElement;
+              if (container) {
+                const inps = Array.from(container.querySelectorAll("input:not([type='hidden'])"));
+                for (const inp of inps) {
+                  if (isValid(inp.value)) return { isPortal: true, targetUrl: inp.value.trim() };
+                }
+              }
+            }
+
+            // C. Any input containing a valid website URL
+            for (const inp of inputs) {
+              if (isValid(inp.value)) return { isPortal: true, targetUrl: inp.value.trim() };
+            }
+
+            return { isPortal: false, targetUrl: "" };
+          }
+        });
+
+        if (evalRes && evalRes.result) {
+          if (evalRes.result.isPortal) isPortal = true;
+          if (evalRes.result.targetUrl && isValidUrlOrDomain(evalRes.result.targetUrl)) {
+            target = evalRes.result.targetUrl.trim();
+          }
+        }
+      } catch (_) {}
+    }
+
+    return { isPortal, targetUrl: target };
+  }
+
   // Active Tab Inspection
   async function inspectCurrentTab() {
     try {
@@ -306,101 +415,162 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
 
       currentTab = tab;
-      const urlObj = new URL(tab.url);
-      siteDomainEl.textContent = urlObj.hostname;
-      siteUrlEl.textContent = tab.url;
+      const isKnownPortal = isKnownPortalUrl(tab.url);
+
+      // Perform synchronous / awaited portal target detection
+      const portalDetection = await detectPortalTargetUrlFromTab(tab.id, tab.url);
+      const isPortal = isKnownPortal || portalDetection.isPortal || isValidUrlOrDomain(portalDetection.targetUrl);
+
+      if (isPortal) {
+        isPortalDetected = true;
+        portalTargetUrl = isValidUrlOrDomain(portalDetection.targetUrl) ? portalDetection.targetUrl.trim() : "";
+        portalBanner.classList.remove("hidden");
+        portalTargetUrlText.textContent = portalTargetUrl || "(No URL in form yet)";
+        startCrawlBtnText.textContent = "⚡ Crawl Target & Autofill Portal";
+
+        if (portalTargetUrl) {
+          try {
+            const pUrl = new URL(portalTargetUrl.startsWith("http") ? portalTargetUrl : "http://" + portalTargetUrl);
+            siteDomainEl.textContent = pUrl.hostname + " (QC Portal Target)";
+            siteUrlEl.textContent = portalTargetUrl;
+          } catch (e) {
+            siteDomainEl.textContent = portalTargetUrl + " (QC Portal Target)";
+            siteUrlEl.textContent = portalTargetUrl;
+          }
+          if (manualUrlInput) {
+            manualUrlInput.value = portalTargetUrl;
+          }
+        } else {
+          siteDomainEl.textContent = "QC Portal (Waiting for Target URL)";
+          siteUrlEl.textContent = "Please enter or paste target website URL below";
+        }
+      } else {
+        isPortalDetected = false;
+        portalBanner.classList.add("hidden");
+        const urlObj = new URL(tab.url);
+        siteDomainEl.textContent = urlObj.hostname;
+        siteUrlEl.textContent = tab.url;
+        startCrawlBtnText.textContent = "Start Crawl & Analyze";
+      }
 
       // Check if we already have a successfully processed result for this website
-      const cached = queueManager.getCompletedResult(tab.url);
+      const checkUrl = isPortal && portalTargetUrl ? portalTargetUrl : tab.url;
+      const cached = queueManager.getCompletedResult(checkUrl);
       if (cached && cached.data) {
         lastExtractedResult = cached.data;
         renderResults(cached.data, cached.meta || { modelUsed: geminiModel, isFallback: false, retriesUsed: 0, cached: true });
       }
 
-      // Ensure content script is injected
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ["content.js"]
-        });
-      } catch (e) {
-        // Content script might already be injected, continue
-      }
-
-      // Query content script for initial scan and portal detection
-      chrome.tabs.sendMessage(tab.id, { action: "detectPortalForm" }, async (portalRes) => {
-        let detectedUrl = (portalRes && portalRes.targetUrl) || "";
-        const isPortal = portalRes && portalRes.isPortal;
-
-        // If returned targetUrl is empty or pure numeric (like 538613), extract directly from DOM
-        if (!isValidUrlOrDomain(detectedUrl)) {
-          try {
-            const [evalResult] = await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              func: () => {
-                const isValid = (s) => s && typeof s === "string" && !/^\d+$/.test(s.trim()) && (/^https?:\/\//i.test(s.trim()) || /^www\.[a-z0-9-]+/i.test(s.trim()) || /[a-z0-9-]+\.(?:com|org|net|co|io|biz|info|us|uk|ca|in|de|cn|jp|fr|au|nl|ru|tw|hk|site|online|tech|co\.uk)\b/i.test(s.trim()));
-                const inps = Array.from(document.querySelectorAll("input:not([type='hidden']):not([type='button']):not([type='submit'])"));
-                for (const inp of inps) {
-                  const v = (inp.value || "").trim();
-                  if (isValid(v)) return v;
-                }
-                const clickBtn = Array.from(document.querySelectorAll("button, a, input[type='button'], span, div")).find(el => (el.innerText || el.textContent || el.value || "").trim().toLowerCase() === "click here");
-                if (clickBtn) {
-                  const c = clickBtn.closest("div, .input-group, .form-group") || clickBtn.parentElement;
-                  if (c) {
-                    const textInps = Array.from(c.querySelectorAll("input:not([type='hidden'])"));
-                    for (const inp of textInps) {
-                      const v = (inp.value || "").trim();
-                      if (isValid(v)) return v;
-                    }
-                  }
-                }
-                return "";
-              }
-            });
-            if (evalResult && evalResult.result && isValidUrlOrDomain(evalResult.result)) {
-              detectedUrl = evalResult.result;
-            }
-          } catch (_) {}
-        }
-
-        if (isPortal || isValidUrlOrDomain(detectedUrl)) {
-          isPortalDetected = true;
-          portalTargetUrl = isValidUrlOrDomain(detectedUrl) ? detectedUrl.trim() : "";
-          portalBanner.classList.remove("hidden");
-          portalTargetUrlText.textContent = portalTargetUrl || "(No URL in form yet)";
-          startCrawlBtnText.textContent = "⚡ Crawl Target & Autofill Portal";
-          if (portalTargetUrl) {
-            try {
-              const pUrl = new URL(portalTargetUrl.startsWith("http") ? portalTargetUrl : "http://" + portalTargetUrl);
-              siteDomainEl.textContent = pUrl.hostname + " (QC Portal Target)";
-              siteUrlEl.textContent = portalTargetUrl;
-            } catch (e) {
-              siteDomainEl.textContent = portalTargetUrl + " (QC Portal Target)";
-              siteUrlEl.textContent = portalTargetUrl;
-            }
-          }
-        } else {
-          isPortalDetected = false;
-          portalBanner.classList.add("hidden");
-          startCrawlBtnText.textContent = "Start Crawl & Analyze";
-        }
-      });
-
+      // Query content script for page categories / links if available
       chrome.tabs.sendMessage(tab.id, { action: "extractCurrentPageData" }, (response) => {
-        if (chrome.runtime.lastError || !response || !response.success) {
-          console.warn("Could not extract initial page data directly:", chrome.runtime.lastError);
-          return;
+        if (chrome.runtime && chrome.runtime.lastError) return;
+        if (response && response.success && response.data) {
+          initialPageData = response.data;
+          updatePills(initialPageData.internalLinks);
         }
-
-        initialPageData = response.data;
-        updatePills(initialPageData.internalLinks);
       });
     } catch (err) {
       console.error("Tab inspection error:", err);
       siteDomainEl.textContent = "Error reading tab";
       siteUrlEl.textContent = err.message;
     }
+  }
+
+  // Manual Edit / Load URL event handlers
+  if (manualUrlToggleBtn && manualUrlSection) {
+    manualUrlToggleBtn.addEventListener("click", () => {
+      manualUrlSection.classList.toggle("hidden");
+      if (!manualUrlSection.classList.contains("hidden")) {
+        if (manualUrlInput && portalTargetUrl) {
+          manualUrlInput.value = portalTargetUrl;
+        }
+        manualUrlInput?.focus();
+      }
+    });
+  }
+
+  function handleManualUrlLoad() {
+    if (!manualUrlInput) return;
+    let raw = manualUrlInput.value.trim();
+    if (!raw) {
+      showManualUrlFeedback("Please enter a website URL", "error");
+      return;
+    }
+    if (!/^https?:\/\//i.test(raw) && raw.includes(".")) {
+      raw = "http://" + raw;
+    }
+    if (!isValidUrlOrDomain(raw)) {
+      showManualUrlFeedback("Invalid website URL (e.g. http://www.techmarkets.co.uk)", "error");
+      return;
+    }
+
+    portalTargetUrl = raw;
+    isPortalDetected = true;
+    portalBanner.classList.remove("hidden");
+    portalTargetUrlText.textContent = portalTargetUrl;
+    startCrawlBtnText.textContent = "⚡ Crawl Target & Autofill Portal";
+
+    try {
+      const pUrl = new URL(portalTargetUrl.startsWith("http") ? portalTargetUrl : "http://" + portalTargetUrl);
+      siteDomainEl.textContent = pUrl.hostname + " (QC Portal Target)";
+      siteUrlEl.textContent = portalTargetUrl;
+    } catch (_) {
+      siteDomainEl.textContent = portalTargetUrl + " (QC Portal Target)";
+      siteUrlEl.textContent = portalTargetUrl;
+    }
+
+    showManualUrlFeedback(`✓ Target loaded: ${portalTargetUrl}`, "success");
+
+    // Push into active portal tab form
+    if (currentTab && currentTab.id) {
+      chrome.tabs.sendMessage(currentTab.id, {
+        action: "setPortalTargetUrl",
+        url: portalTargetUrl
+      }, () => {
+        chrome.scripting.executeScript({
+          target: { tabId: currentTab.id },
+          func: (newUrl) => {
+            const inputs = Array.from(document.querySelectorAll("input:not([type='hidden']):not([type='button']):not([type='submit'])"));
+            const webInp = inputs.find(el => {
+              const name = (el.name || "").toLowerCase();
+              const id = (el.id || "").toLowerCase();
+              return name.includes("website") || id.includes("website");
+            }) || inputs[0];
+            if (webInp) {
+              webInp.value = newUrl;
+              webInp.dispatchEvent(new Event("input", { bubbles: true }));
+              webInp.dispatchEvent(new Event("change", { bubbles: true }));
+            }
+          },
+          args: [portalTargetUrl]
+        }).catch(() => {});
+      });
+    }
+  }
+
+  if (loadManualUrlBtn) {
+    loadManualUrlBtn.addEventListener("click", handleManualUrlLoad);
+  }
+  if (manualUrlInput) {
+    manualUrlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleManualUrlLoad();
+      }
+    });
+  }
+
+  function showManualUrlFeedback(msg, type) {
+    if (!manualUrlFeedback) return;
+    manualUrlFeedback.textContent = msg;
+    manualUrlFeedback.className = `manual-url-feedback ${type}`;
+    manualUrlFeedback.classList.remove("hidden");
+    setTimeout(() => {
+      if (type === "success") {
+        manualUrlSection?.classList.add("hidden");
+        manualUrlFeedback?.classList.add("hidden");
+      }
+    }, 2500);
   }
 
   function updatePills(links = []) {

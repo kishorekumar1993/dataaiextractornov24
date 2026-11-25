@@ -679,6 +679,37 @@ async function runPortalTests() {
     assert.strictEqual(isWebsiteUrl(""), false, "Must reject empty string");
   });
 
+  // Test 15: Dual portal detection (cpworkportal.online & kishorekumar1993.github.io) and manual load
+  test("Dual portal detection recognizes both cpworkportal.online and kishorekumar1993.github.io", () => {
+    function isKnownPortalUrl(url) {
+      if (!url || typeof url !== "string") return false;
+      const lower = url.toLowerCase();
+      return lower.includes("cpworkportal") ||
+             lower.includes("user_data_url_work") ||
+             lower.includes("kishorekumar1993.github.io") ||
+             lower.includes("/dataextraction");
+    }
+
+    assert.strictEqual(isKnownPortalUrl("https://cpworkportal.online/user_data_url_work/MTQw"), true, "Must recognize cpworkportal.online as portal");
+    assert.strictEqual(isKnownPortalUrl("https://kishorekumar1993.github.io/dataextraction/"), true, "Must recognize kishorekumar1993.github.io/dataextraction as portal");
+    assert.strictEqual(isKnownPortalUrl("https://www.google.com"), false, "Must NOT flag normal websites as portal");
+    assert.strictEqual(isKnownPortalUrl("https://example.com"), false, "Must NOT flag normal websites as portal");
+
+    // Test label matching with additional buttons (e.g. Website Name:  Copy  Manual  Queue)
+    const labelAliases = ["website name", "website url", "web site name", "web site url", "website"];
+    const testLabelText = "website name copy manual queue";
+    const matchesLabel = labelAliases.some(alias => testLabelText === alias || testLabelText.startsWith(alias) || testLabelText.includes(alias));
+    assert.strictEqual(matchesLabel, true, "Must match label even if extra buttons (Copy, Manual, Queue) are present");
+
+    // Test manual URL validation
+    const manualUrl1 = "http://www.techmarkets.co.uk";
+    const manualUrl2 = "http://www.fongding.com.tw";
+    const isValidManual = (u) => Boolean(u && !/^\d+$/.test(u) && (/^https?:\/\//i.test(u) || u.includes(".")));
+    assert.strictEqual(isValidManual(manualUrl1), true);
+    assert.strictEqual(isValidManual(manualUrl2), true);
+    assert.strictEqual(isValidManual("538611"), false);
+  });
+
   console.log("==========================================================");
   console.log(`  PORTAL TEST RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");

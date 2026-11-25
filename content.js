@@ -128,6 +128,21 @@
       return true;
     }
 
+    if (request.action === "setPortalTargetUrl") {
+      try {
+        const url = request.url;
+        const websiteInput = findWebsiteInputElement();
+        if (websiteInput) {
+          setNativeInputValue(websiteInput, url);
+        }
+        updateFloatingWidgetTarget(url);
+        sendResponse({ success: true, targetUrl: url });
+      } catch (err) {
+        sendResponse({ success: false, error: err.message });
+      }
+      return true;
+    }
+
     if (request.action === "autofillPortalForm") {
       try {
         const fillResult = prefillPortalForm(request.data);
@@ -225,10 +240,10 @@
         .replace(/[:*]/g, "")
         .trim();
 
-      if (
-        !["website name", "website url", "web site name", "web site url"]
-          .includes(text)
-      ) continue;
+      const isWebsiteLabel = ["website name", "website url", "web site name", "web site url", "website"].some(alias =>
+        text === alias || text.startsWith(alias) || text.includes(alias)
+      );
+      if (!isWebsiteLabel) continue;
 
       if (label.htmlFor) {
         const target = document.getElementById(label.htmlFor);
@@ -821,9 +836,17 @@
       <div id="site-intel-widget-body" style="padding:12px 14px; display:flex; flex-direction:column; gap:10px; overflow-y:auto; max-height:calc(85vh - 45px);">
         <!-- Target Site Row -->
         <div style="display:flex; flex-direction:column; gap:4px;">
-          <div style="font-size:11px; color:#94a3b8; font-weight:600; letter-spacing:0.3px;">TARGET WEBSITE:</div>
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:11px; color:#94a3b8; font-weight:600; letter-spacing:0.3px;">TARGET WEBSITE:</span>
+            <button id="site-intel-edit-btn" style="background:none; border:none; color:#38bdf8; font-size:11px; cursor:pointer; padding:0; text-decoration:underline;">✏️ Edit / Load URL</button>
+          </div>
           <div id="site-intel-widget-target" style="font-size:12px; font-weight:600; color:#f8fafc; word-break:break-all; background:#1e293b; padding:6px 10px; border-radius:6px; border:1px solid #334155;">
             ${currentTargetUrl || "Detecting URL from form..."}
+          </div>
+          <!-- Manual URL Inline Input -->
+          <div id="site-intel-manual-box" style="display:none; gap:6px; margin-top:4px;">
+            <input type="text" id="site-intel-manual-input" placeholder="Paste or type URL (e.g. http://...)" style="flex:1; background:#0f172a; border:1px solid #38bdf8; border-radius:4px; color:#fff; font-size:11px; padding:5px 8px; outline:none;" />
+            <button id="site-intel-manual-load-btn" style="background:#2563eb; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:600; padding:5px 10px; cursor:pointer;">Load</button>
           </div>
         </div>
 
@@ -1020,6 +1043,63 @@
         setTimeout(() => { copyBtn.textContent = "📋 Copy JSON"; }, 2000);
       });
     });
+
+    // Manual Edit / Load URL event listeners
+    const editBtn = widget.querySelector("#site-intel-edit-btn");
+    const manualBox = widget.querySelector("#site-intel-manual-box");
+    const manualInput = widget.querySelector("#site-intel-manual-input");
+    const manualLoadBtn = widget.querySelector("#site-intel-manual-load-btn");
+
+    if (editBtn && manualBox) {
+      editBtn.addEventListener("click", () => {
+        const isHidden = manualBox.style.display === "none";
+        manualBox.style.display = isHidden ? "flex" : "none";
+        if (isHidden && manualInput) {
+          manualInput.value = currentTargetUrl || "";
+          manualInput.focus();
+        }
+      });
+    }
+
+    const applyManualUrl = () => {
+      if (!manualInput) return;
+      let raw = manualInput.value.trim();
+      if (!raw) return;
+      if (!/^https?:\/\//i.test(raw) && raw.includes(".")) {
+        raw = "http://" + raw;
+      }
+      if (!isValidUrlOrDomain(raw)) {
+        alert("Please enter a valid website URL (e.g. http://www.techmarkets.co.uk)");
+        return;
+      }
+      currentTargetUrl = raw;
+      updateFloatingWidgetTarget(raw);
+
+      // Write into Website Name input element in form
+      const websiteEl = findWebsiteInputElement();
+      if (websiteEl) {
+        setNativeInputValue(websiteEl, raw);
+      }
+
+      const statusEl = document.getElementById("site-intel-status-line");
+      if (statusEl) {
+        statusEl.style.display = "block";
+        statusEl.textContent = `✓ Target URL loaded: ${raw}`;
+      }
+      if (manualBox) manualBox.style.display = "none";
+    };
+
+    if (manualLoadBtn) {
+      manualLoadBtn.addEventListener("click", applyManualUrl);
+    }
+    if (manualInput) {
+      manualInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          applyManualUrl();
+        }
+      });
+    }
 
     // Listen to input changes on Website Name field to update widget live
     const attachSync = () => {
