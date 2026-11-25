@@ -1126,8 +1126,32 @@ const CrawlerEngine = (() => {
     return list;
   }
 
+  function isValidCompanyEmail(email) {
+    if (!email || typeof email !== "string") return false;
+    const lower = email.trim().toLowerCase();
+    if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(lower)) return false;
+    if (/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|pdf|woff2?)$/i.test(lower)) return false;
+    if (/^(?:primary_email|secondary_email|your|name|user|test|noreply|no-reply|donotreply)@/i.test(lower)) return false;
+    const domain = lower.split("@")[1] || "";
+    if (["example.com", "domain.com", "email.com", "test.com", "sentry.io", "wixpress.com", "wix.com"].some(d => domain === d || domain.endsWith("." + d))) {
+      return false;
+    }
+    return true;
+  }
+
   function extractContactsAndProducts(text, html) {
-    const emails = Array.from(new Set(text.match(EMAIL_REGEX) || []));
+    const emailSet = new Set((text.match(EMAIL_REGEX) || []).filter(isValidCompanyEmail));
+    if (html) {
+      const mailtoRegex = /href=["']mailto:([^"'?#]+)/gi;
+      let mm;
+      while ((mm = mailtoRegex.exec(html)) !== null) {
+        try {
+          const decoded = decodeURIComponent(mm[1]).trim();
+          if (isValidCompanyEmail(decoded)) emailSet.add(decoded);
+        } catch (_) {}
+      }
+    }
+    const emails = Array.from(emailSet);
     const phones = Array.from(new Set(text.match(PHONE_REGEX) || []))
       .filter(p => p.replace(/\D/g, "").length >= 7 && p.replace(/\D/g, "").length <= 15);
 
@@ -1178,8 +1202,8 @@ You MUST respond strictly with a valid JSON object matching this exact schema:
   "companyAddress": "Full physical or registered address",
   "state": "Available",
   "city": "Available",
-  "emailId": "primary_email@domain.com",
-  "secondaryEmailId": "secondary_email@domain.com or empty string",
+  "emailId": "",
+  "secondaryEmailId": "",
   "phoneNumber": "Main contact phone number",
   "numberOfProducts": "3",
   "productImages": "3",
@@ -1584,8 +1608,8 @@ Before returning companyAddress:
       - When an address contains both a suburb and an official city, ignore the suburb and mark "city": "Available" based on the official city.
       - If only a suburb, village, or industrial estate is present (and it is not a Town, District, Municipality, official City, or Country Capital), mark "city": "Not Available".
 
-10. "emailId": Primary contact email address.
-11. "secondaryEmailId": Alternative email if present, else "".
+10. "emailId": Primary official company contact email address found on the website (prefer Contact Us / Footer HQ email). Never invent or output placeholder emails; return "" if no real contact email exists.
+11. "secondaryEmailId": Alternative company email if present on the website, else "".
 12. "phoneNumber": Primary contact phone number strictly formatted according to these rules:
     - Take the complete phone number, but ALWAYS REMOVE the international country code for ANY country (e.g., strip +1 for USA/Canada, +44 for UK, +91 for India, +86 for China, +49 for Germany, +33 for France, +81 for Japan, +61 for Australia, +971 for UAE, +65 for Singapore, or ANY other country calling code).
     - Remove all special characters, hyphens, plus signs, brackets, dots, and slashes.

@@ -604,6 +604,24 @@
       clean.city = "Not Available";
     }
 
+    // Validate emailId & secondaryEmailId (reject placeholders/assets, fallback to context.detectedEmails if needed)
+    const isRealEmail = (e) => {
+      if (!e || typeof e !== "string") return false;
+      const lower = e.trim().toLowerCase();
+      if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(lower)) return false;
+      if (/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|pdf|woff2?)$/i.test(lower)) return false;
+      if (/^(?:primary_email|secondary_email|your|name|user|test|noreply|no-reply|donotreply)@/i.test(lower)) return false;
+      const dom = lower.split("@")[1] || "";
+      return !["example.com", "domain.com", "email.com", "test.com", "sentry.io", "wixpress.com", "wix.com"].some(d => dom === d || dom.endsWith("." + d));
+    };
+    if (!isRealEmail(clean.emailId)) {
+      const fallbackEmail = (context && Array.isArray(context.detectedEmails)) ? context.detectedEmails.find(isRealEmail) : "";
+      clean.emailId = fallbackEmail || "";
+    }
+    if (!isRealEmail(clean.secondaryEmailId) || clean.secondaryEmailId.trim().toLowerCase() === clean.emailId.trim().toLowerCase()) {
+      clean.secondaryEmailId = "";
+    }
+
     // Sanitize phone number (strip country code, leading zeros, toll-free, spaces)
     if (clean.phoneNumber) {
       clean.phoneNumber = sanitizePhoneNumber(clean.phoneNumber, clean.countryName);
