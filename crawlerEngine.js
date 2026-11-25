@@ -1552,15 +1552,15 @@ Before returning companyAddress:
    - If the state name is given in the address, select "Available"; if not, select "Not Available".
    - Note: (County, Province, Prefecture) should be considered as State.
    - Country Capitals (CRITICAL UNIVERSAL RULE): (If a country's capital is mentioned in the address, then both City and State are considered available.)
-   - Official States & Provinces: Any recognized first-level administrative division of any country worldwide qualifies as State = "Available", even when the word "State", "County", "Province", or "Prefecture" is omitted:
+   - Official States & Provinces: Any recognized first-level administrative division of the following types qualifies as State = "Available", even when the word "State", "County", "Province", or "Prefecture" is omitted:
      * States / Territories (e.g., Wisconsin, California, Texas, Victoria, New South Wales, Western Australia, Maharashtra, Karnataka, Bavaria, Queensland).
      * Counties (e.g., UK counties like Bedfordshire, Norfolk, Essex, Yorkshire, Lancashire; Taiwan/US/Irish counties like Changhua County, Miaoli County).
      * Provinces (e.g., Ontario, British Columbia, Quebec, Guangdong, Zhejiang, Jiangsu, Jawa Barat, Selangor).
      * Prefectures (e.g., Osaka, Aichi, Kanagawa, Saitama, Shizuoka).
-     * Special / Direct-controlled Municipalities (e.g., Taichung City, Kaohsiung City, Tainan City, New Taipei City, Taoyuan City, Shanghai, Tianjin, Chongqing).
      * Country Capitals (e.g., London, Paris, Tokyo, Beijing, New Delhi, Taipei, Washington D.C., Canberra, Ottawa, Berlin, Seoul, Bangkok, Kuala Lumpur, Singapore, etc.) -> ALWAYS set BOTH "state": "Available" AND "city": "Available".
+   - CRITICAL: Municipalities and Cities (such as Taoyuan City, Taichung City, Kaohsiung City, or any non-capital City/Town/District/Municipality) are classified as CITY, NOT State! Unless a State, County, Province, Prefecture, or Country Capital is ALSO explicitly written in the address, mark "state": "Not Available".
    - Disregard State Names in Street Lines: If a state, county, or province name appears solely as part of a street name (e.g., "Pennsylvania Avenue", "Washington Boulevard"), it does NOT count as State.
-   - If the address only has a non-capital city/town/suburb and NO State, County, Province, Prefecture, or Country Capital, select "Not Available".
+   - If the address only has a non-capital city/town/district/municipality/suburb and NO State, County, Province, Prefecture, or Country Capital, select "Not Available".
 
 9. "city": STRICT CITY VS SUBURB CLASSIFICATION – MANDATORY (Strictly output ONLY the exact string "Available" or "Not Available", NEVER output the city name itself):
    - If the city name is given in the address, select "Available"; if not, select "Not Available".
