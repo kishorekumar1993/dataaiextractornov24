@@ -1891,8 +1891,8 @@ ${context.crawledText}`;
           }
         }
       }
-      if (cAddress !== "Not Available" && AddressNormalizer && AddressNormalizer.normalizeAddress) {
-        cAddress = AddressNormalizer.normalizeAddress(cAddress);
+      if (cAddress !== "Not Available") {
+        cAddress = cAddress.trim();
       }
 
       const detectedE = ctx?.detectedEmails || [];
@@ -2008,9 +2008,7 @@ ${context.crawledText}`;
         }
       }
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
-        if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
-          aiResult.data.companyAddress = AddressNormalizer.normalizeAddress(aiResult.data.companyAddress);
-        }
+        aiResult.data.companyAddress = aiResult.data.companyAddress.trim();
       }
     }
 

@@ -895,8 +895,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         } else if (extractedJson.companyName) {
           extractedJson.companyName = extractedJson.companyName.trim();
         }
-        if (extractedJson.companyAddress && typeof AddressNormalizer !== "undefined" && AddressNormalizer.normalizeAddress) {
-          extractedJson.companyAddress = AddressNormalizer.normalizeAddress(extractedJson.companyAddress);
+        if (extractedJson.companyAddress) {
+          extractedJson.companyAddress = extractedJson.companyAddress.trim();
         }
       }
       if (typeof CrawlerEngine !== "undefined" && CrawlerEngine.applyBusinessTypeEligibilityRule) {
