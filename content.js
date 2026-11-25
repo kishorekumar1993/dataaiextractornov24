@@ -496,7 +496,6 @@
     if (!data) return { filledCount: 0, errors: ["No data provided"] };
     applyBusinessTypeEligibility(data);
 
-    const detection = detectPortalForm();
     let filledCount = 0;
     const filledFields = [];
     const errors = [];
@@ -750,11 +749,15 @@
       }
     }
 
-    // Clean up any existing widget or launcher to guarantee fresh mounting at the top
+    // Reuse existing widget if already mounted in DOM to prevent tearing down UI
     const existingWidget = document.getElementById("site-intel-portal-widget");
     if (existingWidget) {
-      existingWidget.remove();
+      if (currentTargetUrl) {
+        updateFloatingWidgetTarget(currentTargetUrl);
+      }
+      return existingWidget;
     }
+
     const existingLauncher = document.getElementById("site-intel-launcher-btn");
     if (existingLauncher) {
       existingLauncher.remove();
@@ -1007,7 +1010,6 @@
     const actionBtn = widget.querySelector("#site-intel-action-btn");
     actionBtn.addEventListener("mouseenter", () => { actionBtn.style.background = "#1d4ed8"; });
     actionBtn.addEventListener("mouseleave", () => { actionBtn.style.background = "#2563eb"; });
-    actionBtn.onclick = handleWidgetCrawlAndFill;
     actionBtn.addEventListener("click", handleWidgetCrawlAndFill);
 
     const copyBtn = widget.querySelector("#site-intel-copy-btn");
@@ -1037,36 +1039,41 @@
     };
     attachSync();
 
-    // MutationObserver to detect when portal loads next record asynchronously via AJAX
-    if (typeof MutationObserver !== "undefined" && document.body) {
-      try {
-        const portalObserver = new MutationObserver(() => {
-          const el = findWebsiteInputElement();
-          if (el) {
-            const v = getElementValue(el);
-            if (isValidUrlOrDomain(v)) {
+    // Ensure observer and periodic interval are started only once per session
+    if (typeof window !== "undefined" && !window.__siteIntelSyncStarted) {
+      window.__siteIntelSyncStarted = true;
+
+      // MutationObserver to detect when portal loads next record asynchronously via AJAX
+      if (typeof MutationObserver !== "undefined" && document.body) {
+        try {
+          const portalObserver = new MutationObserver(() => {
+            const el = findWebsiteInputElement();
+            if (el) {
+              const v = getElementValue(el);
+              if (isValidUrlOrDomain(v)) {
+                updateFloatingWidgetTarget(v.trim());
+                attachSync();
+              }
+            }
+          });
+          portalObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["value"] });
+        } catch (_) {}
+      }
+
+      // Periodic check in case portal loads next task record asynchronously (e.g. Next Record on cpworkportal.online)
+      setInterval(() => {
+        const el = findWebsiteInputElement();
+        if (el) {
+          const v = getElementValue(el);
+          if (isValidUrlOrDomain(v)) {
+            const targetEl = document.getElementById("site-intel-widget-target");
+            if (targetEl && targetEl.textContent.trim() !== v.trim()) {
               updateFloatingWidgetTarget(v.trim());
-              attachSync();
             }
           }
-        });
-        portalObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["value"] });
-      } catch (_) {}
-    }
-
-    // Periodic check in case portal loads next task record asynchronously (e.g. Next Record on cpworkportal.online)
-    setInterval(() => {
-      const el = findWebsiteInputElement();
-      if (el) {
-        const v = getElementValue(el);
-        if (isValidUrlOrDomain(v)) {
-          const targetEl = document.getElementById("site-intel-widget-target");
-          if (targetEl && targetEl.textContent.trim() !== v.trim()) {
-            updateFloatingWidgetTarget(v.trim());
-          }
         }
-      }
-    }, 1000);
+      }, 1000);
+    }
   }
 
   function updateFloatingWidgetTarget(url) {
@@ -1165,31 +1172,40 @@
     }
   }
 
+  let isWidgetCrawling = false;
+
   async function handleWidgetCrawlAndFill(e) {
     if (e) {
       try { e.preventDefault?.(); e.stopPropagation?.(); } catch (_) {}
     }
 
-    const actionBtn = document.getElementById("site-intel-action-btn");
-    const btnText = document.getElementById("site-intel-btn-text");
-    const statusLine = document.getElementById("site-intel-status-line");
-
-    // Guard: Check if extension context is still valid (handles extension reloads/updates)
-    if (!isExtensionContextValid()) {
-      if (statusLine) {
-        statusLine.style.display = "block";
-        statusLine.textContent = "🔄 Extension was updated or reloaded. Please refresh this page (F5) to reconnect.";
-      }
-      if (btnText) btnText.textContent = "🔄 Refresh Page to Reconnect";
-      if (actionBtn) {
-        actionBtn.style.background = "#f59e0b";
-        actionBtn.disabled = false;
-        actionBtn.style.opacity = "1";
-        actionBtn.style.cursor = "pointer";
-        actionBtn.onclick = () => window.location.reload();
-      }
+    if (isWidgetCrawling) {
+      console.log("Crawl already in progress, ignoring double-click.");
       return;
     }
+    isWidgetCrawling = true;
+
+    try {
+      const actionBtn = document.getElementById("site-intel-action-btn");
+      const btnText = document.getElementById("site-intel-btn-text");
+      const statusLine = document.getElementById("site-intel-status-line");
+
+      // Guard: Check if extension context is still valid (handles extension reloads/updates)
+      if (!isExtensionContextValid()) {
+        if (statusLine) {
+          statusLine.style.display = "block";
+          statusLine.textContent = "🔄 Extension was updated or reloaded. Please refresh this page (F5) to reconnect.";
+        }
+        if (btnText) btnText.textContent = "🔄 Refresh Page to Reconnect";
+        if (actionBtn) {
+          actionBtn.style.background = "#f59e0b";
+          actionBtn.disabled = false;
+          actionBtn.style.opacity = "1";
+          actionBtn.style.cursor = "pointer";
+          actionBtn.onclick = () => window.location.reload();
+        }
+        return;
+      }
 
     // Get latest URL: Priority 1 is the widget's displayed target (what is literally visible on the widget)
     let url = "";
@@ -1335,17 +1351,20 @@
           : `❌ ${err.message}`;
       }
 
-      if (!isApiKeyError) {
-        setTimeout(() => {
-          if (actionBtn) {
-            actionBtn.disabled = false;
-            actionBtn.style.opacity = "1";
-            actionBtn.style.cursor = "pointer";
-            actionBtn.style.background = "#2563eb";
-          }
-          if (btnText) btnText.textContent = "⚡ Crawl & Autofill Form";
-        }, 3500);
+        if (!isApiKeyError) {
+          setTimeout(() => {
+            if (actionBtn) {
+              actionBtn.disabled = false;
+              actionBtn.style.opacity = "1";
+              actionBtn.style.cursor = "pointer";
+              actionBtn.style.background = "#2563eb";
+            }
+            if (btnText) btnText.textContent = "⚡ Crawl & Autofill Form";
+          }, 3500);
+        }
       }
+    } finally {
+      isWidgetCrawling = false;
     }
   }
 

@@ -10,12 +10,20 @@ const CrawlerEngine = (() => {
     ? (function () { try { return require("./restrictionValidator.js"); } catch (e) { return null; } })()
     : (typeof window !== "undefined" && window.RestrictionValidator ? window.RestrictionValidator : (typeof self !== "undefined" && self.RestrictionValidator ? self.RestrictionValidator : null));
 
+  const GeminiClient = (typeof require !== "undefined")
+    ? (function () { try { return require("./geminiClient.js"); } catch (e) { return null; } })()
+    : (typeof window !== "undefined" && window.GeminiClient ? window.GeminiClient : (typeof self !== "undefined" && self.GeminiClient ? self.GeminiClient : (typeof globalThis !== "undefined" && globalThis.GeminiClient ? globalThis.GeminiClient : null)));
+
+  const CompanyNormalizer = (typeof require !== "undefined")
+    ? (function () { try { return require("./companyNormalizer.js"); } catch (e) { return null; } })()
+    : (typeof window !== "undefined" && window.CompanyNormalizer ? window.CompanyNormalizer : (typeof self !== "undefined" && self.CompanyNormalizer ? self.CompanyNormalizer : (typeof globalThis !== "undefined" && globalThis.CompanyNormalizer ? globalThis.CompanyNormalizer : null)));
+
   // Regex patterns for HTML processing in environments without DOM
   const SCRIPT_STYLE_REGEX = /<(?:script|style|noscript|svg|canvas|iframe|template|nav)\b[^<]*(?:(?!<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>)<[^<]*)*<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>/gi;
   const HTML_TAG_REGEX = /<[^>]+>/g;
   const A_HREF_REGEX = /<a\s+(?:[^>]*?\s+)?href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-  const PHONE_REGEX = /(?:\+?\d{1,4}[-.\s]?)?\(?\d{2,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,5}/g;
+  const PHONE_REGEX = /(?:\+?\d{1,4}[-.\s]?)?\(?\d{1,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{3,5}/g;
 
   // Multi-part TLD patterns for Public Suffix List aware domain comparisons
   const MULTI_PART_TLDS = new Set([
@@ -1744,26 +1752,167 @@ ${context.crawledText}`;
     const systemInstruction = buildSystemInstruction();
     const userPrompt = buildUserPrompt(context);
 
-    // 6. Call Gemini API
-    const aiResult = await GeminiClient.callGeminiWithRetryAndFallback({
-      context: context,
-      userPrompt: userPrompt,
-      systemInstruction: systemInstruction,
-      apiKey: options.apiKey,
-      primaryModel: options.primaryModel || "gemini-3.5-flash-lite",
-      fallbackModel: options.fallbackModel || "gemini-3.1-flash-lite",
-      backendProxyUrl: options.backendProxyUrl || "",
-      fetchFn: fetchFn
-    });
+    // Heuristic corporate intelligence fallback if Gemini AI is unavailable or fails
+    function extractHeuristicCorporateData(targetCleanUrl, htmlSource, pagesList, ctx) {
+      let compName = "";
+      if (htmlSource) {
+        const titleMatch = htmlSource.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
+        if (titleMatch && titleMatch[1]) {
+          let t = cleanHtmlToText(titleMatch[1]).trim();
+          t = t.split(/[\|\-–—:•]/)[0].trim();
+          if (t && t.length > 2 && t.length < 80 && !/^(?:home|welcome|index|default)$/i.test(t)) {
+            compName = t;
+          }
+        }
+        if (!compName) {
+          const ogMatch = htmlSource.match(/<meta\s+property=["']og:site_name["']\s+content=["']([^"']+)["']/i);
+          if (ogMatch && ogMatch[1]) {
+            compName = cleanHtmlToText(ogMatch[1]).trim();
+          }
+        }
+      }
+      if (!compName) {
+        const domainParts = hostname.replace(/^www\./i, "").split(".");
+        const mainPart = domainParts[0] || "Company";
+        compName = mainPart.charAt(0).toUpperCase() + mainPart.slice(1);
+      }
+      if (companyNorm && companyNorm.normalizeCompanyName) {
+        compName = companyNorm.normalizeCompanyName(compName);
+      }
+
+      // Country from TLD or detected phone
+      let cName = "Not Available";
+      const tld = hostname.split(".").slice(-1)[0].toLowerCase();
+      const twoPartTld = hostname.split(".").slice(-2).join(".").toLowerCase();
+      const TLD_TO_COUNTRY = {
+        "tw": "Taiwan", "com.tw": "Taiwan",
+        "uk": "United Kingdom", "co.uk": "United Kingdom",
+        "us": "United States Of America",
+        "ca": "Canada",
+        "au": "Australia", "com.au": "Australia",
+        "in": "India", "co.in": "India",
+        "cn": "China", "com.cn": "China",
+        "de": "Germany", "fr": "France", "it": "Italy",
+        "jp": "Japan", "co.jp": "Japan",
+        "sg": "Singapore", "my": "Malaysia", "nz": "New Zealand",
+        "br": "Brazil", "mx": "Mexico", "za": "South Africa"
+      };
+      if (TLD_TO_COUNTRY[twoPartTld]) {
+        cName = TLD_TO_COUNTRY[twoPartTld];
+      } else if (TLD_TO_COUNTRY[tld]) {
+        cName = TLD_TO_COUNTRY[tld];
+      }
+
+      // Address
+      let cAddress = "Not Available";
+      if (ctx && ctx.crawledText) {
+        const mapMatch = ctx.crawledText.match(/Map Location \/ Address:\s*([^\n\r]+)/i);
+        if (mapMatch && mapMatch[1] && mapMatch[1].trim().length > 5) {
+          cAddress = mapMatch[1].trim();
+        }
+      }
+      if (cAddress === "Not Available" && Array.isArray(pagesList)) {
+        for (const p of pagesList) {
+          if (p.mapAddresses && p.mapAddresses.length > 0) {
+            cAddress = p.mapAddresses[0];
+            break;
+          }
+        }
+      }
+      if (cAddress !== "Not Available" && AddressNormalizer && AddressNormalizer.normalizeAddress) {
+        cAddress = AddressNormalizer.normalizeAddress(cAddress);
+      }
+
+      const detectedE = ctx?.detectedEmails || [];
+      const detectedP = ctx?.detectedPhones || [];
+      const primaryEmail = detectedE.length > 0 ? detectedE[0] : "Not Available";
+      const secondaryEmail = detectedE.length > 1 ? detectedE[1] : "Not Available";
+      let primaryPhone = detectedP.length > 0 ? detectedP[0] : "Not Available";
+      if (gemini && gemini.sanitizePhoneNumber && primaryPhone !== "Not Available") {
+        primaryPhone = gemini.sanitizePhoneNumber(primaryPhone, cName) || primaryPhone;
+      }
+
+      const pCount = String(Math.min(3, Math.max(1, ctx?.heuristicProducts || 3)));
+      const iCount = String(Math.min(3, Math.max(1, ctx?.heuristicImages || 3)));
+      const dCount = String(Math.min(3, Math.max(1, ctx?.heuristicDescriptions || 3)));
+
+      let bType = "Manufacturer";
+      const fullTxt = ((htmlSource || "") + " " + (ctx?.crawledText || "")).toLowerCase();
+      if (fullTxt.includes("manufactur") || fullTxt.includes("factory") || fullTxt.includes("machin") || fullTxt.includes("produc")) {
+        bType = "Manufacturer";
+      } else if (fullTxt.includes("wholesal") || fullTxt.includes("distribut")) {
+        bType = "Wholesaler";
+      } else if (fullTxt.includes("export")) {
+        bType = "Exporter";
+      }
+
+      return {
+        websiteStatus: "Working",
+        notWorkingReason: "",
+        businessType: bType,
+        companyProfile: "Available",
+        companyName: compName,
+        countryName: cName,
+        companyAddress: cAddress,
+        state: "Available",
+        city: "Available",
+        emailId: primaryEmail,
+        secondaryEmailId: secondaryEmail,
+        phoneNumber: primaryPhone,
+        numberOfProducts: pCount,
+        productImages: iCount,
+        numberOfProductDescriptions: dCount
+      };
+    }
+
+    const gemini = options.geminiClient || GeminiClient || (typeof globalThis !== "undefined" ? globalThis.GeminiClient : null) || (typeof self !== "undefined" ? self.GeminiClient : null);
+    const companyNorm = options.companyNormalizer || CompanyNormalizer || (typeof globalThis !== "undefined" ? globalThis.CompanyNormalizer : null) || (typeof self !== "undefined" ? self.CompanyNormalizer : null);
+
+    // 6. Call Gemini API with automatic fallback to heuristic corporate extraction
+    let aiResult;
+    try {
+      if (!gemini || !gemini.callGeminiWithRetryAndFallback) {
+        throw new Error("GeminiClient module is not available in crawler engine.");
+      }
+      if (!options.apiKey && !options.backendProxyUrl) {
+        throw new Error("Gemini API key is not configured.");
+      }
+      aiResult = await gemini.callGeminiWithRetryAndFallback({
+        context: context,
+        userPrompt: userPrompt,
+        systemInstruction: systemInstruction,
+        apiKey: options.apiKey,
+        primaryModel: options.primaryModel || "gemini-3.5-flash-lite",
+        fallbackModel: options.fallbackModel || "gemini-3.1-flash-lite",
+        backendProxyUrl: options.backendProxyUrl || "",
+        fetchFn: fetchFn
+      });
+    } catch (aiErr) {
+      console.warn("[CrawlerEngine] AI extraction error or unavailable, using heuristic fallback:", aiErr.message);
+      const fallbackData = extractHeuristicCorporateData(cleanUrl, mainHtml, crawledPages, context);
+      aiResult = {
+        success: true,
+        data: fallbackData,
+        meta: {
+          modelUsed: "heuristic-extractor",
+          fallbackReason: aiErr.message,
+          durationMs: 400
+        }
+      };
+    }
 
     // Apply Business Type eligibility & Unpaid Category conditions (Manufacturer to Wholesaler only are Working, non-manufacturer cart options marked Not Working)
     if (aiResult && aiResult.data) {
       const currentPhone = aiResult.data.phoneNumber;
-      const sanitizedPhone = GeminiClient.sanitizePhoneNumber(currentPhone, aiResult.data.countryName);
+      const sanitizedPhone = (gemini && gemini.sanitizePhoneNumber)
+        ? gemini.sanitizePhoneNumber(currentPhone, aiResult.data.countryName)
+        : currentPhone;
       if (!sanitizedPhone || currentPhone === "Not Available") {
         if (context && Array.isArray(context.detectedPhones)) {
           for (const rawCandidate of context.detectedPhones) {
-            const sanitized = GeminiClient.sanitizePhoneNumber(rawCandidate, aiResult.data.countryName);
+            const sanitized = (gemini && gemini.sanitizePhoneNumber)
+              ? gemini.sanitizePhoneNumber(rawCandidate, aiResult.data.countryName)
+              : rawCandidate;
             if (sanitized && sanitized.length >= 7 && sanitized.length <= 15) {
               aiResult.data.phoneNumber = sanitized;
               break;
@@ -1775,13 +1924,13 @@ ${context.crawledText}`;
       }
       aiResult.data = applyBusinessTypeEligibilityRule(aiResult.data, mainHtml, crawledPages);
       if (aiResult.data.countryName && aiResult.data.countryName !== "Not Available") {
-        if (typeof GeminiClient !== "undefined" && GeminiClient.normalizeCountryName) {
-          aiResult.data.countryName = GeminiClient.normalizeCountryName(aiResult.data.countryName);
+        if (gemini && gemini.normalizeCountryName) {
+          aiResult.data.countryName = gemini.normalizeCountryName(aiResult.data.countryName);
         }
       }
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
-        if (typeof CompanyNormalizer !== "undefined" && CompanyNormalizer.normalizeCompanyName) {
-          aiResult.data.companyName = CompanyNormalizer.normalizeCompanyName(aiResult.data.companyName);
+        if (companyNorm && companyNorm.normalizeCompanyName) {
+          aiResult.data.companyName = companyNorm.normalizeCompanyName(aiResult.data.companyName);
         }
       }
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {

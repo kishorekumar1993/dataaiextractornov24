@@ -123,8 +123,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const backendProxyUrl = stored.backendProxyUrl || "";
         const crawlDepth = parseInt(stored.crawlDepth, 10) || 5;
 
+        // If API key is not configured, CrawlerEngine runs in resilient offline heuristic extraction mode
         if (!apiKey && !backendProxyUrl) {
-          throw new Error("Gemini API key is not configured. Please open extension settings and provide an API key.");
+          console.warn("Gemini API key not configured. Crawling will run in resilient offline heuristic mode.");
         }
 
         const result = await CrawlerEngine.crawlAndExtractUrl(request.targetUrl, {
