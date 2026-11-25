@@ -625,7 +625,7 @@
       clean.companyName = clean.companyName.trim();
     }
     if (clean.companyAddress) {
-      clean.companyAddress = toTitleCase(clean.companyAddress);
+      clean.companyAddress = clean.companyAddress.trim();
     }
     if (clean.countryName) {
       clean.countryName = normalizeCountryName(clean.countryName);

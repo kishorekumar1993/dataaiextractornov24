@@ -1506,6 +1506,7 @@ Expand every recognizable abbreviation, shortened word, delivery and box abbrevi
    - If removing a component leaves duplicate or unnecessary commas, clean them without removing meaningful original separators.
    - Compare the final address against the original source character by character to validate comma positions.
    - Examples:
+     * Original: "4/95 Garling St, O'Connor WA 6163" -> Expected: "4/95 Garling Street, O'Connor Western Australia" (NEVER "Number 4, 95", NEVER "O'connor", NEVER add a comma before Western Australia!)
      * Original: "12900 - 87th Avenue Surrey BC V3W 3H9 Canada" -> Expected: "12900 - 87th Avenue Surrey British Columbia"
      * Original: "45 Main Street, Richmond, BC V6X 1A1, Canada" -> Expected: "45 Main Street, Richmond, British Columbia"
      * Original: "Building 12 Sector 5 Noida Uttar Pradesh" -> Expected: "Building 12 Sector 5 Noida Uttar Pradesh"

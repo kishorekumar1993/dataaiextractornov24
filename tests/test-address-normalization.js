@@ -171,6 +171,14 @@ test("Zero artificial commas inserted during normalization or postal/country rem
     AddressNormalizer.normalizeAddress("A3/A4 Barton Industrial Estate\nFaldo Road\nBarton-Le-Clay\nBedford, Bedfordshire\nMK45 4RP\nUnited Kingdom"),
     "A3/A4 Barton Industrial Estate Faldo Road Barton-Le-Clay Bedford, Bedfordshire"
   );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("4/95 Garling St, O'Connor Western Australia"),
+    "4/95 Garling Street, O'Connor Western Australia"
+  );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("Number 4/95 Garling St, O'Connor Western Australia"),
+    "4/95 Garling Street, O'Connor Western Australia"
+  );
 });
 
 console.log("==========================================================");

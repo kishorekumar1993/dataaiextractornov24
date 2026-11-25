@@ -126,6 +126,18 @@ const AddressNormalizer = (() => {
       return token;
     }
 
+    // Apostrophe names (e.g. O'Connor -> O'Connor, D'Angelo -> D'Angelo, while Lamb's -> Lamb's)
+    const aposMatch = token.match(/^([A-Za-zÀ-ÖØ-öø-ÿ]+)(['’])([A-Za-zÀ-ÖØ-öø-ÿ]+)$/);
+    if (aposMatch) {
+      const first = aposMatch[1].charAt(0).toUpperCase() + aposMatch[1].slice(1).toLowerCase();
+      const sep = aposMatch[2];
+      const rest = aposMatch[3];
+      const restCased = rest.length === 1
+        ? rest.toLowerCase()
+        : rest.charAt(0).toUpperCase() + rest.slice(1).toLowerCase();
+      return first + sep + restCased;
+    }
+
     // Standard word title casing
     return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
   }
@@ -207,8 +219,8 @@ const AddressNormalizer = (() => {
     // Trailing 5-digit US zip with optional 4-digit extension at end of string
     addr = addr.replace(/(?<!\b(?:box|suite|ste|number|no|kb|room|rm|apt|unit|building|bldg|sector|house|fl|floor|lot|plot)\s+)(?:,\s*|\s+)\b\d{5}(?:-\d{4})?\s*$/, "");
 
-    // 6. Remove country names at the end of the address
-    addr = addr.replace(/(?:,\s*|\s+)\b(?:Afghanistan|Albania|Algeria|Andorra|Angola|Argentina|Armenia|Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cambodia|Cameroon|Canada|Cape Verde|Central African Republic|Chad|Chile|China|Colombia|Comoros|Congo|Costa Rica|Croatia|Cuba|Cyprus|Czech Republic|Denmark|Djibouti|Dominica|Dominican Republic|East Timor|Ecuador|Egypt|El Salvador|Equatorial Guinea|Eritrea|Estonia|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Grenada|Guatemala|Guinea|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Ivory Coast|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kiribati|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Macedonia|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Marshall Islands|Mauritania|Mauritius|Mexico|Micronesia|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nauru|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|Norway|Oman|Pakistan|Palau|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Romania|Russia|Rwanda|Saint Kitts and Nevis|Saint Lucia|Saint Vincent|Samoa|San Marino|Saudi Arabia|Senegal|Serbia|Seychelles|Sierra Leone|Singapore|Slovakia|Slovenia|Solomon Islands|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Swaziland|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Togo|Tonga|Trinidad and Tobago|Tunisia|Turkey|Turkmenistan|Tuvalu|Uganda|Ukraine|United Arab Emirates|UAE|United Kingdom|UK|U\.K\.|United States|United States of America|USA|U\.S\.A\.|Uruguay|Uzbekistan|Vanuatu|Vatican City|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe)\s*$/i, "");
+    // 6. Remove country names at the end of the address (protecting "Western Australia" and "South Australia")
+    addr = addr.replace(/(?:,\s*|\s+)\b(?!(?:Australia)\b(?<=Western\s+Australia|South\s+Australia))(?:Afghanistan|Albania|Algeria|Andorra|Angola|Argentina|Armenia|(?<!\bWestern\s+|\bSouth\s+)Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cambodia|Cameroon|Canada|Cape Verde|Central African Republic|Chad|Chile|China|Colombia|Comoros|Congo|Costa Rica|Croatia|Cuba|Cyprus|Czech Republic|Denmark|Djibouti|Dominica|Dominican Republic|East Timor|Ecuador|Egypt|El Salvador|Equatorial Guinea|Eritrea|Estonia|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Grenada|Guatemala|Guinea|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Ivory Coast|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kiribati|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Macedonia|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Marshall Islands|Mauritania|Mauritius|Mexico|Micronesia|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nauru|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|Norway|Oman|Pakistan|Palau|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Romania|Russia|Rwanda|Saint Kitts and Nevis|Saint Lucia|Saint Vincent|Samoa|San Marino|Saudi Arabia|Senegal|Serbia|Seychelles|Sierra Leone|Singapore|Slovakia|Slovenia|Solomon Islands|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Swaziland|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Togo|Tonga|Trinidad and Tobago|Tunisia|Turkey|Turkmenistan|Tuvalu|Uganda|Ukraine|United Arab Emirates|UAE|United Kingdom|UK|U\.K\.|United States|United States of America|USA|U\.S\.A\.|Uruguay|Uzbekistan|Vanuatu|Vatican City|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe)\s*$/i, "");
 
     // Remove trailing unwanted punctuation at the end of the entire address
     addr = addr.replace(/,\s*,/g, ",").replace(/[,;.\-:]+$/, "").trim();
@@ -323,6 +335,7 @@ const AddressNormalizer = (() => {
     const hadExplicitNo = /\bno\.?\b/i.test(rawAddress);
     if (!hadExplicitNo) {
       result = result.replace(/^Number\s+(\d+\s*[-–—]\s*\d+)/i, "$1")
+                     .replace(/^Number\s+(\d+\s*\/\s*\d+)/i, "$1")
                      .replace(/^Number\s+(\d+\s+[A-Za-z])/i, "$1");
     }
 
