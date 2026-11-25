@@ -1454,10 +1454,8 @@ Field extraction guidelines:
 
 5. Address Normalization:
    CRITICAL NEGATIVE RULE - UNWANTED "NUMBER" PROHIBITION:
-   - NEVER prepend or add the word "Number" to street numbers, slash unit/street numbers (e.g. "6/97", "4/95"), or addresses starting with digits!
-   - Example: "6/97 Lewis Rd, Wantirna South VIC 3152" MUST BE "6/97 Lewis Road, Wantirna South Victoria" (NEVER "Number 6/97").
-   - Example: "4/95 Garling St, O'Connor WA 6163" MUST BE "4/95 Garling Street, O'Connor Western Australia" (NEVER "Number 4, 95").
-   - Example: "12900 - 87th Avenue, Surrey, BC V3W 3H9, Canada" MUST BE "12900 - 87th Avenue, Surrey, British Columbia" (NEVER "Number 12900 - 87th Avenue")!
+   - NEVER prepend or add the word "Number" to street numbers, slash-separated unit/street numbers (e.g. [unit]/[street]), hyphenated numbers, or addresses starting with digits unless "No." or "Number" was explicitly present in the original source text.
+   - NEVER split a slash-separated unit/street number into "Number [unit], [street]". Preserve the slash format exactly as written in the source.
    - Pure street/building numbers (e.g. "12900", "45 Main Street", "100 Parkway", "Unit B3") must NEVER have "Number" added.
    - ONLY include "Number" if the original source text explicitly had "No." or "Number".
    Apply the existing address formatting rules:
@@ -1559,17 +1557,14 @@ Expand every recognizable abbreviation, shortened word, delivery and box abbrevi
 1. STRICT SOURCE COMMA PRESERVATION – ZERO ARTIFICIAL COMMAS:
    - Preserve commas ONLY when they exist in the original selected address.
    - NEVER insert a comma between address components during normalization or abbreviation expansion.
-   - MULTI-LINE ADDRESS RULE (CRITICAL): When an address on a webpage is formatted across multiple lines (<br>, <p>, <div>, or line breaks) WITHOUT commas at the end of the lines, join those lines with a SINGLE SPACE, NEVER with a comma! Only preserve commas that were explicitly written in the source text (e.g. "A3/A4 Barton Industrial Estate\nFaldo Road\nBarton-Le-Clay\nBedford, Bedfordshire\nMK45 4RP\nUnited Kingdom" -> "A3/A4 Barton Industrial Estate Faldo Road Barton-Le-Clay Bedford, Bedfordshire").
+   - MULTI-LINE ADDRESS RULE (CRITICAL): When an address on a webpage is formatted across multiple lines (<br>, <p>, <div>, or line breaks) WITHOUT commas at the end of the lines, join those lines with a SINGLE SPACE, NEVER with a comma! Only preserve commas that were explicitly written in the source text.
    - NEVER automatically insert commas before City, District, State, Province, or Suburb.
    - Do not use standard address formatting conventions to introduce additional commas.
    - When removing postal codes, country names, company names, or unwanted text, do not introduce new commas.
    - If removing a component leaves duplicate or unnecessary commas, clean them without removing meaningful original separators.
    - Compare the final address against the original source character by character to validate comma positions.
-   - Examples:
-     * Original: "4/95 Garling St, O'Connor WA 6163" -> Expected: "4/95 Garling Street, O'Connor Western Australia" (NEVER "Number 4, 95", NEVER "O'connor", NEVER add a comma before Western Australia!)
-     * Original: "12900 - 87th Avenue Surrey BC V3W 3H9 Canada" -> Expected: "12900 - 87th Avenue Surrey British Columbia"
-     * Original: "45 Main Street, Richmond, BC V6X 1A1, Canada" -> Expected: "45 Main Street, Richmond, British Columbia"
-     * Original: "Building 12 Sector 5 Noida Uttar Pradesh" -> Expected: "Building 12 Sector 5 Noida Uttar Pradesh"
+   - Format rule:
+     * Preserve source commas exactly where they exist in the original address; never add commas before State/Province/City/Suburb or when removing postal codes/country names.
    - Never insert commas that were not present in the original address.
    - UNIVERSAL STATE / PROVINCE COMMA RULE (CRITICAL):
      * NEVER insert an artificial comma before a state, province, or territory if the original address text did not contain a comma there!
@@ -1637,13 +1632,11 @@ Before returning companyAddress:
       - Villages & localities.
       - Industrial estates, industrial parks, business parks, MIDC/industrial zones.
       - Housing colonies, postal delivery areas, informal settlement names.
-   C. AUSTRALIA ADDRESSES – MANDATORY SUBURB VS CITY RULE (CRITICAL):
-      - In Australia, street addresses almost ALWAYS follow the format [Street], [Suburb] [State] WITHOUT writing the metropolitan city name (Melbourne, Sydney, Brisbane, Perth, Adelaide, etc.).
-      - Every Australian metropolitan or industrial locality before a State (Victoria/VIC, New South Wales/NSW, Queensland/QLD, Western Australia/WA, South Australia/SA, Tasmania/TAS) is a SUBURB, NOT a city and NOT a town!
-      - Therefore, for ANY Australian address:
-        * Mark "city": "Not Available" when the locality is a suburb (e.g. Bayswater, Braeside, Campbellfield, Dandenong South, Derrimut, Epping, Keysborough, Laverton North, Moorabbin, Oakleigh South, Somerton, Sunshine, Thomastown, Tullamarine, Silverwater, Wetherill Park, Smithfield, Ingleburn, Minto, Seven Hills, Malaga, Welshpool, Wangara, Canning Vale, Bibra Lake, Osborne Park, Kewdale, Wingfield, Regency Park, Pooraka, Lonsdale, Acacia Ridge, Archerfield, Brendale, Darra, Eagle Farm, Geebung, Pinkenba, Rocklea, Wacol, Yatala, etc.).
-        * Mark "city": "Available" ONLY if an actual official Australian City / Regional City (e.g., Sydney, Melbourne, Brisbane, Perth, Adelaide, Hobart, Darwin, Canberra, Gold Coast, Newcastle, Wollongong, Geelong, Townsville, Cairns, Toowoomba, Ballarat, Bendigo, Launceston, Albury, Rockhampton, Mackay, Bunbury, Wagga Wagga, Coffs Harbour, Shepparton, Tamworth, Dubbo, etc.) is explicitly written in the address!
-        * Canberra is Australia's national capital -> BOTH "city": "Available" and "state": "Available".
+   C. AUSTRALIA ADDRESSES – GENERAL SUBURB VS CITY RULE:
+      - In Australia, street addresses typically follow the pattern [Street], [Suburb] [State] without writing the parent metropolitan city name.
+      - Any metropolitan or industrial suburb/locality before an Australian State/Territory is a SUBURB (NOT a city or town) -> mark "city": "Not Available".
+      - Mark "city": "Available" ONLY when an officially recognized Australian city, regional city, or the national capital is explicitly present in the address.
+      - If a country's capital is mentioned in the address, then both City and State are considered available.
    D. Multiple Locality Components:
       When an address contains both a suburb and an official city:
       - Do not classify the suburb as the city.
