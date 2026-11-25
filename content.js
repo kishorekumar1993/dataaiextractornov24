@@ -184,7 +184,23 @@
     return true;
   }
 
+  // Cache for findWebsiteInputElement to avoid repeated expensive DOM queries
+  let _cachedWebsiteInput = null;
+  let _cacheTimestamp = 0;
+  const CACHE_TTL_MS = 5000; // Re-query at most once every 5s
+
+  function invalidateWebsiteInputCache() {
+    _cachedWebsiteInput = null;
+    _cacheTimestamp = 0;
+  }
+
   function findWebsiteInputElement() {
+    const now = Date.now();
+    // Return cached element if still in DOM and cache is fresh
+    if (_cachedWebsiteInput && document.contains(_cachedWebsiteInput) && (now - _cacheTimestamp) < CACHE_TTL_MS) {
+      return _cachedWebsiteInput;
+    }
+
     // Never inspect inputs inside our own floating widget
     const inputs = Array.from(
       document.querySelectorAll(
@@ -247,7 +263,11 @@
 
       if (label.htmlFor) {
         const target = document.getElementById(label.htmlFor);
-        if (inputs.includes(target)) return target;
+        if (inputs.includes(target)) {
+          _cachedWebsiteInput = target;
+          _cacheTimestamp = Date.now();
+          return target;
+        }
       }
 
       const container = label.closest(
@@ -259,7 +279,11 @@
           container.querySelectorAll("input")
         ).find(el => inputs.includes(el));
 
-        if (candidate) return candidate;
+        if (candidate) {
+          _cachedWebsiteInput = candidate;
+          _cacheTimestamp = Date.now();
+          return candidate;
+        }
       }
     }
 
@@ -269,7 +293,11 @@
       return ph.includes("website") || ph.includes("enter website");
     });
 
-    if (placeholderMatch) return placeholderMatch;
+    if (placeholderMatch) {
+      _cachedWebsiteInput = placeholderMatch;
+      _cacheTimestamp = Date.now();
+      return placeholderMatch;
+    }
 
     // PRIORITY 3: Input with website-specific name or ID
     const namedMatch = inputs.find(el => {
@@ -283,7 +311,11 @@
       );
     });
 
-    if (namedMatch) return namedMatch;
+    if (namedMatch) {
+      _cachedWebsiteInput = namedMatch;
+      _cacheTimestamp = Date.now();
+      return namedMatch;
+    }
 
     // PRIORITY 4: Check input immediately adjacent to "click here" button (on cpworkportal.online)
     const clickHereBtn = Array.from(document.querySelectorAll("button, a, input[type='button'], span, div")).find(el => {
@@ -294,12 +326,19 @@
       const container = clickHereBtn.closest(".input-group, .form-group, .field, .col, .row, div") || clickHereBtn.parentElement;
       if (container) {
         const candidate = Array.from(container.querySelectorAll("input")).find(el => inputs.includes(el));
-        if (candidate) return candidate;
+        if (candidate) {
+          _cachedWebsiteInput = candidate;
+          _cacheTimestamp = Date.now();
+          return candidate;
+        }
       }
     }
 
     // PRIORITY 5: Existing valid URL as last resort
-    return inputs.find(el => isWebsiteUrl(el.value)) || null;
+    const result = inputs.find(el => isWebsiteUrl(el.value)) || null;
+    _cachedWebsiteInput = result;
+    _cacheTimestamp = Date.now();
+    return result;
   }
 
   function detectPortalForm() {
@@ -1123,25 +1162,44 @@
     if (typeof window !== "undefined" && !window.__siteIntelSyncStarted) {
       window.__siteIntelSyncStarted = true;
 
-      // MutationObserver to detect when portal loads next record asynchronously via AJAX
+      // MutationObserver to detect when portal loads next record asynchronously via AJAX.
+      // Debounced to max ~2 fires/second; observes childList only (NOT attributes) to avoid
+      // firing on every value-change and hanging the browser.
       if (typeof MutationObserver !== "undefined" && document.body) {
         try {
+          let mutationDebounceTimer = null;
           const portalObserver = new MutationObserver(() => {
-            const el = findWebsiteInputElement();
-            if (el) {
-              const v = getElementValue(el);
-              if (isValidUrlOrDomain(v)) {
-                updateFloatingWidgetTarget(v.trim());
-                attachSync();
+            if (mutationDebounceTimer) return; // already scheduled — skip
+            mutationDebounceTimer = setTimeout(() => {
+              mutationDebounceTimer = null;
+              // Invalidate cached element so we re-detect after DOM change
+              invalidateWebsiteInputCache();
+              const el = findWebsiteInputElement();
+              if (el) {
+                const v = getElementValue(el);
+                if (isValidUrlOrDomain(v)) {
+                  updateFloatingWidgetTarget(v.trim());
+                  attachSync();
+                } else {
+                  updateFloatingWidgetTarget("");
+                }
               }
-            }
+            }, 500); // debounce: at most 2 fires/second
           });
-          portalObserver.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ["value"] });
+          // childList + subtree only — NO attributes (attributes fires constantly and hangs the tab)
+          portalObserver.observe(document.body, { childList: true, subtree: true });
         } catch (_) {}
       }
 
-      // Periodic check in case portal loads next task record asynchronously (e.g. Next Record on cpworkportal.online)
+      // Periodic check in case portal loads next task record asynchronously (e.g. Next Record on cpworkportal.online).
+      // Throttled to 2500ms; skips when widget is hidden or a crawl is in progress to prevent browser hang.
       setInterval(() => {
+        // Skip during active crawl — do NOT block background crawl with heavy DOM queries
+        if (isWidgetCrawling) return;
+        // Skip if our widget is not visible (no point checking)
+        const widget = document.getElementById("site-intel-portal-widget");
+        if (!widget || widget.style.display === "none") return;
+
         const el = findWebsiteInputElement();
         if (el) {
           const v = getElementValue(el);
@@ -1152,7 +1210,7 @@
             }
           }
         }
-      }, 1000);
+      }, 2500); // 2.5s instead of 1s — still fast enough for async record loads
     }
   }
 
@@ -1282,6 +1340,7 @@
           actionBtn.disabled = false;
           actionBtn.style.opacity = "1";
           actionBtn.style.cursor = "pointer";
+          actionBtn.style.pointerEvents = "";
           actionBtn.onclick = () => window.location.reload();
         }
         return;
@@ -1334,6 +1393,7 @@
       actionBtn.disabled = true;
       actionBtn.style.opacity = "0.7";
       actionBtn.style.cursor = "not-allowed";
+      actionBtn.style.pointerEvents = "none";
     }
     if (btnText) {
       btnText.textContent = "Crawling & Analyzing...";
@@ -1391,6 +1451,7 @@
           actionBtn.disabled = false;
           actionBtn.style.opacity = "1";
           actionBtn.style.cursor = "pointer";
+          actionBtn.style.pointerEvents = "";
           actionBtn.style.background = "#2563eb";
         }
         if (btnText) btnText.textContent = "⚡ Crawl & Autofill Again";
@@ -1410,6 +1471,7 @@
           actionBtn.disabled = false;
           actionBtn.style.opacity = "1";
           actionBtn.style.cursor = "pointer";
+          actionBtn.style.pointerEvents = "";
           actionBtn.onclick = () => window.location.reload();
         }
         return;
@@ -1423,6 +1485,7 @@
         actionBtn.disabled = false;
         actionBtn.style.opacity = "1";
         actionBtn.style.cursor = "pointer";
+        actionBtn.style.pointerEvents = "";
       }
       if (statusLine) {
         statusLine.style.display = "block";
@@ -1437,6 +1500,7 @@
               actionBtn.disabled = false;
               actionBtn.style.opacity = "1";
               actionBtn.style.cursor = "pointer";
+              actionBtn.style.pointerEvents = "";
               actionBtn.style.background = "#2563eb";
             }
             if (btnText) btnText.textContent = "⚡ Crawl & Autofill Form";
