@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Site Intelligence Crawler (Gemini AI)",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Crawls website pages (Home, About, Company, Contact, Products) and extracts structured company intelligence using Google Gemini API.",
   "permissions": [
     "activeTab",

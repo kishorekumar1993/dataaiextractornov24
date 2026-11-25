@@ -1605,7 +1605,14 @@ Before returning companyAddress:
       - Villages & localities.
       - Industrial estates, industrial parks, business parks, MIDC/industrial zones.
       - Housing colonies, postal delivery areas, informal settlement names.
-   C. Multiple Locality Components:
+   C. AUSTRALIA ADDRESSES – MANDATORY SUBURB VS CITY RULE (CRITICAL):
+      - In Australia, street addresses almost ALWAYS follow the format [Street], [Suburb] [State] WITHOUT writing the metropolitan city name (Melbourne, Sydney, Brisbane, Perth, Adelaide, etc.).
+      - Every Australian metropolitan or industrial locality before a State (Victoria/VIC, New South Wales/NSW, Queensland/QLD, Western Australia/WA, South Australia/SA, Tasmania/TAS) is a SUBURB, NOT a city and NOT a town!
+      - Therefore, for ANY Australian address:
+        * Mark "city": "Not Available" when the locality is a suburb (e.g. Bayswater, Braeside, Campbellfield, Dandenong South, Derrimut, Epping, Keysborough, Laverton North, Moorabbin, Oakleigh South, Somerton, Sunshine, Thomastown, Tullamarine, Silverwater, Wetherill Park, Smithfield, Ingleburn, Minto, Seven Hills, Malaga, Welshpool, Wangara, Canning Vale, Bibra Lake, Osborne Park, Kewdale, Wingfield, Regency Park, Pooraka, Lonsdale, Acacia Ridge, Archerfield, Brendale, Darra, Eagle Farm, Geebung, Pinkenba, Rocklea, Wacol, Yatala, etc.).
+        * Mark "city": "Available" ONLY if an actual official Australian City / Regional City (e.g., Sydney, Melbourne, Brisbane, Perth, Adelaide, Hobart, Darwin, Canberra, Gold Coast, Newcastle, Wollongong, Geelong, Townsville, Cairns, Toowoomba, Ballarat, Bendigo, Launceston, Albury, Rockhampton, Mackay, Bunbury, Wagga Wagga, Coffs Harbour, Shepparton, Tamworth, Dubbo, etc.) is explicitly written in the address!
+        * Canberra is Australia's national capital -> BOTH "city": "Available" and "state": "Available".
+   D. Multiple Locality Components:
       When an address contains both a suburb and an official city:
       - Do not classify the suburb as the city.
       - Identify the actual official city separately.
