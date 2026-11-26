@@ -6,6 +6,7 @@ const http = require("http");
 
 const GeminiClient = require("../geminiClient.js");
 const { CrawlerQueueManager } = require("../requestQueue.js");
+const CrawlerEngine = require("../crawlerEngine.js");
 
 let passed = 0;
 let failed = 0;
@@ -134,6 +135,93 @@ function httpRequest(port, method, path, headers = {}, body = null) {
     assert.strictEqual(Object.keys(q.completedMap).length, 2);
     assert(!q.completedMap["https://old1.com"], "Oldest entry should be evicted");
     delete global.chrome;
+  });
+
+  await test("CrawlerEngine preserves query-string Contact links, strips tracking params, and extracts JSON-LD metadata", async () => {
+    const html = `
+      <html>
+        <head>
+          <title>Acme Industrial Co., Ltd. - Home</title>
+          <meta property="og:site_name" content="Acme Industrial" />
+          <script type="application/ld+json">
+            {
+              "@type": "Organization",
+              "name": "Acme Industrial Co., Ltd.",
+              "telephone": "+91-9876543210",
+              "address": {
+                "@type": "PostalAddress",
+                "streetAddress": "Plot 42, MIDC",
+                "addressLocality": "Pune",
+                "addressRegion": "Maharashtra",
+                "addressCountry": "India"
+              }
+            }
+          </script>
+        </head>
+        <body>
+          <a href="/index.php?page=contact&utm_source=nav">Contact Us</a>
+          <a href="/capabilities.html">Our Manufacturing Capabilities</a>
+          <a href="/imprint">Imprint</a>
+        </body>
+      </html>
+    `;
+    const links = CrawlerEngine.extractLinks(html, "https://acme.com");
+    const contactLink = links.find(l => l.url === "https://acme.com/index.php?page=contact");
+    const capLink = links.find(l => l.url === "https://acme.com/capabilities.html");
+    const imprintLink = links.find(l => l.url === "https://acme.com/imprint");
+    assert(contactLink && contactLink.category === "contact", "Query-string contact link should be preserved and classified as contact");
+    assert(capLink && capLink.category === "about", "Capabilities link should be classified as about");
+    assert(imprintLink && imprintLink.category === "contact", "Imprint link should be classified as contact");
+
+    const meta = CrawlerEngine.extractStructuredMetadata(html);
+    assert.strictEqual(meta.ogSiteName, "Acme Industrial");
+    assert.strictEqual(meta.jsonLd.length, 1);
+    assert.strictEqual(meta.jsonLd[0].name, "Acme Industrial Co., Ltd.");
+    assert(meta.jsonLd[0].address.includes("Plot 42, MIDC"));
+  });
+
+  await test("CrawlerEngine.crawlAndExtractUrl uses renderTabFallback for empty SPA shells and fetches subpages in parallel", async () => {
+    const spaShellHtml = "<html><body><div id='root'></div><script src='/app.js'></script></body></html>";
+    const renderedSpaHtml = `
+      <html>
+        <head><title>Beta Manufacturing Ltd</title></head>
+        <body>
+          <h1>Beta Manufacturing Ltd</h1>
+          <p>We manufacture precision CNC components and industrial valves in our factory.</p>
+          <a href="/contact">Contact Us</a>
+          <footer>Plot 99, Peenya Industrial Area, Bengaluru, Karnataka, India | Tel: +91-9811122233</footer>
+        </body>
+      </html>
+    `;
+    const contactHtml = "<html><body><h1>Contact</h1><p>Plot 99, Peenya Industrial Area, Bengaluru</p><p>sales@betamfg.com</p></body></html>";
+
+    let activeFetches = 0;
+    let maxConcurrent = 0;
+    const mockFetch = async (url) => {
+      activeFetches++;
+      maxConcurrent = Math.max(maxConcurrent, activeFetches);
+      await new Promise(r => setTimeout(r, 20));
+      activeFetches--;
+      if (url.includes("/contact")) {
+        return { ok: true, status: 200, url, redirected: false, headers: { get: () => null }, text: async () => contactHtml };
+      }
+      return { ok: true, status: 200, url, redirected: false, headers: { get: () => null }, text: async () => spaShellHtml };
+    };
+    mockFetch._isMock = true;
+
+    let fallbackCalled = false;
+    const result = await CrawlerEngine.crawlAndExtractUrl("https://betamfg.com", {
+      fetchFn: mockFetch,
+      crawlDepth: 3,
+      renderTabFallback: async () => {
+        fallbackCalled = true;
+        return renderedSpaHtml;
+      }
+    });
+
+    assert(fallbackCalled, "renderTabFallback should be invoked when static HTML is an empty SPA shell");
+    assert.strictEqual(result.data.websiteStatus, "Working");
+    assert(result.data.companyAddress.includes("Peenya") || result.data.phoneNumber === "9811122233", "Extracted data should reflect rendered SPA + contact page");
   });
 
   // Start proxy server on ephemeral port for HTTP security tests

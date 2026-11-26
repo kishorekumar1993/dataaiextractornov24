@@ -153,13 +153,48 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           console.warn("Gemini API key not configured. Crawling will run in resilient offline heuristic mode.");
         }
 
+        const renderTabFallback = async (url) => {
+          if (!chrome.tabs || !chrome.scripting) return "";
+          let tabId = null;
+          try {
+            const tab = await chrome.tabs.create({ url, active: false });
+            tabId = tab.id;
+            await new Promise((resolve) => {
+              const timer = setTimeout(() => {
+                chrome.tabs.onUpdated.removeListener(onUpdated);
+                resolve();
+              }, 10000);
+              const onUpdated = (id, info) => {
+                if (id === tabId && info.status === "complete") {
+                  clearTimeout(timer);
+                  chrome.tabs.onUpdated.removeListener(onUpdated);
+                  setTimeout(resolve, 800); // allow SPA hydration
+                }
+              };
+              chrome.tabs.onUpdated.addListener(onUpdated);
+            });
+            const [res] = await chrome.scripting.executeScript({
+              target: { tabId },
+              func: () => (document.documentElement ? document.documentElement.outerHTML : "")
+            });
+            return res && res.result ? res.result : "";
+          } catch (_) {
+            return "";
+          } finally {
+            if (tabId !== null) {
+              try { await chrome.tabs.remove(tabId); } catch (_) {}
+            }
+          }
+        };
+
         const result = await CrawlerEngine.crawlAndExtractUrl(request.targetUrl, {
           apiKey,
           primaryModel,
           fallbackModel,
           backendProxyUrl,
           backendProxyToken,
-          crawlDepth
+          crawlDepth,
+          renderTabFallback
         });
 
         if (result && result.data && CrawlerEngine.applyBusinessTypeEligibilityRule) {
@@ -175,7 +210,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
         await queueManager.saveState();
 
-        sendResponse({ success: true, data: result.data, meta: result.meta });
+        sendResponse({
+          success: result.success !== false,
+          data: result.data,
+          meta: { ...(result.meta || {}), qcValidation: result.qcValidation || null }
+        });
       } catch (err) {
         console.error("Portal crawl error in service worker:", err);
         sendResponse({ success: false, error: err.message });

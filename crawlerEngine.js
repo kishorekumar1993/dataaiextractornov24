@@ -1016,6 +1016,56 @@ const CrawlerEngine = (() => {
       .filter(addr => addr.length > 3 && !/^0x[0-9a-f:]+$/i.test(addr) && !/^[a-z]{2}(?:-[a-z]{2,})?$/i.test(addr));
   }
 
+  function extractStructuredMetadata(html) {
+    if (!html) return { jsonLd: [], ogSiteName: "", title: "", logoAlt: "" };
+    const jsonLd = [];
+    const ldRegex = /<script\b[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+    let m;
+    while ((m = ldRegex.exec(html)) !== null) {
+      try {
+        const parsed = JSON.parse(m[1].trim());
+        const nodes = Array.isArray(parsed) ? parsed : (Array.isArray(parsed["@graph"]) ? parsed["@graph"] : [parsed]);
+        for (const node of nodes) {
+          if (!node || typeof node !== "object") continue;
+          const t = String(node["@type"] || "").toLowerCase();
+          if (/(organization|localbusiness|corporation|store|manufacturer|company|place)/.test(t) || node.address || node.telephone || node.legalName) {
+            const addr = node.address;
+            let addrStr = "";
+            if (typeof addr === "string") {
+              addrStr = addr;
+            } else if (addr && typeof addr === "object") {
+              addrStr = [addr.streetAddress, addr.addressLocality, addr.addressRegion, addr.postalCode, addr.addressCountry]
+                .map(v => (typeof v === "object" && v !== null ? v.name : v))
+                .filter(Boolean)
+                .join(", ");
+            }
+            jsonLd.push({
+              type: node["@type"] || "",
+              name: node.legalName || node.name || "",
+              address: addrStr,
+              telephone: node.telephone || (Array.isArray(node.contactPoint) ? node.contactPoint[0]?.telephone : node.contactPoint?.telephone) || "",
+              email: node.email || (Array.isArray(node.contactPoint) ? node.contactPoint[0]?.email : node.contactPoint?.email) || "",
+              description: node.description || ""
+            });
+          }
+        }
+      } catch (_) {}
+    }
+
+    const ogMatch = html.match(/<meta\b[^>]*property=["']og:site_name["'][^>]*content=["']([^"']+)["'][^>]*>/i)
+      || html.match(/<meta\b[^>]*content=["']([^"']+)["'][^>]*property=["']og:site_name["'][^>]*>/i);
+    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    const logoMatch = html.match(/<img\b[^>]*(?:class|id)=["'][^"']*logo[^"']*["'][^>]*\balt=["']([^"']+)["'][^>]*>/i)
+      || html.match(/<img\b[^>]*\balt=["']([^"']*logo[^"']*)["'][^>]*>/i);
+
+    return {
+      jsonLd,
+      ogSiteName: ogMatch ? ogMatch[1].trim() : "",
+      title: titleMatch ? cleanHtmlToText(titleMatch[1]).trim() : "",
+      logoAlt: logoMatch ? logoMatch[1].trim() : ""
+    };
+  }
+
   function extractFooterText(html) {
     if (!html) return "";
     const footerMatch = html.match(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i) ||
@@ -1055,9 +1105,18 @@ const CrawlerEngine = (() => {
         // Compare registered domains so http vs https or www vs non-www are treated as the same site!
         const isSameDomain = areSameRegisteredDomain(resolved.hostname, baseHostname);
         if (isSameDomain && !isAssetFile(resolved.pathname)) {
-          const cleanUrl = resolved.origin + resolved.pathname;
-          const pathLower = resolved.pathname.toLowerCase();
-          const category = classifyLink(cleanUrl, pathLower, rawText);
+          // Preserve meaningful query params (e.g. ?page=contact) while stripping tracking params
+          const cleanParams = new URLSearchParams();
+          resolved.searchParams.forEach((val, key) => {
+            if (!/^(?:utm_\w+|fbclid|gclid|mc_cid|mc_eid|_ga)$/i.test(key)) {
+              cleanParams.append(key, val);
+            }
+          });
+          const queryStr = cleanParams.toString();
+          const normalizedPath = resolved.pathname === "/" ? "/" : resolved.pathname.replace(/\/+$/, "");
+          const cleanUrl = resolved.origin + normalizedPath + (queryStr ? `?${queryStr}` : "");
+          const pathAndQueryLower = (resolved.pathname + (queryStr ? `?${queryStr}` : "")).toLowerCase();
+          const category = classifyLink(cleanUrl, pathAndQueryLower, rawText);
 
           if (!links.has(cleanUrl)) {
             links.set(cleanUrl, {
@@ -1077,13 +1136,13 @@ const CrawlerEngine = (() => {
     if (pathname === "/" || pathname === "" || text === "home") {
       return "home";
     }
-    if (/about|company|profile|who-we-are|introduction|overview|history/i.test(pathname) ||
-      /about|company|profile|who we are|our story/i.test(text)) {
-      return "about";
-    }
-    if (/contact|contact-us|reach-us|get-in-touch|support|feedback|location/i.test(pathname) ||
-      /contact|reach us|touch with us/i.test(text)) {
+    if (/contact|contact-us|reach-us|get-in-touch|support|feedback|location|imprint|impressum|headquarters|offices|branches|find-us|where-to-buy/i.test(pathname) ||
+      /contact|reach us|touch with us|find us|our offices|headquarters|imprint|impressum/i.test(text)) {
       return "contact";
+    }
+    if (/about|company|profile|who-we-are|introduction|overview|history|factory|plant|manufacturing|infrastructure|facilities|capabilities|machinery|production|workshop/i.test(pathname) ||
+      /about|company|profile|who we are|our story|factory|manufacturing|infrastructure|capabilities|facilities/i.test(text)) {
+      return "about";
     }
     if (/product|products|item|items|catalog|catalogue|goods|collection|services|solutions|portfolio/i.test(pathname) ||
       /product|item|catalog|our products|services/i.test(text)) {
@@ -1683,6 +1742,25 @@ CRAWLED PAGES TEXT CONTENT:
 ${context.crawledText}`;
   }
 
+  async function fetchWithTimeout(fetchFn, url, timeoutMs = 12000) {
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    let timer = null;
+    try {
+      const fetchPromise = controller && !fetchFn._isMock
+        ? fetchFn(url, { signal: controller.signal }).catch(() => fetchFn(url))
+        : fetchFn(url);
+      const timeoutPromise = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+          if (controller) controller.abort();
+          reject(new Error(`Subpage fetch timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+      });
+      return await Promise.race([fetchPromise, timeoutPromise]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   // Orchestrates full crawl of target URL
   async function crawlAndExtractUrl(targetUrl, options = {}) {
     const fetchFn = options.fetchFn || (typeof fetch !== "undefined" ? fetch : null);
@@ -1737,32 +1815,63 @@ ${context.crawledText}`;
 
     let mainHtml = statusResult.finalHtml;
     if (!mainHtml) {
-      const mainResp = await fetchFn(cleanUrl);
+      const mainResp = await fetchWithTimeout(fetchFn, cleanUrl, options.subpageTimeoutMs || 15000);
       if (!mainResp.ok) {
         throw new Error(`Failed to fetch ${cleanUrl}: HTTP ${mainResp.status}`);
       }
       mainHtml = await mainResp.text();
     }
-    const mainText = cleanHtmlToText(mainHtml);
+    let mainText = cleanHtmlToText(mainHtml);
+
+    // SPA / JS-rendered fallback: if static HTML yielded almost no visible text, try browser tab rendering if provided
+    if (mainText.length < 250 && typeof options.renderTabFallback === "function") {
+      try {
+        const renderedHtml = await options.renderTabFallback(cleanUrl);
+        if (renderedHtml && cleanHtmlToText(renderedHtml).length > mainText.length) {
+          mainHtml = renderedHtml;
+          mainText = cleanHtmlToText(mainHtml);
+        }
+      } catch (spaErr) {
+        console.warn("[CrawlerEngine] SPA render fallback failed:", spaErr.message);
+      }
+    }
+
     const mainLinks = extractLinks(mainHtml, origin);
     const mainContacts = extractContactsAndProducts(mainText, mainHtml);
 
-    // 3. Select priority subpages to crawl
+    // 3. Select priority subpages to crawl (with fallback probes if nav links are missing/JS-only)
     const maxPages = options.crawlDepth || 5;
-    const priorityLinks = selectPriorityPages(mainLinks, cleanUrl, maxPages);
+    const candidateLinks = [...mainLinks];
+    if (!candidateLinks.some(l => l.category === "contact")) {
+      candidateLinks.push(
+        { url: `${origin}/contact`, text: "contact", category: "contact" },
+        { url: `${origin}/contact-us`, text: "contact us", category: "contact" }
+      );
+    }
+    if (!candidateLinks.some(l => l.category === "about")) {
+      candidateLinks.push(
+        { url: `${origin}/about`, text: "about", category: "about" },
+        { url: `${origin}/about-us`, text: "about us", category: "about" }
+      );
+    }
+    const priorityLinks = selectPriorityPages(candidateLinks, cleanUrl, maxPages);
 
-    // 4. Fetch subpages
+    // 4. Fetch subpages in parallel batches (concurrency = 3) with per-request timeout
     const crawledPages = [];
     let totalProducts = mainContacts.productCount;
     let totalImages = mainContacts.imgCount;
     let totalDescriptions = mainContacts.descCount;
     const allEmails = new Set(mainContacts.emails);
     const allPhones = new Set(mainContacts.phones);
+    const subpageTimeoutMs = options.subpageTimeoutMs || 12000;
+    const SUBPAGE_CONCURRENCY = 3;
 
-    for (const link of priorityLinks) {
-      try {
-        const resp = await fetchFn(link.url);
-        if (resp.ok) {
+    for (let i = 0; i < priorityLinks.length; i += SUBPAGE_CONCURRENCY) {
+      const batch = priorityLinks.slice(i, i + SUBPAGE_CONCURRENCY);
+      const batchResults = await Promise.all(batch.map(async (link) => {
+        try {
+          const resp = await fetchWithTimeout(fetchFn, link.url, subpageTimeoutMs);
+          if (!resp || !resp.ok) return null;
           const subHtml = await resp.text();
           const subText = cleanHtmlToText(subHtml);
           let subMapAddresses = extractMapAddresses(subHtml);
@@ -1771,34 +1880,62 @@ ${context.crawledText}`;
             if (embedAddrs.length > 0) subMapAddresses = Array.from(new Set([...subMapAddresses, ...embedAddrs]));
           }
           const subFooter = extractFooterText(subHtml);
-          crawledPages.push({
-            url: link.url,
-            category: link.category,
-            sourceType: link.category === "contact" ? "CONTACT_PAGE" : link.category.toUpperCase(),
-            textSnippet: subText.slice(0, link.category === "contact" ? 12000 : 5000),
-            html: subHtml,
-            mapAddresses: subMapAddresses,
-            footerText: subFooter
-          });
-
           const subContacts = extractContactsAndProducts(subText, subHtml);
-          subContacts.emails.forEach(e => allEmails.add(e));
-          subContacts.phones.forEach(p => allPhones.add(p));
-          totalProducts = Math.max(totalProducts, subContacts.productCount);
-          totalImages = Math.max(totalImages, subContacts.imgCount);
-          totalDescriptions = Math.max(totalDescriptions, subContacts.descCount);
+          return {
+            page: {
+              url: link.url,
+              category: link.category,
+              sourceType: link.category === "contact" ? "CONTACT_PAGE" : link.category.toUpperCase(),
+              textSnippet: subText.slice(0, link.category === "contact" ? 12000 : 5000),
+              html: subHtml,
+              mapAddresses: subMapAddresses,
+              footerText: subFooter
+            },
+            subContacts
+          };
+        } catch (err) {
+          return null;
         }
-      } catch (err) {
-        // Continue if one subpage fails
+      }));
+
+      for (const res of batchResults) {
+        if (!res) continue;
+        crawledPages.push(res.page);
+        res.subContacts.emails.forEach(e => allEmails.add(e));
+        res.subContacts.phones.forEach(p => allPhones.add(p));
+        totalProducts = Math.max(totalProducts, res.subContacts.productCount);
+        totalImages = Math.max(totalImages, res.subContacts.imgCount);
+        totalDescriptions = Math.max(totalDescriptions, res.subContacts.descCount);
       }
     }
 
-    // 5. Build text compilation with Contact (Primary), Footer (Secondary), and Map (Verification) tags
-    const mainMapAddresses = extractMapAddresses(mainHtml);
+    // 5. Build text compilation with Metadata, Contact (Primary), Footer (Secondary), and Map (Verification) tags
+    const mainMeta = extractStructuredMetadata(mainHtml);
+    const mainFooter = extractFooterText(mainHtml);
+    let mainMapAddresses = extractMapAddresses(mainHtml);
+    try {
+      const mainEmbedAddrs = await resolveMapEmbedAddress(mainHtml, fetchFn);
+      if (mainEmbedAddrs.length > 0) {
+        mainMapAddresses = Array.from(new Set([...mainMapAddresses, ...mainEmbedAddrs]));
+      }
+    } catch (_) {}
+
     let pagesText = `MAIN / INITIAL PAGE (${cleanUrl}):\n`;
+    if (mainMeta.title || mainMeta.ogSiteName || mainMeta.logoAlt || mainMeta.jsonLd.length > 0) {
+      pagesText += `--- STRUCTURED METADATA (SCHEMA / META) ---\n`;
+      if (mainMeta.title) pagesText += `Page Title: ${mainMeta.title}\n`;
+      if (mainMeta.ogSiteName) pagesText += `Site Name (og:site_name): ${mainMeta.ogSiteName}\n`;
+      if (mainMeta.logoAlt) pagesText += `Logo Alt: ${mainMeta.logoAlt}\n`;
+      if (mainMeta.jsonLd.length > 0) {
+        pagesText += `JSON-LD Organization/Business: ${JSON.stringify(mainMeta.jsonLd)}\n`;
+      }
+    }
     pagesText += `Content:\n${mainText.slice(0, 8000)}\n`;
     if (mainMapAddresses.length > 0) {
       pagesText += `\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: ${mainMapAddresses.join(" | ")}\n`;
+    }
+    if (mainFooter && mainFooter.length > 10) {
+      pagesText += `\n--- FOOTER (SECONDARY SOURCE) ---\n${mainFooter}\n`;
     }
     pagesText += "\n";
 
@@ -2068,6 +2205,7 @@ ${context.crawledText}`;
     extractContactsAndProducts,
     extractMapAddresses,
     extractFooterText,
+    extractStructuredMetadata,
     buildSystemInstruction,
     buildUserPrompt,
     normalizeAddress: (raw) => (AddressNormalizer && AddressNormalizer.normalizeAddress ? AddressNormalizer.normalizeAddress(raw) : raw),

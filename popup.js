@@ -686,251 +686,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateProgress(5, "Scanning page DOM...", "Extracting base page content and discovery tree...");
 
     try {
-      // Step 0: Pipeline Protection & Status Verification
+      // Delegate full crawl & AI extraction to background service worker so closing popup does not abort it
       let activeCrawlUrl = isPortalDetected ? portalTargetUrl : (currentTab ? currentTab.url : "");
       if (!/^https?:\/\//i.test(activeCrawlUrl)) {
         activeCrawlUrl = "http://" + activeCrawlUrl;
       }
 
-      updateProgress(8, "Verifying Website Status & Redirects...", activeCrawlUrl);
-      const statusResult = await CrawlerEngine.detectRedirectAndClassifyStatus(activeCrawlUrl);
-
-      if (statusResult.websiteStatus !== "Working") {
-        updateProgress(100, `Pipeline Stopped: ${statusResult.websiteStatus}`, statusResult.nonWorkingReason);
-        const nonWorkingData = {
-          websiteStatus: statusResult.websiteStatus,
-          notWorkingReason: statusResult.nonWorkingReason,
-          websiteName: activeCrawlUrl,
-          businessType: "Not Available",
-          companyProfile: "Not Available",
-          companyName: "Not Available",
-          countryName: "Not Available",
-          companyAddress: "Not Available",
-          state: "Not Available",
-          city: "Not Available",
-          emailId: "Not Available",
-          secondaryEmailId: "Not Available",
-          phoneNumber: "Not Available",
-          numberOfProducts: "Not Available",
-          productImages: "Not Available",
-          numberOfProductDescriptions: "Not Available"
-        };
-        lastExtractedResult = nonWorkingData;
-        renderResults(nonWorkingData, {
-          qcValidation: statusResult,
-          modelUsed: "Pipeline Protection (AI Skipped)",
-          isFallback: false
+      updateProgress(20, "Crawling & Analyzing in Background...", activeCrawlUrl);
+      const bgResult = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({
+          action: "crawlAndExtractForPortal",
+          targetUrl: activeCrawlUrl
+        }, (res) => {
+          if (chrome.runtime && chrome.runtime.lastError) {
+            return reject(new Error(chrome.runtime.lastError.message));
+          }
+          resolve(res);
         });
-
-        if (isPortalDetected && currentTab) {
-          chrome.tabs.sendMessage(currentTab.id, {
-            action: "autofillPortalForm",
-            data: nonWorkingData,
-            meta: { qcValidation: statusResult }
-          });
-        }
-
-        startCrawlBtn.disabled = false;
-        startCrawlBtnText.textContent = isPortalDetected ? "⚡ Crawl Target & Autofill Portal" : "Start Crawl & Analyze";
-        return;
-      }
-
-      // Final verified working URL
-      activeCrawlUrl = statusResult.finalUrl;
-
-      // Step 1: Ensure initial page data
-      let baseData = initialPageData;
-      let targetMainHtml = statusResult.finalHtml || "";
-
-      if (isPortalDetected) {
-        updateProgress(10, "Fetching Target Site...", activeCrawlUrl);
-        const urlObj = new URL(activeCrawlUrl);
-        const mainResp = await fetchAndParseSubpage(activeCrawlUrl);
-        let internalLinks = [];
-        try {
-          const rawHtml = targetMainHtml || await fetchRawHtml(activeCrawlUrl);
-          if (rawHtml) {
-            targetMainHtml = rawHtml;
-            internalLinks = CrawlerEngine.extractLinks(rawHtml, urlObj.origin);
-          }
-        } catch (e) { }
-
-        baseData = {
-          url: activeCrawlUrl,
-          origin: urlObj.origin,
-          hostname: urlObj.hostname,
-          title: mainResp ? mainResp.title : urlObj.hostname,
-          cleanText: mainResp ? mainResp.textSnippet : "",
-          internalLinks: internalLinks,
-          detectedEmails: mainResp ? mainResp.emails : [],
-          detectedPhones: mainResp ? mainResp.phones : [],
-          productData: {
-            numberOfProducts: mainResp ? mainResp.productCount : 0,
-            productImages: mainResp ? mainResp.imgCount : 0,
-            numberOfProductDescriptions: mainResp ? mainResp.descCount : 0
-          }
-        };
-        updatePills(baseData.internalLinks);
-      } else if (!baseData) {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        const res = await new Promise(resolve => {
-          chrome.tabs.sendMessage(tab.id, { action: "extractCurrentPageData" }, resolve);
-        });
-        if (res && res.success) {
-          baseData = res.data;
-          initialPageData = baseData;
-        } else {
-          baseData = {
-            url: tab.url,
-            origin: new URL(tab.url).origin,
-            hostname: new URL(tab.url).hostname,
-            title: tab.title || "",
-            cleanText: "Unable to inspect DOM directly. Fetching URL content.",
-            internalLinks: [],
-            detectedEmails: [],
-            detectedPhones: [],
-            productData: { numberOfProducts: 0, productImages: 0, numberOfProductDescriptions: 0 }
-          };
-        }
-      }
-
-      updateProgress(15, "Selecting priority pages...", `Found ${baseData.internalLinks.length} internal links.`);
-
-      // Step 2: Choose priority pages to crawl
-      const maxPages = parseInt(crawlDepthSelect.value, 10) || 5;
-      const targetUrls = selectPriorityPages(baseData, maxPages);
-
-      updateProgress(25, "Crawling subpages...", `Queueing ${targetUrls.length} key pages.`);
-
-      // Step 3: Fetch & parse subpages
-      const crawledPages = [];
-      let totalProductsCount = baseData.productData?.numberOfProducts || 0;
-      let totalProductImages = baseData.productData?.productImages || 0;
-      let totalDescriptions = baseData.productData?.numberOfProductDescriptions || 0;
-      const allEmails = new Set(baseData.detectedEmails || []);
-      const allPhones = new Set(baseData.detectedPhones || []);
-
-      const stepIncrement = 45 / Math.max(targetUrls.length, 1);
-      let currentProgress = 25;
-
-      for (let i = 0; i < targetUrls.length; i++) {
-        const item = targetUrls[i];
-        currentProgress += stepIncrement;
-        updateProgress(
-          Math.min(70, Math.round(currentProgress)),
-          `Crawling: ${item.category.toUpperCase()} (${i + 1}/${targetUrls.length})`,
-          item.url
-        );
-
-        try {
-          const pageResult = await fetchAndParseSubpage(item.url);
-          if (pageResult) {
-            crawledPages.push({
-              url: item.url,
-              category: item.category,
-              title: pageResult.title,
-              textSnippet: pageResult.textSnippet,
-              html: pageResult.html || "",
-
-              // Preserve separately extracted address sources
-              mapAddresses: pageResult.mapAddresses || [],
-              footerText: pageResult.footerText || "",
-              sourceType: item.category === "contact"
-                ? "CONTACT_PAGE"
-                : item.category.toUpperCase()
-            });
-
-            // Merge detected contacts & products
-            pageResult.emails.forEach(e => allEmails.add(e));
-            pageResult.phones.forEach(p => allPhones.add(p));
-            totalProductsCount = Math.max(totalProductsCount, pageResult.productCount);
-            totalProductImages = Math.max(totalProductImages, pageResult.imgCount);
-            totalDescriptions = Math.max(totalDescriptions, pageResult.descCount);
-          }
-        } catch (crawlErr) {
-          console.warn(`Failed to crawl ${item.url}:`, crawlErr);
-        }
-      }
-
-      // Step 4: Compile context for Gemini
-      updateProgress(75, "Compiling knowledge...", "Preparing structured context for Gemini AI...");
-      const aggregatedContext = buildContextPrompt(
-        baseData,
-        crawledPages,
-        Array.from(allEmails),
-        Array.from(allPhones),
-        {
-          products: totalProductsCount,
-          images: totalProductImages,
-          descriptions: totalDescriptions
-        }
-      );
-
-      const systemInstruction = buildSystemInstruction();
-      const userPrompt = buildUserPrompt(aggregatedContext);
-
-      // Step 5: Send to Gemini API with robust retries, jitter, and model fallback
-      updateProgress(85, "Analyzing with Gemini AI...", `Running model ${geminiModel}...`);
-
-      const extractionResult = await GeminiClient.callGeminiWithRetryAndFallback({
-        context: aggregatedContext,
-        userPrompt: userPrompt,
-        systemInstruction: systemInstruction,
-        apiKey: apiKey,
-        primaryModel: geminiModel,
-        fallbackModel: fallbackModel,
-        backendProxyUrl: backendProxyUrl,
-        backendProxyToken: backendProxyToken,
-        onProgress: (p) => {
-          if (p.status === "retrying" || p.status === "backed_off" || p.status === "network_retry") {
-            updateProgress(88, "Retrying AI Request...", p.message);
-          } else if (p.status === "fallback") {
-            updateProgress(90, "Fallback Model Engaged", p.message);
-          } else if (p.message) {
-            progressLog.textContent = p.message;
-          }
-        }
       });
 
+      if (!bgResult || (!bgResult.success && !bgResult.data)) {
+        throw new Error((bgResult && bgResult.error) || "Background crawl & extraction failed");
+      }
+
+      const extractionResult = {
+        data: bgResult.data,
+        meta: bgResult.meta || {}
+      };
       let extractedJson = extractionResult.data;
-      if (extractedJson) {
-        const currentPhone = extractedJson.phoneNumber;
-        const sanitizedPhone = (typeof GeminiClient !== "undefined" && GeminiClient.sanitizePhoneNumber)
-          ? GeminiClient.sanitizePhoneNumber(currentPhone, extractedJson.countryName)
-          : currentPhone;
-        if (!sanitizedPhone || currentPhone === "Not Available") {
-          if (aggregatedContext && Array.isArray(aggregatedContext.detectedPhones)) {
-            for (const rawCandidate of aggregatedContext.detectedPhones) {
-              const sanitized = typeof GeminiClient !== "undefined" && GeminiClient.sanitizePhoneNumber
-                ? GeminiClient.sanitizePhoneNumber(rawCandidate, extractedJson.countryName)
-                : "";
-              if (sanitized && sanitized.length >= 7 && sanitized.length <= 15) {
-                extractedJson.phoneNumber = sanitized;
-                break;
-              }
-            }
-          }
-        } else {
-          extractedJson.phoneNumber = sanitizedPhone;
-        }
-        if (extractedJson.countryName && extractedJson.countryName !== "Not Available") {
-          if (typeof GeminiClient !== "undefined" && GeminiClient.normalizeCountryName) {
-            extractedJson.countryName = GeminiClient.normalizeCountryName(extractedJson.countryName);
-          }
-        }
-        if (extractedJson.companyName && typeof CompanyNormalizer !== "undefined" && CompanyNormalizer.normalizeCompanyName) {
-          extractedJson.companyName = CompanyNormalizer.normalizeCompanyName(extractedJson.companyName);
-        } else if (extractedJson.companyName) {
-          extractedJson.companyName = extractedJson.companyName.trim();
-        }
-        if (extractedJson.companyAddress) {
-          extractedJson.companyAddress = extractedJson.companyAddress.trim();
-        }
-      }
-      if (typeof CrawlerEngine !== "undefined" && CrawlerEngine.applyBusinessTypeEligibilityRule) {
-        const htmlForEligibility = isPortalDetected ? targetMainHtml : (targetMainHtml || initialPageData?.htmlSnippet || "");
-        extractedJson = CrawlerEngine.applyBusinessTypeEligibilityRule(extractedJson, htmlForEligibility, crawledPages);
-      }
 
       // If Not Working, mark Not Working and empty all other items
       if (String(extractedJson.websiteStatus || "").trim().toLowerCase() === "not working") {
@@ -950,22 +733,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         extractedJson.numberOfProductDescriptions = "";
       }
 
-      if (statusResult) {
-        statusResult.websiteStatus = extractedJson.websiteStatus;
-        if (extractedJson.notWorkingReason) {
-          statusResult.nonWorkingReason = extractedJson.notWorkingReason;
-        }
-        extractionResult.meta.qcValidation = statusResult;
-      }
-
-      // Save to queue completed map so it persists
-      const cleanKey = currentTab.url.toLowerCase();
-      queueManager.completedMap[cleanKey] = {
-        data: extractedJson,
-        meta: extractionResult.meta,
-        completedAt: new Date().toISOString()
-      };
-      await queueManager.saveState();
+      await queueManager.init();
       updateQueueUI();
 
       // Step 6: Autofill if on Portal Form, then render results
