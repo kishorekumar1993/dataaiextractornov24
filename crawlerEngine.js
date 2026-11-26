@@ -1965,7 +1965,8 @@ ${context.crawledText}`;
         primaryModel: options.primaryModel || "gemini-3.5-flash-lite",
         fallbackModel: options.fallbackModel || "gemini-3.1-flash-lite",
         backendProxyUrl: options.backendProxyUrl || "",
-        fetchFn: fetchFn
+        backendProxyToken: options.backendProxyToken || "",
+        fetchImpl: fetchFn
       });
     } catch (aiErr) {
       console.warn("[CrawlerEngine] AI extraction error or unavailable, using heuristic fallback:", aiErr.message);

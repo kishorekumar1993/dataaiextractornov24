@@ -10,43 +10,58 @@ chrome.runtime.onInstalled.addListener(async () => {
   console.log("Site Intelligence Crawler Extension installed / updated.");
 
   // Set default settings if not already present
-  chrome.storage.local.get(["geminiModel", "fallbackModel", "crawlDepth", "concurrency", "interRequestDelayMs"], (res) => {
-    const updates = {};
-    if (!res.geminiModel) {
-      updates.geminiModel = "gemini-3.5-flash-lite";
-    }
-    if (!res.fallbackModel) {
-      updates.fallbackModel = "gemini-3.1-flash-lite";
-    }
-    if (!res.crawlDepth) {
-      updates.crawlDepth = 5;
-    }
-    if (!res.concurrency) {
-      updates.concurrency = 1;
-    }
-    if (!res.interRequestDelayMs) {
-      updates.interRequestDelayMs = 1000;
-    }
-    if (Object.keys(updates).length > 0) {
-      chrome.storage.local.set(updates);
-    }
-  });
+  const res = await chrome.storage.local.get(["geminiModel", "fallbackModel", "crawlDepth", "concurrency", "interRequestDelayMs"]);
+  const updates = {};
+  if (!res.geminiModel) {
+    updates.geminiModel = "gemini-3.5-flash-lite";
+  }
+  if (!res.fallbackModel) {
+    updates.fallbackModel = "gemini-3.1-flash-lite";
+  }
+  if (!res.crawlDepth) {
+    updates.crawlDepth = 5;
+  }
+  if (!res.concurrency) {
+    updates.concurrency = 1;
+  }
+  if (!res.interRequestDelayMs) {
+    updates.interRequestDelayMs = 1000;
+  }
+  if (Object.keys(updates).length > 0) {
+    await chrome.storage.local.set(updates);
+  }
 
-  await queueManager.init();
+  await queueReady;
 });
 
-// Initialize queue when service worker wakes up
-queueManager.init().catch(err => console.warn("Queue init error:", err));
+// Initialize queue once when service worker wakes up
+const queueReady = queueManager.init().catch(err => console.warn("Queue init error:", err));
 
 // Listener for subpage fetch requests and queue management
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   // 1. Fetch subpage
   if (request.action === "fetchUrl") {
-    fetch(request.url, {
+    let parsedUrl;
+    try {
+      parsedUrl = new URL(request.url);
+    } catch (_) {
+      sendResponse({ success: false, error: "Invalid URL" });
+      return false;
+    }
+    if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+      sendResponse({ success: false, error: `Unsupported protocol: ${parsedUrl.protocol}` });
+      return false;
+    }
+
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 20000) : null;
+
+    fetch(parsedUrl.href, {
       method: "GET",
       headers: {
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
-      }
+      },
+      signal: controller ? controller.signal : undefined
     })
       .then(async (response) => {
         if (!response.ok) {
@@ -62,7 +77,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
       })
       .catch((error) => {
-        sendResponse({ success: false, error: error.message });
+        sendResponse({ success: false, error: error.name === "AbortError" ? "Fetch timed out after 20s" : error.message });
+      })
+      .finally(() => {
+        if (timeoutId) clearTimeout(timeoutId);
       });
     return true; // Keep message channel open
   }
@@ -77,7 +95,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // 2. Queue Enqueue
   if (request.action === "enqueueCrawlerTask") {
-    queueManager.enqueue(request.task)
+    queueReady
+      .then(() => queueManager.enqueue(request.task))
       .then(result => sendResponse({ success: true, ...result }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
@@ -85,13 +104,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   // 3. Queue Status
   if (request.action === "getQueueStatus") {
-    sendResponse({ success: true, status: queueManager.getStatus() });
-    return false;
+    queueReady
+      .then(() => sendResponse({ success: true, status: queueManager.getStatus() }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true;
   }
 
   // 4. Retry Failed
   if (request.action === "retryFailedTasks") {
-    queueManager.retryAllFailed()
+    queueReady
+      .then(() => queueManager.retryAllFailed())
       .then(count => sendResponse({ success: true, retriedCount: count }))
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true;
@@ -109,11 +131,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === "crawlAndExtractForPortal") {
     (async () => {
       try {
+        await queueReady;
         const stored = await chrome.storage.local.get([
           "geminiApiKey",
           "geminiModel",
           "fallbackModel",
           "backendProxyUrl",
+          "backendProxyToken",
           "crawlDepth"
         ]);
 
@@ -121,6 +145,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         const primaryModel = stored.geminiModel || "gemini-3.5-flash-lite";
         const fallbackModel = stored.fallbackModel || "gemini-3.1-flash-lite";
         const backendProxyUrl = stored.backendProxyUrl || "";
+        const backendProxyToken = stored.backendProxyToken || "";
         const crawlDepth = parseInt(stored.crawlDepth, 10) || 5;
 
         // If API key is not configured, CrawlerEngine runs in resilient offline heuristic extraction mode
@@ -133,6 +158,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           primaryModel,
           fallbackModel,
           backendProxyUrl,
+          backendProxyToken,
           crawlDepth
         });
 
@@ -140,13 +166,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           result.data = CrawlerEngine.applyBusinessTypeEligibilityRule(result.data);
         }
 
-        // Cache completed result
+        // Cache completed result (bounded)
         const cleanKey = request.targetUrl.toLowerCase().split("#")[0].split("?")[0].replace(/\/$/, "");
-        queueManager.completedMap[cleanKey] = {
+        queueManager.recordCompleted(cleanKey, {
           data: result.data,
           meta: result.meta,
           completedAt: new Date().toISOString()
-        };
+        });
         await queueManager.saveState();
 
         sendResponse({ success: true, data: result.data, meta: result.meta });

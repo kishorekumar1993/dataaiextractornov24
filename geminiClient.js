@@ -86,6 +86,7 @@
       primaryModel = "gemini-3.5-flash-lite",
       fallbackModel = "gemini-3.1-flash-lite",
       backendProxyUrl = "",
+      backendProxyToken = "",
       onProgress = () => { },
       maxRetries = 4, // 1 initial + 4 retries = 5 attempts per model
       baseDelayMs = 1500,
@@ -111,6 +112,7 @@
       if (backendProxyUrl && backendProxyUrl.trim() !== "") {
         return await callBackendProxy({
           backendProxyUrl,
+          backendProxyToken,
           context,
           userPrompt,
           systemInstruction,
@@ -249,9 +251,8 @@
           }
         };
 
-        // Send key via both URL parameter and x-goog-api-key header for maximum reliability
-        const keyParam = apiKey ? `?key=${encodeURIComponent(apiKey)}` : "";
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent${keyParam}`;
+        // Authenticate using x-goog-api-key header (avoid leaking API key in URL query string)
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent`;
 
         abortController = typeof AbortController !== "undefined" ? new AbortController() : null;
         if (abortController) {
@@ -424,6 +425,7 @@
   async function callBackendProxy(opts) {
     const {
       backendProxyUrl,
+      backendProxyToken = "",
       context,
       userPrompt,
       systemInstruction,
@@ -443,9 +445,13 @@
     }
 
     try {
+      const proxyHeaders = { "Content-Type": "application/json" };
+      if (backendProxyToken && backendProxyToken.trim() !== "") {
+        proxyHeaders["x-api-key"] = backendProxyToken.trim();
+      }
       const response = await fetchImpl(backendProxyUrl, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: proxyHeaders,
         body: JSON.stringify({
           context,
           userPrompt,
@@ -469,7 +475,7 @@
       }
 
       // Re-validate data locally as QC guarantee
-      const validated = validateExtractedJson(proxyResult.data, options.context);
+      const validated = validateExtractedJson(proxyResult.data, context);
 
       return {
         data: validated,
@@ -747,6 +753,8 @@
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  let logWriteChain = Promise.resolve();
+
   function logStructuredEvent(eventData) {
     const timestamp = new Date().toISOString();
     const logEntry = { timestamp, ...eventData };
@@ -754,17 +762,20 @@
     // Format safe log without exposing secrets
     console.log(`[SiteIntelligence AI Log] [${eventData.event}]`, JSON.stringify(logEntry));
 
-    // Persist to chrome.storage.local log buffer if available
+    // Persist to chrome.storage.local log buffer serialized to avoid read-modify-write races
     if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
-      try {
-        chrome.storage.local.get(["ai_structured_logs"], (res) => {
-          const logs = res.ai_structured_logs || [];
-          logs.push(logEntry);
-          // Keep last 100 entries to prevent memory growth
-          if (logs.length > 100) logs.shift();
-          chrome.storage.local.set({ ai_structured_logs: logs });
-        });
-      } catch (_) { }
+      logWriteChain = logWriteChain.then(() => new Promise((resolve) => {
+        try {
+          chrome.storage.local.get(["ai_structured_logs"], (res) => {
+            const logs = (res && res.ai_structured_logs) || [];
+            logs.push(logEntry);
+            if (logs.length > 100) logs.shift();
+            chrome.storage.local.set({ ai_structured_logs: logs }, () => resolve());
+          });
+        } catch (_) {
+          resolve();
+        }
+      }));
     }
   }
 

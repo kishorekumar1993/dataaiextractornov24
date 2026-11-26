@@ -1283,10 +1283,12 @@
       });
     }
 
-    // Listen to input changes on Website Name field to update widget live
+    // Listen to input changes on Website Name field to update widget live (deduplicated per element)
+    const attachedSyncElements = typeof WeakSet !== "undefined" ? new WeakSet() : null;
     const attachSync = () => {
       const websiteEl = findWebsiteInputElement();
-      if (websiteEl) {
+      if (websiteEl && (!attachedSyncElements || !attachedSyncElements.has(websiteEl))) {
+        if (attachedSyncElements) attachedSyncElements.add(websiteEl);
         const syncTarget = () => {
           const val = getElementValue(websiteEl);
           if (isValidUrlOrDomain(val)) {
@@ -1976,14 +1978,33 @@
       }
     });
 
-    const clone = rootNode.cloneNode(true);
-
-    const dropTags = ["script", "style", "noscript", "svg", "canvas", "iframe", "template", "nav"];
-    dropTags.forEach(tag => {
-      clone.querySelectorAll(tag).forEach(el => el.remove());
-    });
-
-    let text = clone.innerText || clone.textContent || "";
+    const dropTags = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "SVG", "CANVAS", "IFRAME", "TEMPLATE", "NAV"]);
+    const blockTags = new Set(["P", "DIV", "SECTION", "ARTICLE", "HEADER", "FOOTER", "LI", "TR", "TD", "TH", "H1", "H2", "H3", "H4", "H5", "H6", "BR", "HR"]);
+    const parts = [];
+    const walk = (node) => {
+      if (!node) return;
+      if (node.nodeType === 3) {
+        const t = node.nodeValue;
+        if (t && t.trim()) parts.push(t.trim());
+        return;
+      }
+      if (node.nodeType !== 1) return;
+      if (dropTags.has(node.tagName)) return;
+      try {
+        if (typeof window !== "undefined" && typeof window.getComputedStyle === "function" && node.ownerDocument && node.ownerDocument.defaultView) {
+          const st = window.getComputedStyle(node);
+          if (st && (st.display === "none" || st.visibility === "hidden")) return;
+        }
+      } catch (_) {}
+      const isBlock = blockTags.has(node.tagName);
+      if (isBlock) parts.push("\n");
+      for (let child = node.firstChild; child; child = child.nextSibling) {
+        walk(child);
+      }
+      if (isBlock) parts.push("\n");
+    };
+    walk(rootNode);
+    let text = parts.join(" ");
     // If there is an explicit footer, ensure its content is preserved
     const footerEl = rootNode.querySelector("footer, [class*='footer' i], [id*='footer' i]");
     if (footerEl) {

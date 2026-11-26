@@ -39,18 +39,41 @@ loadEnv();
 const GeminiClient = require("../geminiClient.js");
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
+const HOST = process.env.HOST || "127.0.0.1";
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const PROXY_AUTH_TOKEN = process.env.PROXY_AUTH_TOKEN || "";
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "";
 const DEFAULT_PRIMARY = process.env.PRIMARY_MODEL || "gemini-3.5-flash-lite";
 const DEFAULT_FALLBACK = process.env.FALLBACK_MODEL || "gemini-3.1-flash-lite";
+const MAX_BODY_BYTES = 2 * 1024 * 1024; // 2 MB request limit
 
-function setCorsHeaders(res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
+function setCorsHeaders(req, res) {
+  const origin = req.headers.origin || "";
+  if (
+    origin.startsWith("chrome-extension://") ||
+    origin === "http://localhost" ||
+    origin.startsWith("http://localhost:") ||
+    origin === "http://127.0.0.1" ||
+    origin.startsWith("http://127.0.0.1:") ||
+    (ALLOWED_ORIGIN && origin === ALLOWED_ORIGIN)
+  ) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+  }
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-api-key");
 }
 
+function isAuthorized(req) {
+  if (!PROXY_AUTH_TOKEN) return true;
+  const apiKeyHeader = req.headers["x-api-key"];
+  const authHeader = req.headers["authorization"] || "";
+  const bearerToken = authHeader.startsWith("Bearer ") ? authHeader.slice(7).trim() : "";
+  return apiKeyHeader === PROXY_AUTH_TOKEN || bearerToken === PROXY_AUTH_TOKEN;
+}
+
 const server = http.createServer(async (req, res) => {
-  setCorsHeaders(res);
+  setCorsHeaders(req, res);
 
   // Handle preflight
   if (req.method === "OPTIONS") {
@@ -59,7 +82,15 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  let url;
+  try {
+    const hostHeader = req.headers.host || `${HOST}:${PORT}`;
+    url = new URL(req.url, `http://${hostHeader}`);
+  } catch (_) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ success: false, error: "Malformed request URL." }));
+    return;
+  }
 
   // Health endpoint
   if (req.method === "GET" && url.pathname === "/api/health") {
@@ -76,10 +107,42 @@ const server = http.createServer(async (req, res) => {
 
   // Analyze endpoint
   if (req.method === "POST" && url.pathname === "/api/analyze") {
-    let bodyText = "";
-    req.on("data", chunk => { bodyText += chunk; });
+    if (!isAuthorized(req)) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ success: false, error: "Unauthorized" }));
+      return;
+    }
+
+    const chunks = [];
+    let totalBytes = 0;
+    let aborted = false;
+
+    req.on("data", chunk => {
+      if (aborted) return;
+      totalBytes += chunk.length;
+      if (totalBytes > MAX_BODY_BYTES) {
+        aborted = true;
+        res.writeHead(413, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ success: false, error: "Request payload too large." }));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+
     req.on("end", async () => {
+      if (aborted) return;
       try {
+        let payload;
+        try {
+          const bodyText = Buffer.concat(chunks).toString("utf8");
+          payload = JSON.parse(bodyText || "{}");
+        } catch (_) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ success: false, error: "Invalid JSON request body." }));
+          return;
+        }
+
         if (!GEMINI_API_KEY || GEMINI_API_KEY === "your_gemini_api_key_here") {
           res.writeHead(500, { "Content-Type": "application/json" });
           res.end(JSON.stringify({
@@ -88,8 +151,6 @@ const server = http.createServer(async (req, res) => {
           }));
           return;
         }
-
-        const payload = JSON.parse(bodyText || "{}");
         const {
           context,
           userPrompt,
@@ -145,8 +206,8 @@ const server = http.createServer(async (req, res) => {
   res.end(JSON.stringify({ error: "Endpoint not found" }));
 });
 
-server.listen(PORT, () => {
-  console.log(`[Crawler Proxy Server] Running on http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`[Crawler Proxy Server] Running on http://${HOST}:${PORT}`);
   console.log(`[Crawler Proxy Server] API Key configured: ${Boolean(GEMINI_API_KEY && GEMINI_API_KEY !== "your_gemini_api_key_here")}`);
 });
 

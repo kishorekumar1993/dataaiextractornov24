@@ -61,6 +61,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const modelSelect = document.getElementById("modelSelect");
   const fallbackModelSelect = document.getElementById("fallbackModelSelect");
   const backendProxyUrlInput = document.getElementById("backendProxyUrl");
+  const backendProxyTokenInput = document.getElementById("backendProxyToken");
   const saveSettingsBtn = document.getElementById("saveSettingsBtn");
   const testApiKeyBtn = document.getElementById("testApiKeyBtn");
   const settingsMessage = document.getElementById("settingsMessage");
@@ -74,6 +75,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let geminiModel = "gemini-3.5-flash-lite";
   let fallbackModel = "gemini-3.1-flash-lite";
   let backendProxyUrl = "";
+  let backendProxyToken = "";
   let isPortalDetected = false;
   let portalTargetUrl = "";
 
@@ -136,6 +138,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       "geminiModel",
       "fallbackModel",
       "backendProxyUrl",
+      "backendProxyToken",
       "crawlDepth",
       "autoCrawl",
       "autoSubmitNotWorking"
@@ -168,6 +171,11 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (backendProxyUrlInput) backendProxyUrlInput.value = backendProxyUrl;
     }
 
+    if (data.backendProxyToken) {
+      backendProxyToken = data.backendProxyToken;
+      if (backendProxyTokenInput) backendProxyTokenInput.value = backendProxyToken;
+    }
+
     if (data.crawlDepth) {
       crawlDepthSelect.value = data.crawlDepth;
     }
@@ -196,6 +204,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const model = modelSelect.value;
     const fallback = fallbackModelSelect ? fallbackModelSelect.value : "gemini-3.1-flash-lite";
     const proxyUrl = backendProxyUrlInput ? backendProxyUrlInput.value.trim() : "";
+    const proxyToken = backendProxyTokenInput ? backendProxyTokenInput.value.trim() : "";
     const depth = crawlDepthSelect.value;
 
     if (!key && !proxyUrl) {
@@ -213,6 +222,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       geminiModel: model,
       fallbackModel: fallback,
       backendProxyUrl: proxyUrl,
+      backendProxyToken: proxyToken,
       crawlDepth: depth,
       autoCrawl: autoCrawlVal,
       autoSubmitNotWorking: autoSubmitNwVal
@@ -222,6 +232,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     geminiModel = model;
     fallbackModel = fallback;
     backendProxyUrl = proxyUrl;
+    backendProxyToken = proxyToken;
 
     apiKeyWarning.classList.add("hidden");
     showSettingsMessage("Settings saved successfully!", "success");
@@ -254,8 +265,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         return;
       }
 
-      // Test Direct API with key in param and header
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+      // Test Direct API with x-goog-api-key header (never in URL query string)
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
       const res = await fetch(url, {
         method: "POST",
         headers: {
@@ -729,6 +740,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       // Step 1: Ensure initial page data
       let baseData = initialPageData;
+      let targetMainHtml = statusResult.finalHtml || "";
 
       if (isPortalDetected) {
         updateProgress(10, "Fetching Target Site...", activeCrawlUrl);
@@ -736,8 +748,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         const mainResp = await fetchAndParseSubpage(activeCrawlUrl);
         let internalLinks = [];
         try {
-          const rawHtml = await fetchRawHtml(activeCrawlUrl);
+          const rawHtml = targetMainHtml || await fetchRawHtml(activeCrawlUrl);
           if (rawHtml) {
+            targetMainHtml = rawHtml;
             internalLinks = CrawlerEngine.extractLinks(rawHtml, urlObj.origin);
           }
         } catch (e) { }
@@ -867,6 +880,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         primaryModel: geminiModel,
         fallbackModel: fallbackModel,
         backendProxyUrl: backendProxyUrl,
+        backendProxyToken: backendProxyToken,
         onProgress: (p) => {
           if (p.status === "retrying" || p.status === "backed_off" || p.status === "network_retry") {
             updateProgress(88, "Retrying AI Request...", p.message);
@@ -914,7 +928,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
       }
       if (typeof CrawlerEngine !== "undefined" && CrawlerEngine.applyBusinessTypeEligibilityRule) {
-        extractedJson = CrawlerEngine.applyBusinessTypeEligibilityRule(extractedJson, initialPageData?.html || "", crawledPages);
+        const htmlForEligibility = isPortalDetected ? targetMainHtml : (targetMainHtml || initialPageData?.htmlSnippet || "");
+        extractedJson = CrawlerEngine.applyBusinessTypeEligibilityRule(extractedJson, htmlForEligibility, crawledPages);
       }
 
       // If Not Working, mark Not Working and empty all other items
@@ -1026,10 +1041,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function fetchRawHtml(url) {
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 15000) : null;
     try {
-      const resp = await fetch(url, { headers: { "Accept": "text/html" } });
+      const resp = await fetch(url, {
+        headers: { "Accept": "text/html" },
+        signal: controller ? controller.signal : undefined
+      });
       if (resp.ok) return await resp.text();
-    } catch (e) { }
+      return "";
+    } catch (e) {
+      // Fallback to background service worker if direct fetch fails (e.g. CORS)
+    } finally {
+      if (timeoutId) clearTimeout(timeoutId);
+    }
     const bgRes = await new Promise(resolve => {
       try {
         if (!chrome.runtime || !chrome.runtime.id) return resolve(null);
@@ -1079,25 +1104,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function fetchAndParseSubpage(url) {
     try {
-      let html = "";
-      try {
-        const resp = await fetch(url, { headers: { "Accept": "text/html" } });
-        if (resp.ok) html = await resp.text();
-      } catch (e) {
-        const bgRes = await new Promise(resolve => {
-          try {
-            if (!chrome.runtime || !chrome.runtime.id) return resolve(null);
-            chrome.runtime.sendMessage({ action: "fetchUrl", url: url }, (res) => {
-              if (chrome.runtime && chrome.runtime.lastError) return resolve(null);
-              resolve(res);
-            });
-          } catch (err) {
-            resolve(null);
-          }
-        });
-        if (bgRes && bgRes.success) html = bgRes.text;
-      }
-
+      const html = await fetchRawHtml(url);
       if (!html) return null;
 
       const parser = new DOMParser();

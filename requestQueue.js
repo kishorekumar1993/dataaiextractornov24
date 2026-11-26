@@ -25,12 +25,20 @@
       this.isProcessing = false;
       this.listeners = new Set();
       this.storageKey = "crawler_queue_state_v1";
+      this.maxCompletedEntries = options.maxCompletedEntries || 200;
+      this._initPromise = null;
     }
 
     /**
-     * Initializes queue state from chrome.storage.local
+     * Initializes queue state from chrome.storage.local (singleton-safe)
      */
-    async init() {
+    init() {
+      if (this._initPromise) return this._initPromise;
+      this._initPromise = this._loadState();
+      return this._initPromise;
+    }
+
+    async _loadState() {
       if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.local) {
         try {
           const res = await new Promise(resolve => chrome.storage.local.get([this.storageKey], resolve));
@@ -41,12 +49,42 @@
             this.failedQueue = state.failedQueue || [];
             this.concurrency = state.concurrency || this.concurrency;
             this.interRequestDelayMs = state.interRequestDelayMs || this.interRequestDelayMs;
+
+            // Recover any tasks that were in-flight when the MV3 service worker terminated
+            const interrupted = Array.isArray(state.activeItems) ? state.activeItems : [];
+            for (const item of interrupted) {
+              if (item && item.url && !this.pendingQueue.some(p => p.id === item.id)) {
+                this.pendingQueue.unshift(item);
+              }
+            }
           }
         } catch (e) {
           console.warn("[CrawlerQueue] Failed to load persisted state:", e);
         }
       }
+      if (this.pendingQueue.length > 0) {
+        this.processQueue();
+      }
       return this.getStatus();
+    }
+
+    /**
+     * Records a completed extraction and evicts oldest entries if above maxCompletedEntries
+     */
+    recordCompleted(cleanKey, entry) {
+      this.completedMap[cleanKey] = entry;
+      const keys = Object.keys(this.completedMap);
+      if (keys.length > this.maxCompletedEntries) {
+        keys.sort((a, b) => {
+          const ta = Date.parse(this.completedMap[a]?.completedAt || 0) || 0;
+          const tb = Date.parse(this.completedMap[b]?.completedAt || 0) || 0;
+          return ta - tb;
+        });
+        const excess = keys.length - this.maxCompletedEntries;
+        for (let i = 0; i < excess; i++) {
+          delete this.completedMap[keys[i]];
+        }
+      }
     }
 
     /**
@@ -57,6 +95,7 @@
         try {
           const state = {
             pendingQueue: this.pendingQueue,
+            activeItems: Array.from(this.activeMap.values()),
             completedMap: this.completedMap,
             failedQueue: this.failedQueue,
             concurrency: this.concurrency,
@@ -190,6 +229,7 @@
       while (this.pendingQueue.length > 0 && this.activeMap.size < this.concurrency) {
         const item = this.pendingQueue.shift();
         this.activeMap.set(item.id, item);
+        await this.saveState();
         this.notifyListeners("task_started", item);
 
         // Run task asynchronously
@@ -232,19 +272,20 @@
           primaryModel: opts.primaryModel || "gemini-3.5-flash-lite",
           fallbackModel: opts.fallbackModel || "gemini-3.1-flash-lite",
           backendProxyUrl: opts.backendProxyUrl || "",
+          backendProxyToken: opts.backendProxyToken || "",
           maxRetries: opts.maxRetries !== undefined ? opts.maxRetries : 4,
           onProgress: (p) => {
             this.notifyListeners("task_progress", { item, progress: p });
           }
         });
 
-        // Store completed
+        // Store completed (bounded by maxCompletedEntries)
         const cleanKey = item.url.toLowerCase();
-        this.completedMap[cleanKey] = {
+        this.recordCompleted(cleanKey, {
           data: result.data,
           meta: result.meta,
           completedAt: new Date().toISOString()
-        };
+        });
 
         this.notifyListeners("task_completed", { item, result });
 
