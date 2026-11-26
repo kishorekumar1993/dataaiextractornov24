@@ -834,7 +834,9 @@ const CrawlerEngine = (() => {
     "south korea",
     "singapore",
     "hong kong",
-    "pakistan"
+    "pakistan",
+    "united arab emirates",
+    "kenya"
   ]);
 
   function isAllowedCountry(countryName) {
@@ -852,7 +854,7 @@ const CrawlerEngine = (() => {
     const rawCountry = String(data.countryName || "").trim();
     if (!rawCountry || rawCountry.toLowerCase() === "not available") return data;
     if (!isAllowedCountry(rawCountry)) {
-      const reason = `Unsupported Country: "${rawCountry}" is not in the 20 allowed countries.`;
+      const reason = `Unsupported Country: "${rawCountry}" is not in the allowed countries list.`;
       data.websiteStatus = "Not Working";
       data.notWorkingReason = reason;
       data.nonWorkingReason = reason;
@@ -1396,7 +1398,7 @@ FIELD RULES:
      * Examples: "ANSON Hydraulics Ind. Co., Ltd." -> "Anson Hydraulics Industrial Company, Limited"; "ABC Mfg. & Engg. (China) Corp." -> "Abc Manufacturing & Engineering China Corporation".
    - COMMA PRESERVATION: Preserve any comma in the source legal suffix ("Co., Ltd." -> "Company, Limited"; "Co. Ltd." -> "Company Limited"). Never insert artificial commas where none existed.
    - COMPLETENESS & INTERNAL SYMBOLS: Never truncate internal words or legal suffixes; keep established brand acronyms (IBM, BMW) and internal special characters (&, -, /, ') as-is; strip slogans and copyright text.
-5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", "United Kingdom" (or constituent country e.g. "England" if explicitly stated), etc. Infer from city/state if omitted. Only these 20 countries are eligible Working sites: United States Of America, Taiwan, England, Canada, China, United Kingdom, Australia, Malaysia, India, South Africa, New Zealand, Italy, Germany, Ireland, Thailand, Indonesia, South Korea, Singapore, Hong Kong, Pakistan; any other country must be marked "websiteStatus": "Not Working" ("Unsupported Country").
+5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", "United Kingdom" (or constituent country e.g. "England" if explicitly stated), etc. Infer from city/state if omitted. Only these 22 countries are eligible Working sites: United States Of America, Taiwan, England, Canada, China, United Kingdom, Australia, Malaysia, India, South Africa, New Zealand, Italy, Germany, Ireland, Thailand, Indonesia, South Korea, Singapore, Hong Kong, Pakistan, United Arab Emirates, Kenya; any other country must be marked "websiteStatus": "Not Working" ("Unsupported Country").
 
 6. "companyAddress" — Contact Page, Footer and Map Address Comparison:
    - STRICT PRIORITY ORDER: (1) Contact Page – Primary Source + Embedded Map – Additional Address Verification Source (ABSOLUTE HIGHEST PRIORITY); (2) Website Footer – Secondary Source (ONLY use Footer if Contact Page + Map have NO address, or if Footer explicitly has Corporate Office/HQ while Contact Page only lists a Registered/Branch Office).
@@ -1416,7 +1418,7 @@ FIELD RULES:
      * Floor Designations: Expand any floor abbreviation ("1F" -> "1Floor", "3f.-6" -> "3Floor - 6", "1st F"/"1st Fl." -> "1st Floor").
      * "No." / "Number" Rule: Expand "No."/"No.2" to "Number" ONLY if "No."/"Number" was in the source; NEVER prepend "Number" to pure street numbers or slash-separated units.
      * Commas: Preserve source commas exactly; NEVER insert artificial commas (e.g., before State/Province or when joining multi-line addresses).
-     * Cleanup: Remove pincode/postal/ZIP codes (e.g. "Taoyuan 330" -> "Taoyuan", UK postcodes like "MK14 5AN" or "NR6 6NN" -> ""), country names (including "United Kingdom", "England", "Taiwan R.O.C.", "R.O.C."), company names, brackets, leading labels ("Address:", "HQ:"), and trailing phone/fax/email/registration/punctuation. NEVER drop state/province names (e.g. Central Java, Maharashtra, Wisconsin) from companyAddress.
+     * Cleanup: Remove pincode/postal/ZIP codes (e.g. "Taoyuan 330" -> "Taoyuan", UK postcodes like "MK14 5AN" or "NR6 6NN" -> ""), country names (including "United Kingdom", "England", "Taiwan R.O.C.", "R.O.C."), company names, leading labels ("Address:", "HQ:"), and trailing phone/fax/email/registration/punctuation. Remove ONLY the bracket characters ( ), [ ] while keeping the words/landmarks inside (e.g. "(Opposite KCC cheese Factory)" -> "Opposite KCC Cheese Factory"). NEVER drop state/province names (e.g. Central Java, Maharashtra, Wisconsin) from companyAddress.
 
 7. "state": Strictly "Available" or "Not Available". Country Capitals (CRITICAL UNIVERSAL RULE): If a country's capital is mentioned in the address, both City and State are "Available". Official States & Provinces: Any recognized first-level administrative division (State, active County / Hsien, Province, Prefecture, Territory) = "Available". Disregard State Names in Street Lines (e.g. "Pennsylvania Avenue"). Non-capital cities and merged municipalities (e.g. Taoyuan, Taichung / Taichung Hsien, Kaohsiung / Kaohsiung Hsien, Tainan / Tainan Hsien, New Taipei / Taipei County) -> "Not Available" (only Taiwan's 13 active Counties and Taipei capital are State = "Available").
 8. "city": Strictly "Available" or "Not Available". Official Cities, Towns, Townships (e.g. Shiang/Xiang/Zhen), Municipalities, Administrative Districts, and Country Capitals = "Available". Suburbs (without parent city), villages (e.g. Chuen/Village), neighborhoods, and industrial estates alone = "Not Available".

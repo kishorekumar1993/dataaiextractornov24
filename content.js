@@ -445,8 +445,8 @@
     // 3. Search by name or id attribute
     for (const alias of spec.labels) {
       const cleanAlias = alias.replace(/\s+/g, "");
-      const byId = document.getElementById(cleanAlias) || 
-                   document.querySelector(`[name*='${cleanAlias}' i], [id*='${cleanAlias}' i], [data-field*='${cleanAlias}' i]`);
+      const byId = document.getElementById(cleanAlias) ||
+        document.querySelector(`[name*='${cleanAlias}' i], [id*='${cleanAlias}' i], [data-field*='${cleanAlias}' i]`);
       if (byId && isInputField(byId)) return byId;
     }
 
@@ -456,9 +456,9 @@
   function isInputField(el) {
     if (!el) return false;
     const tag = el.tagName.toLowerCase();
-    return tag === "input" || tag === "textarea" || tag === "select" || 
-           el.getAttribute("role") === "combobox" || el.getAttribute("role") === "listbox" ||
-           el.classList.contains("custom-select") || el.classList.contains("dropdown");
+    return tag === "input" || tag === "textarea" || tag === "select" ||
+      el.getAttribute("role") === "combobox" || el.getAttribute("role") === "listbox" ||
+      el.classList.contains("custom-select") || el.classList.contains("dropdown");
   }
 
   function getElementValue(el) {
@@ -502,7 +502,7 @@
   function normalizeBusinessType(raw) {
     if (!raw) return "Other";
     const str = String(raw).trim().toLowerCase();
-    
+
     // Check exact portal match first
     const exact = PORTAL_BUSINESS_TYPES.find(p => p.toLowerCase() === str);
     if (exact) return exact;
@@ -515,7 +515,7 @@
     if (str.includes("distribut")) return "Distributer";
     if (str.includes("suppl")) return "Supplier";
     if (str.includes("wholesale")) return "Wholesaler";
-    
+
     // Ineligible categories (marked Not Working):
     if (str.includes("retail") || str.includes("shopping") || str.includes("store") || str.includes("shop") || str.includes("ecommerce") || str.includes("e-commerce") || str.includes("marketplace")) {
       return "Online Shopping";
@@ -539,7 +539,8 @@
     "united states of america", "taiwan", "england", "canada", "china",
     "united kingdom", "australia", "malaysia", "india", "south africa",
     "new zealand", "italy", "germany", "ireland", "thailand",
-    "indonesia", "south korea", "singapore", "hong kong", "pakistan"
+    "indonesia", "south korea", "singapore", "hong kong", "pakistan",
+    "united arab emirates", "kenya"
   ]);
 
   function applyBusinessTypeEligibility(data) {
@@ -558,7 +559,7 @@
         ? GeminiClient.normalizeCountryName(rawCountry)
         : rawCountry;
       if (!ALLOWED_COUNTRIES.has(normCountry.toLowerCase())) {
-        const reason = `Unsupported Country: "${normCountry}" is not in the 20 allowed countries.`;
+        const reason = `Unsupported Country: "${normCountry}" is not in the allowed countries list.`;
         data.websiteStatus = "Not Working";
         data.notWorkingReason = reason;
         data.nonWorkingReason = reason;
@@ -597,28 +598,28 @@
     const errors = [];
 
     function normalizeCountryName(country) {
-    if (!country) return "";
-    if (typeof GeminiClient !== "undefined" && typeof GeminiClient.normalizeCountryName === "function") {
-      return GeminiClient.normalizeCountryName(country);
+      if (!country) return "";
+      if (typeof GeminiClient !== "undefined" && typeof GeminiClient.normalizeCountryName === "function") {
+        return GeminiClient.normalizeCountryName(country);
+      }
+      const c = String(country).trim();
+      const aliases = {
+        "usa": "United States Of America", "u.s.a.": "United States Of America", "u.s.a": "United States Of America",
+        "u.s.": "United States Of America", "u.s": "United States Of America", "us": "United States Of America",
+        "united states": "United States Of America", "united states of america": "United States Of America",
+        "uae": "United Arab Emirates", "u.a.e.": "United Arab Emirates", "united arab emirates": "United Arab Emirates",
+        "uk": "United Kingdom", "u.k.": "United Kingdom", "great britain": "United Kingdom",
+        "ksa": "Saudi Arabia", "k.s.a.": "Saudi Arabia",
+        "prc": "China", "p.r.c.": "China", "p.r. china": "China",
+        "roc": "Taiwan", "r.o.c.": "Taiwan", "chinese taipei": "Taiwan",
+        "rok": "South Korea", "republic of korea": "South Korea", "korea": "South Korea",
+        "czechia": "Czech Republic", "holland": "Netherlands", "turkiye": "Turkey", "türkiye": "Turkey",
+        "russian federation": "Russia", "viet nam": "Vietnam", "hong kong sar": "Hong Kong"
+      };
+      return aliases[c.toLowerCase()] || c;
     }
-    const c = String(country).trim();
-    const aliases = {
-      "usa": "United States Of America", "u.s.a.": "United States Of America", "u.s.a": "United States Of America",
-      "u.s.": "United States Of America", "u.s": "United States Of America", "us": "United States Of America",
-      "united states": "United States Of America", "united states of america": "United States Of America",
-      "uae": "United Arab Emirates", "u.a.e.": "United Arab Emirates", "united arab emirates": "United Arab Emirates",
-      "uk": "United Kingdom", "u.k.": "United Kingdom", "great britain": "United Kingdom",
-      "ksa": "Saudi Arabia", "k.s.a.": "Saudi Arabia",
-      "prc": "China", "p.r.c.": "China", "p.r. china": "China",
-      "roc": "Taiwan", "r.o.c.": "Taiwan", "chinese taipei": "Taiwan",
-      "rok": "South Korea", "republic of korea": "South Korea", "korea": "South Korea",
-      "czechia": "Czech Republic", "holland": "Netherlands", "turkiye": "Turkey", "türkiye": "Turkey",
-      "russian federation": "Russia", "viet nam": "Vietnam", "hong kong sar": "Hong Kong"
-    };
-    return aliases[c.toLowerCase()] || c;
-  }
 
-  function resolveProductCountDefault(val) {
+    function resolveProductCountDefault(val) {
       if (val === undefined || val === null || val === "" || val === "Not Available") {
         return "3";
       }
@@ -632,37 +633,37 @@
     // Map extracted JSON to portal fields (if Not Working, mark Not Working and empty all other fields)
     const fillPlan = isNotWorking
       ? [
-          { key: "websiteStatus", value: "Not Working" },
-          { key: "businessType", value: "" },
-          { key: "companyProfile", value: "" },
-          { key: "companyName", value: "" },
-          { key: "companyAddress", value: "" },
-          { key: "countryName", value: "" },
-          { key: "state", value: "" },
-          { key: "city", value: "" },
-          { key: "emailId", value: "" },
-          { key: "secondaryEmailId", value: "" },
-          { key: "phoneNumber", value: "" },
-          { key: "numberOfProducts", value: "" },
-          { key: "productImages", value: "" },
-          { key: "numberOfProductDescriptions", value: "" }
-        ]
+        { key: "websiteStatus", value: "Not Working" },
+        { key: "businessType", value: "" },
+        { key: "companyProfile", value: "" },
+        { key: "companyName", value: "" },
+        { key: "companyAddress", value: "" },
+        { key: "countryName", value: "" },
+        { key: "state", value: "" },
+        { key: "city", value: "" },
+        { key: "emailId", value: "" },
+        { key: "secondaryEmailId", value: "" },
+        { key: "phoneNumber", value: "" },
+        { key: "numberOfProducts", value: "" },
+        { key: "productImages", value: "" },
+        { key: "numberOfProductDescriptions", value: "" }
+      ]
       : [
-          { key: "websiteStatus", value: data.websiteStatus || "Working" },
-          { key: "businessType", value: data.businessType || "" },
-          { key: "companyProfile", value: data.companyProfile || "Available" },
-          { key: "companyName", value: (data.companyName || "").trim() },
-          { key: "companyAddress", value: data.companyAddress || "" },
-          { key: "countryName", value: normalizeCountryName(data.countryName || "") },
-          { key: "state", value: data.state || "Available" },
-          { key: "city", value: data.city || "Available" },
-          { key: "emailId", value: data.emailId || "" },
-          { key: "secondaryEmailId", value: data.secondaryEmailId || "" },
-          { key: "phoneNumber", value: data.phoneNumber || "" },
-          { key: "numberOfProducts", value: resolveProductCountDefault(data.numberOfProducts) },
-          { key: "productImages", value: resolveProductCountDefault(data.productImages) },
-          { key: "numberOfProductDescriptions", value: resolveProductCountDefault(data.numberOfProductDescriptions) }
-        ];
+        { key: "websiteStatus", value: data.websiteStatus || "Working" },
+        { key: "businessType", value: data.businessType || "" },
+        { key: "companyProfile", value: data.companyProfile || "Available" },
+        { key: "companyName", value: (data.companyName || "").trim() },
+        { key: "companyAddress", value: data.companyAddress || "" },
+        { key: "countryName", value: normalizeCountryName(data.countryName || "") },
+        { key: "state", value: data.state || "Available" },
+        { key: "city", value: data.city || "Available" },
+        { key: "emailId", value: data.emailId || "" },
+        { key: "secondaryEmailId", value: data.secondaryEmailId || "" },
+        { key: "phoneNumber", value: data.phoneNumber || "" },
+        { key: "numberOfProducts", value: resolveProductCountDefault(data.numberOfProducts) },
+        { key: "productImages", value: resolveProductCountDefault(data.productImages) },
+        { key: "numberOfProductDescriptions", value: resolveProductCountDefault(data.numberOfProductDescriptions) }
+      ];
 
     for (const item of fillPlan) {
       const spec = PORTAL_FIELD_SPECS.find(s => s.key === item.key);
@@ -769,7 +770,7 @@
         const optVal = opt.value.trim().toLowerCase();
         const optText = opt.text.trim().toLowerCase();
         if ((targetStr && optVal.includes(targetStr)) || (targetStr && optText.includes(targetStr)) ||
-            (optVal && targetStr.includes(optVal)) || (optText && targetStr.includes(optText))) {
+          (optVal && targetStr.includes(optVal)) || (optText && targetStr.includes(optText))) {
           matchIdx = i;
           break;
         }
@@ -902,7 +903,7 @@
     // Always clear old bottom position from localStorage
     try {
       localStorage.removeItem("site_intel_widget_pos");
-    } catch (_) {}
+    } catch (_) { }
 
     // Default position: Top-Right (top: 15px, right: 20px, bottom: auto !important)
     const defaultTop = "15px";
@@ -1197,11 +1198,11 @@
         if (areaName !== "local") return;
         if (changes.autoCrawl) {
           globalAutoCrawl = Boolean(changes.autoCrawl.newValue);
-          try { localStorage.setItem("site_intel_auto_crawl", globalAutoCrawl ? "true" : "false"); } catch (_) {}
+          try { localStorage.setItem("site_intel_auto_crawl", globalAutoCrawl ? "true" : "false"); } catch (_) { }
         }
         if (changes.autoSubmitNotWorking) {
           globalAutoSubmitNotWorking = Boolean(changes.autoSubmitNotWorking.newValue);
-          try { localStorage.setItem("site_intel_auto_submit_not_working", globalAutoSubmitNotWorking ? "true" : "false"); } catch (_) {}
+          try { localStorage.setItem("site_intel_auto_submit_not_working", globalAutoSubmitNotWorking ? "true" : "false"); } catch (_) { }
         }
         syncCheckboxesFromGlobals();
         if (globalAutoCrawl) {
@@ -1218,9 +1219,9 @@
       autoCrawlChk.checked = getAutoCrawlEnabled();
       autoCrawlChk.addEventListener("change", () => {
         globalAutoCrawl = Boolean(autoCrawlChk.checked);
-        try { localStorage.setItem("site_intel_auto_crawl", globalAutoCrawl ? "true" : "false"); } catch (_) {}
+        try { localStorage.setItem("site_intel_auto_crawl", globalAutoCrawl ? "true" : "false"); } catch (_) { }
         if (isExtensionContextValid() && chrome.storage && chrome.storage.local) {
-          try { chrome.storage.local.set({ autoCrawl: globalAutoCrawl }); } catch (_) {}
+          try { chrome.storage.local.set({ autoCrawl: globalAutoCrawl }); } catch (_) { }
         }
         if (globalAutoCrawl) {
           const targetEl = document.getElementById("site-intel-widget-target");
@@ -1238,9 +1239,9 @@
       autoSubmitNwChk.checked = getAutoSubmitNotWorkingEnabled();
       autoSubmitNwChk.addEventListener("change", () => {
         globalAutoSubmitNotWorking = Boolean(autoSubmitNwChk.checked);
-        try { localStorage.setItem("site_intel_auto_submit_not_working", globalAutoSubmitNotWorking ? "true" : "false"); } catch (_) {}
+        try { localStorage.setItem("site_intel_auto_submit_not_working", globalAutoSubmitNotWorking ? "true" : "false"); } catch (_) { }
         if (isExtensionContextValid() && chrome.storage && chrome.storage.local) {
-          try { chrome.storage.local.set({ autoSubmitNotWorking: globalAutoSubmitNotWorking }); } catch (_) {}
+          try { chrome.storage.local.set({ autoSubmitNotWorking: globalAutoSubmitNotWorking }); } catch (_) { }
         }
       });
     }
@@ -1361,7 +1362,7 @@
           });
           // childList + subtree only — NO attributes (attributes fires constantly and hangs the tab)
           portalObserver.observe(document.body, { childList: true, subtree: true });
-        } catch (_) {}
+        } catch (_) { }
       }
 
       // Periodic check in case portal loads next task record asynchronously (e.g. Next Record on cpworkportal.online).
@@ -1401,16 +1402,16 @@
           chrome.storage.local.get(["autoCrawl", "autoSubmitNotWorking"], (res) => {
             if (res && typeof res.autoCrawl === "boolean") {
               globalAutoCrawl = res.autoCrawl;
-              try { localStorage.setItem("site_intel_auto_crawl", globalAutoCrawl ? "true" : "false"); } catch (_) {}
+              try { localStorage.setItem("site_intel_auto_crawl", globalAutoCrawl ? "true" : "false"); } catch (_) { }
             }
             if (res && typeof res.autoSubmitNotWorking === "boolean") {
               globalAutoSubmitNotWorking = res.autoSubmitNotWorking;
-              try { localStorage.setItem("site_intel_auto_submit_not_working", globalAutoSubmitNotWorking ? "true" : "false"); } catch (_) {}
+              try { localStorage.setItem("site_intel_auto_submit_not_working", globalAutoSubmitNotWorking ? "true" : "false"); } catch (_) { }
             }
             resolve();
           });
           return;
-        } catch (_) {}
+        } catch (_) { }
       }
       resolve();
     });
@@ -1504,7 +1505,7 @@
       if (key) lastAutoSubmittedKey = key;
       try {
         btn.click();
-      } catch (_) {}
+      } catch (_) { }
     }, 800);
     return true;
   }
@@ -1614,7 +1615,7 @@
 
   async function handleWidgetCrawlAndFill(e) {
     if (e) {
-      try { e.preventDefault?.(); e.stopPropagation?.(); } catch (_) {}
+      try { e.preventDefault?.(); e.stopPropagation?.(); } catch (_) { }
     }
 
     if (isWidgetCrawling) {
@@ -1650,160 +1651,160 @@
         return;
       }
 
-    // Get latest URL: Priority 1 is the widget's displayed target (what is literally visible on the widget)
-    let url = "";
-    const targetEl = document.getElementById("site-intel-widget-target");
-    if (targetEl) {
-      const displayed = (targetEl.innerText || targetEl.textContent || "").trim();
-      if (isValidUrlOrDomain(displayed)) {
-        url = displayed;
-      }
-    }
-
-    // Priority 2: Direct inspection of Website Name input element
-    if (!url) {
-      const websiteEl = findWebsiteInputElement();
-      if (websiteEl) {
-        const v = getElementValue(websiteEl);
-        if (isValidUrlOrDomain(v)) {
-          url = v.trim();
+      // Get latest URL: Priority 1 is the widget's displayed target (what is literally visible on the widget)
+      let url = "";
+      const targetEl = document.getElementById("site-intel-widget-target");
+      if (targetEl) {
+        const displayed = (targetEl.innerText || targetEl.textContent || "").trim();
+        if (isValidUrlOrDomain(displayed)) {
+          url = displayed;
         }
       }
-    }
 
-    // Priority 3: Fallback detectPortalForm
-    if (!url) {
-      const detection = detectPortalForm();
-      if (isValidUrlOrDomain(detection.targetUrl)) {
-        url = detection.targetUrl.trim();
-      }
-    }
-
-    if (!url || !isValidUrlOrDomain(url)) {
-      if (statusLine) {
-        statusLine.style.display = "block";
-        statusLine.textContent = "⚠️ Please enter a valid website URL in Website Name.";
-      }
-      alert("Please enter a valid website URL in the 'Website Name' field first (e.g. http://www.fongding.com.tw).");
-      return;
-    }
-
-    if (!/^https?:\/\//i.test(url)) {
-      url = "http://" + url;
-    }
-
-    // Set UI to loading state immediately
-    if (actionBtn) {
-      actionBtn.disabled = true;
-      actionBtn.style.opacity = "0.7";
-      actionBtn.style.cursor = "not-allowed";
-      actionBtn.style.pointerEvents = "none";
-    }
-    if (btnText) {
-      btnText.textContent = "Crawling & Analyzing...";
-    }
-    if (statusLine) {
-      statusLine.style.display = "block";
-      statusLine.textContent = "⏳ Fetching website pages...";
-    }
-
-    try {
-      // Send crawl request to background service worker
-      if (statusLine) statusLine.textContent = "🤖 Analyzing with Gemini AI...";
-      const response = await new Promise((resolve, reject) => {
-        try {
-          if (!chrome.runtime || !chrome.runtime.id) {
-            return reject(new Error("Extension context invalidated. Please refresh this page (F5) to reconnect."));
+      // Priority 2: Direct inspection of Website Name input element
+      if (!url) {
+        const websiteEl = findWebsiteInputElement();
+        if (websiteEl) {
+          const v = getElementValue(websiteEl);
+          if (isValidUrlOrDomain(v)) {
+            url = v.trim();
           }
-          chrome.runtime.sendMessage({
-            action: "crawlAndExtractForPortal",
-            targetUrl: url
-          }, (res) => {
-            if (chrome.runtime && chrome.runtime.lastError) {
-              const errMsg = chrome.runtime.lastError.message || "Communication failed";
-              return reject(new Error(errMsg.includes("context invalidated") ? "Extension context invalidated. Please refresh this page (F5) to reconnect." : errMsg));
-            }
-            resolve(res);
-          });
-        } catch (e) {
-          reject(e);
         }
-      });
-
-      if (!response) {
-        throw new Error("No response received from crawler engine.");
       }
 
-      if (!response.success && !response.data) {
-        throw new Error(response.error || "Crawl & AI extraction failed");
+      // Priority 3: Fallback detectPortalForm
+      if (!url) {
+        const detection = detectPortalForm();
+        if (isValidUrlOrDomain(detection.targetUrl)) {
+          url = detection.targetUrl.trim();
+        }
       }
 
-      const extractedData = response.data || { websiteStatus: "Not Working", notWorkingReason: response.error };
-
-      if (statusLine) statusLine.textContent = "📝 Prefilling portal form fields...";
-      const fillResult = prefillPortalForm(extractedData);
-
-      // Render full extracted details in widget
-      renderWidgetDetails(extractedData, response.meta);
-
-      lastAutoCrawledUrl = normalizeTargetKey(url);
-
-      if (btnText) btnText.textContent = "✓ Form Filled!";
-      if (actionBtn) actionBtn.style.background = "#10b981";
-      if (statusLine) statusLine.textContent = `✅ Successfully filled ${fillResult.filledCount} fields! All details shown below.`;
-
-      // Auto Submit if websiteStatus is Not Working (or Redirect Site) and Auto Submit (Not Working) is enabled
-      triggerAutoSubmitIfNotWorking(extractedData, url, statusLine);
-
-      buttonResetTimer = setTimeout(() => {
-        buttonResetTimer = null;
-        if (isWidgetCrawling) return;
-        if (actionBtn) {
-          actionBtn.disabled = false;
-          actionBtn.style.opacity = "1";
-          actionBtn.style.cursor = "pointer";
-          actionBtn.style.pointerEvents = "";
-          actionBtn.style.background = "#2563eb";
-        }
-        if (btnText) btnText.textContent = "⚡ Crawl & Autofill Again";
-      }, 3500);
-
-    } catch (err) {
-      const isContextInvalidated = /context invalidated/i.test(err?.message || "");
-      if (isContextInvalidated) {
-        console.warn("Site Intelligence: Extension context invalidated due to extension reload. Please refresh the page.");
+      if (!url || !isValidUrlOrDomain(url)) {
         if (statusLine) {
           statusLine.style.display = "block";
-          statusLine.textContent = "🔄 Extension was updated or reloaded. Please refresh this page (F5) to reconnect.";
+          statusLine.textContent = "⚠️ Please enter a valid website URL in Website Name.";
         }
-        if (btnText) btnText.textContent = "🔄 Refresh Page to Reconnect";
-        if (actionBtn) {
-          actionBtn.style.background = "#f59e0b";
-          actionBtn.disabled = false;
-          actionBtn.style.opacity = "1";
-          actionBtn.style.cursor = "pointer";
-          actionBtn.style.pointerEvents = "";
-          actionBtn.onclick = () => window.location.reload();
-        }
+        alert("Please enter a valid website URL in the 'Website Name' field first (e.g. http://www.fongding.com.tw).");
         return;
       }
 
-      const isApiKeyError = /api key/i.test(err?.message || "");
-      console.error("Widget crawl error:", err);
-      if (btnText) btnText.textContent = isApiKeyError ? "⚙️ API Key Required" : "Error";
+      if (!/^https?:\/\//i.test(url)) {
+        url = "http://" + url;
+      }
+
+      // Set UI to loading state immediately
       if (actionBtn) {
-        actionBtn.style.background = isApiKeyError ? "#f59e0b" : "#ef4444";
-        actionBtn.disabled = false;
-        actionBtn.style.opacity = "1";
-        actionBtn.style.cursor = "pointer";
-        actionBtn.style.pointerEvents = "";
+        actionBtn.disabled = true;
+        actionBtn.style.opacity = "0.7";
+        actionBtn.style.cursor = "not-allowed";
+        actionBtn.style.pointerEvents = "none";
+      }
+      if (btnText) {
+        btnText.textContent = "Crawling & Analyzing...";
       }
       if (statusLine) {
         statusLine.style.display = "block";
-        statusLine.textContent = isApiKeyError
-          ? "⚠️ Gemini API key is missing. Click the extension toolbar icon to set your API key."
-          : `❌ ${err.message}`;
+        statusLine.textContent = "⏳ Fetching website pages...";
       }
+
+      try {
+        // Send crawl request to background service worker
+        if (statusLine) statusLine.textContent = "🤖 Analyzing with Gemini AI...";
+        const response = await new Promise((resolve, reject) => {
+          try {
+            if (!chrome.runtime || !chrome.runtime.id) {
+              return reject(new Error("Extension context invalidated. Please refresh this page (F5) to reconnect."));
+            }
+            chrome.runtime.sendMessage({
+              action: "crawlAndExtractForPortal",
+              targetUrl: url
+            }, (res) => {
+              if (chrome.runtime && chrome.runtime.lastError) {
+                const errMsg = chrome.runtime.lastError.message || "Communication failed";
+                return reject(new Error(errMsg.includes("context invalidated") ? "Extension context invalidated. Please refresh this page (F5) to reconnect." : errMsg));
+              }
+              resolve(res);
+            });
+          } catch (e) {
+            reject(e);
+          }
+        });
+
+        if (!response) {
+          throw new Error("No response received from crawler engine.");
+        }
+
+        if (!response.success && !response.data) {
+          throw new Error(response.error || "Crawl & AI extraction failed");
+        }
+
+        const extractedData = response.data || { websiteStatus: "Not Working", notWorkingReason: response.error };
+
+        if (statusLine) statusLine.textContent = "📝 Prefilling portal form fields...";
+        const fillResult = prefillPortalForm(extractedData);
+
+        // Render full extracted details in widget
+        renderWidgetDetails(extractedData, response.meta);
+
+        lastAutoCrawledUrl = normalizeTargetKey(url);
+
+        if (btnText) btnText.textContent = "✓ Form Filled!";
+        if (actionBtn) actionBtn.style.background = "#10b981";
+        if (statusLine) statusLine.textContent = `✅ Successfully filled ${fillResult.filledCount} fields! All details shown below.`;
+
+        // Auto Submit if websiteStatus is Not Working (or Redirect Site) and Auto Submit (Not Working) is enabled
+        triggerAutoSubmitIfNotWorking(extractedData, url, statusLine);
+
+        buttonResetTimer = setTimeout(() => {
+          buttonResetTimer = null;
+          if (isWidgetCrawling) return;
+          if (actionBtn) {
+            actionBtn.disabled = false;
+            actionBtn.style.opacity = "1";
+            actionBtn.style.cursor = "pointer";
+            actionBtn.style.pointerEvents = "";
+            actionBtn.style.background = "#2563eb";
+          }
+          if (btnText) btnText.textContent = "⚡ Crawl & Autofill Again";
+        }, 3500);
+
+      } catch (err) {
+        const isContextInvalidated = /context invalidated/i.test(err?.message || "");
+        if (isContextInvalidated) {
+          console.warn("Site Intelligence: Extension context invalidated due to extension reload. Please refresh the page.");
+          if (statusLine) {
+            statusLine.style.display = "block";
+            statusLine.textContent = "🔄 Extension was updated or reloaded. Please refresh this page (F5) to reconnect.";
+          }
+          if (btnText) btnText.textContent = "🔄 Refresh Page to Reconnect";
+          if (actionBtn) {
+            actionBtn.style.background = "#f59e0b";
+            actionBtn.disabled = false;
+            actionBtn.style.opacity = "1";
+            actionBtn.style.cursor = "pointer";
+            actionBtn.style.pointerEvents = "";
+            actionBtn.onclick = () => window.location.reload();
+          }
+          return;
+        }
+
+        const isApiKeyError = /api key/i.test(err?.message || "");
+        console.error("Widget crawl error:", err);
+        if (btnText) btnText.textContent = isApiKeyError ? "⚙️ API Key Required" : "Error";
+        if (actionBtn) {
+          actionBtn.style.background = isApiKeyError ? "#f59e0b" : "#ef4444";
+          actionBtn.disabled = false;
+          actionBtn.style.opacity = "1";
+          actionBtn.style.cursor = "pointer";
+          actionBtn.style.pointerEvents = "";
+        }
+        if (statusLine) {
+          statusLine.style.display = "block";
+          statusLine.textContent = isApiKeyError
+            ? "⚠️ Gemini API key is missing. Click the extension toolbar icon to set your API key."
+            : `❌ ${err.message}`;
+        }
 
         if (!isApiKeyError) {
           setTimeout(() => {
@@ -1832,8 +1833,8 @@
 
     // 1. Meta information
     const title = document.title || "";
-    const metaDesc = document.querySelector('meta[name="description"]')?.getAttribute("content") || 
-                     document.querySelector('meta[property="og:description"]')?.getAttribute("content") || "";
+    const metaDesc = document.querySelector('meta[name="description"]')?.getAttribute("content") ||
+      document.querySelector('meta[property="og:description"]')?.getAttribute("content") || "";
     const ogSiteName = document.querySelector('meta[property="og:site_name"]')?.getAttribute("content") || "";
 
     // 2. Extract JSON-LD structured data
@@ -1842,7 +1843,7 @@
       try {
         const parsed = JSON.parse(script.textContent);
         jsonLdData.push(parsed);
-      } catch (e) {}
+      } catch (e) { }
     });
 
     // 3. Find all internal links
@@ -1871,7 +1872,7 @@
             });
           }
         }
-      } catch (e) {}
+      } catch (e) { }
     }
 
     // 4. Product heuristics
@@ -1940,16 +1941,16 @@
     if (pathname === "/" || pathname === "" || text === "home") {
       return "home";
     }
-    if (/about|company|profile|who-we-are|introduction|overview|history/i.test(pathname) || 
-        /about|company|profile|who we are|our story/i.test(text)) {
+    if (/about|company|profile|who-we-are|introduction|overview|history/i.test(pathname) ||
+      /about|company|profile|who we are|our story/i.test(text)) {
       return "about";
     }
-    if (/contact|contact-us|reach-us|get-in-touch|support|feedback|location/i.test(pathname) || 
-        /contact|reach us|touch with us/i.test(text)) {
+    if (/contact|contact-us|reach-us|get-in-touch|support|feedback|location/i.test(pathname) ||
+      /contact|reach us|touch with us/i.test(text)) {
       return "contact";
     }
-    if (/product|products|item|items|catalog|catalogue|goods|collection|services|solutions|portfolio/i.test(pathname) || 
-        /product|item|catalog|our products|services/i.test(text)) {
+    if (/product|products|item|items|catalog|catalogue|goods|collection|services|solutions|portfolio/i.test(pathname) ||
+      /product|item|catalog|our products|services/i.test(text)) {
       return "product";
     }
     return "other";
@@ -2045,7 +2046,7 @@
           const st = window.getComputedStyle(node);
           if (st && (st.display === "none" || st.visibility === "hidden")) return;
         }
-      } catch (_) {}
+      } catch (_) { }
       const isBlock = blockTags.has(node.tagName);
       if (isBlock) parts.push("\n");
       for (let child = node.firstChild; child; child = child.nextSibling) {
@@ -2069,9 +2070,9 @@
     }
 
     text = text.replace(/[\r\n]+/g, "\n")
-               .replace(/[ \t]+/g, " ")
-               .replace(/\n\s*\n/g, "\n\n")
-               .trim();
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n\s*\n/g, "\n\n")
+      .trim();
     return text;
   }
 
