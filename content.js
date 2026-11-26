@@ -147,6 +147,8 @@
       try {
         const fillResult = prefillPortalForm(request.data);
         renderWidgetDetails(request.data, request.meta);
+        const statusLine = document.getElementById("site-intel-status-line");
+        triggerAutoSubmitIfNotWorking(request.data, request.data?.websiteName || "", statusLine);
         sendResponse({ success: true, ...fillResult });
       } catch (err) {
         sendResponse({ success: false, error: err.message });
@@ -1163,8 +1165,9 @@
       }
     });
 
-    // Sync live if changed from popup settings or another tab
-    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged) {
+    // Sync live if changed from popup settings or another tab (register once)
+    if (typeof chrome !== "undefined" && chrome.storage && chrome.storage.onChanged && (typeof window === "undefined" || !window.__siteIntelStorageListenerAttached)) {
+      if (typeof window !== "undefined") window.__siteIntelStorageListenerAttached = true;
       chrome.storage.onChanged.addListener((changes, areaName) => {
         if (areaName !== "local") return;
         if (changes.autoCrawl) {
@@ -1341,9 +1344,9 @@
       setInterval(() => {
         // Skip during active crawl — do NOT block background crawl with heavy DOM queries
         if (isWidgetCrawling) return;
-        // Skip if our widget is not visible (no point checking)
+        // Skip if widget doesn't exist and auto-crawl is disabled
         const widget = document.getElementById("site-intel-portal-widget");
-        if (!widget || widget.style.display === "none") return;
+        if ((!widget || widget.style.display === "none") && !getAutoCrawlEnabled()) return;
 
         const el = findWebsiteInputElement();
         if (el) {
@@ -1397,7 +1400,10 @@
   }
 
   let lastAutoCrawledUrl = "";
+  let pendingAutoCrawlKey = "";
   let autoCrawlTimer = null;
+  let autoSubmitTimer = null;
+  let lastAutoSubmittedKey = "";
 
   function normalizeTargetKey(url) {
     if (!url || typeof url !== "string") return "";
@@ -1411,9 +1417,13 @@
     if (isWidgetCrawling) return;
     const key = normalizeTargetKey(url);
     if (!key || key === lastAutoCrawledUrl) return;
+    // Do NOT reset timer if already scheduled for the same URL (prevents MutationObserver starvation)
+    if (autoCrawlTimer && pendingAutoCrawlKey === key) return;
     if (autoCrawlTimer) clearTimeout(autoCrawlTimer);
+    pendingAutoCrawlKey = key;
     autoCrawlTimer = setTimeout(() => {
       autoCrawlTimer = null;
+      pendingAutoCrawlKey = "";
       if (!getAutoCrawlEnabled() || isWidgetCrawling) return;
       const targetEl = document.getElementById("site-intel-widget-target");
       const latest = targetEl ? (targetEl.innerText || targetEl.textContent || "").trim() : url;
@@ -1426,7 +1436,7 @@
 
   function findPortalSubmitButton() {
     const candidates = Array.from(
-      document.querySelectorAll("button, input[type='submit'], input[type='button'], a.btn")
+      document.querySelectorAll("button, input[type='submit'], input[type='button'], a.btn, [role='button']")
     ).filter(el => {
       if (el.closest("#site-intel-portal-widget")) return false;
       if (el.disabled) return false;
@@ -1445,6 +1455,33 @@
     if (exact) return exact;
     const nativeSubmit = candidates.find(el => el.type === "submit");
     return nativeSubmit || candidates[0] || null;
+  }
+
+  function triggerAutoSubmitIfNotWorking(extractedData, targetUrl = "", statusLine = null) {
+    if (!extractedData || !getAutoSubmitNotWorkingEnabled()) return false;
+    const statusLower = String(extractedData.websiteStatus || "").trim().toLowerCase();
+    const isNotWorkingSite = statusLower === "not working" || statusLower === "redirect site";
+    if (!isNotWorkingSite) return false;
+
+    const key = normalizeTargetKey(targetUrl || extractedData.websiteName || "");
+    if (key && key === lastAutoSubmittedKey) return false;
+
+    const submitBtn = findPortalSubmitButton();
+    if (!submitBtn) return false;
+
+    if (autoSubmitTimer) clearTimeout(autoSubmitTimer);
+    if (statusLine) statusLine.textContent = "🚀 Not Working — Auto-submitting form...";
+    autoSubmitTimer = setTimeout(() => {
+      autoSubmitTimer = null;
+      if (!getAutoSubmitNotWorkingEnabled()) return;
+      const btn = findPortalSubmitButton();
+      if (!btn) return;
+      if (key) lastAutoSubmittedKey = key;
+      try {
+        btn.click();
+      } catch (_) {}
+    }, 800);
+    return true;
   }
 
   function updateFloatingWidgetTarget(url) {
@@ -1691,19 +1728,7 @@
       if (statusLine) statusLine.textContent = `✅ Successfully filled ${fillResult.filledCount} fields! All details shown below.`;
 
       // Auto Submit if websiteStatus is Not Working (or Redirect Site) and Auto Submit (Not Working) is enabled
-      const statusLower = String(extractedData.websiteStatus || "").trim().toLowerCase();
-      const isNotWorkingSite = statusLower === "not working" || statusLower === "redirect site";
-      if (isNotWorkingSite && getAutoSubmitNotWorkingEnabled()) {
-        const submitBtn = findPortalSubmitButton();
-        if (submitBtn) {
-          if (statusLine) statusLine.textContent = "🚀 Not Working — Auto-submitting form...";
-          setTimeout(() => {
-            try {
-              submitBtn.click();
-            } catch (_) {}
-          }, 800);
-        }
-      }
+      triggerAutoSubmitIfNotWorking(extractedData, url, statusLine);
 
       buttonResetTimer = setTimeout(() => {
         buttonResetTimer = null;

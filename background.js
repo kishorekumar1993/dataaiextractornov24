@@ -132,6 +132,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     (async () => {
       try {
         await queueReady;
+        const cleanKey = request.targetUrl.toLowerCase().split("#")[0].split("?")[0].replace(/\/$/, "");
+        const cached = !request.forceRefresh ? queueManager.completedMap[cleanKey] : null;
+        if (cached && cached.data && cached.completedAt) {
+          const ageMs = Date.now() - (Date.parse(cached.completedAt) || 0);
+          if (ageMs >= 0 && ageMs < 15 * 60 * 1000) {
+            sendResponse({
+              success: true,
+              data: cached.data,
+              meta: { ...(cached.meta || {}), cached: true }
+            });
+            return;
+          }
+        }
+
         const stored = await chrome.storage.local.get([
           "geminiApiKey",
           "geminiModel",
@@ -202,7 +216,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         }
 
         // Cache completed result (bounded)
-        const cleanKey = request.targetUrl.toLowerCase().split("#")[0].split("?")[0].replace(/\/$/, "");
         queueManager.recordCompleted(cleanKey, {
           data: result.data,
           meta: result.meta,
