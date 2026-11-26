@@ -535,6 +535,13 @@
     return ELIGIBLE_WORKING_BUSINESS_TYPES.some(eligible => b.includes(eligible));
   }
 
+  const ALLOWED_COUNTRIES = new Set([
+    "united states of america", "taiwan", "england", "canada", "china",
+    "united kingdom", "australia", "malaysia", "india", "south africa",
+    "new zealand", "italy", "germany", "ireland", "thailand",
+    "indonesia", "south korea", "singapore", "hong kong", "pakistan"
+  ]);
+
   function applyBusinessTypeEligibility(data) {
     if (!data) return data;
     const rawType = String(data.businessType || "").trim();
@@ -544,6 +551,18 @@
       const reason = `Ineligible Business Type: "${rawType || 'Other'}". Only businesses from Manufacturer to Wholesaler (Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler) are eligible Working sites; all other types are marked Not Working.`;
       data.notWorkingReason = reason;
       data.nonWorkingReason = reason;
+    }
+    const rawCountry = String(data.countryName || "").trim();
+    if (String(data.websiteStatus || "").trim().toLowerCase() === "working" && rawCountry && rawCountry.toLowerCase() !== "not available") {
+      const normCountry = (typeof GeminiClient !== "undefined" && GeminiClient.normalizeCountryName)
+        ? GeminiClient.normalizeCountryName(rawCountry)
+        : rawCountry;
+      if (!ALLOWED_COUNTRIES.has(normCountry.toLowerCase())) {
+        const reason = `Unsupported Country: "${normCountry}" is not in the 20 allowed countries.`;
+        data.websiteStatus = "Not Working";
+        data.notWorkingReason = reason;
+        data.nonWorkingReason = reason;
+      }
     }
     data.businessType = normalizeBusinessType(rawType);
     return data;

@@ -814,6 +814,65 @@ const CrawlerEngine = (() => {
     return ELIGIBLE_WORKING_BUSINESS_TYPES.some(eligible => b.includes(eligible));
   }
 
+  const ALLOWED_COUNTRIES = new Set([
+    "united states of america",
+    "taiwan",
+    "england",
+    "canada",
+    "china",
+    "united kingdom",
+    "australia",
+    "malaysia",
+    "india",
+    "south africa",
+    "new zealand",
+    "italy",
+    "germany",
+    "ireland",
+    "thailand",
+    "indonesia",
+    "south korea",
+    "singapore",
+    "hong kong",
+    "pakistan"
+  ]);
+
+  function isAllowedCountry(countryName) {
+    if (!countryName) return true;
+    const norm = (GeminiClient && GeminiClient.normalizeCountryName)
+      ? GeminiClient.normalizeCountryName(countryName)
+      : String(countryName).trim();
+    const lower = norm.toLowerCase();
+    if (!lower || lower === "not available") return true;
+    return ALLOWED_COUNTRIES.has(lower);
+  }
+
+  function applyUnsupportedCountryRule(data) {
+    if (!data || String(data.websiteStatus || "").trim().toLowerCase() !== "working") return data;
+    const rawCountry = String(data.countryName || "").trim();
+    if (!rawCountry || rawCountry.toLowerCase() === "not available") return data;
+    if (!isAllowedCountry(rawCountry)) {
+      const reason = `Unsupported Country: "${rawCountry}" is not in the 20 allowed countries.`;
+      data.websiteStatus = "Not Working";
+      data.notWorkingReason = reason;
+      data.nonWorkingReason = reason;
+      data.businessType = "";
+      data.companyProfile = "";
+      data.companyName = "";
+      data.companyAddress = "";
+      data.countryName = "";
+      data.state = "";
+      data.city = "";
+      data.emailId = "";
+      data.secondaryEmailId = "";
+      data.phoneNumber = "";
+      data.numberOfProducts = "";
+      data.productImages = "";
+      data.numberOfProductDescriptions = "";
+    }
+    return data;
+  }
+
   function applyBusinessTypeEligibilityRule(data, html = "", crawledPages = []) {
     if (!data) return data;
     const rawType = String(data.businessType || "").trim();
@@ -823,7 +882,7 @@ const CrawlerEngine = (() => {
     if (typeof RestrictionValidator !== "undefined" && RestrictionValidator && RestrictionValidator.validateFinalQC) {
       const qcResult = RestrictionValidator.validateFinalQC(data, crawledPages, { initialHtml: html });
       qcResult.businessType = normalizeBusinessType(rawType);
-      return qcResult;
+      return applyUnsupportedCountryRule(qcResult);
     }
 
     if (currentStatus === "Working") {
@@ -851,7 +910,7 @@ const CrawlerEngine = (() => {
       }
     }
     data.businessType = normalizeBusinessType(rawType);
-    return data;
+    return applyUnsupportedCountryRule(data);
   }
 
   function cleanHtmlToText(html, preserveFooter = true) {
@@ -1337,7 +1396,7 @@ FIELD RULES:
      * Examples: "ANSON Hydraulics Ind. Co., Ltd." -> "Anson Hydraulics Industrial Company, Limited"; "ABC Mfg. & Engg. (China) Corp." -> "Abc Manufacturing & Engineering China Corporation".
    - COMMA PRESERVATION: Preserve any comma in the source legal suffix ("Co., Ltd." -> "Company, Limited"; "Co. Ltd." -> "Company Limited"). Never insert artificial commas where none existed.
    - COMPLETENESS & INTERNAL SYMBOLS: Never truncate internal words or legal suffixes; keep established brand acronyms (IBM, BMW) and internal special characters (&, -, /, ') as-is; strip slogans and copyright text.
-5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", "United Kingdom" (or constituent country e.g. "England" if explicitly stated), etc. Infer from city/state if omitted.
+5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", "United Kingdom" (or constituent country e.g. "England" if explicitly stated), etc. Infer from city/state if omitted. Only these 20 countries are eligible Working sites: United States Of America, Taiwan, England, Canada, China, United Kingdom, Australia, Malaysia, India, South Africa, New Zealand, Italy, Germany, Ireland, Thailand, Indonesia, South Korea, Singapore, Hong Kong, Pakistan; any other country must be marked "websiteStatus": "Not Working" ("Unsupported Country").
 
 6. "companyAddress" — Contact Page, Footer and Map Address Comparison:
    - STRICT PRIORITY ORDER: (1) Contact Page – Primary Source + Embedded Map – Additional Address Verification Source (ABSOLUTE HIGHEST PRIORITY); (2) Website Footer – Secondary Source (ONLY use Footer if Contact Page + Map have NO address, or if Footer explicitly has Corporate Office/HQ while Contact Page only lists a Registered/Branch Office).
@@ -2003,6 +2062,9 @@ ${context.crawledText}
     hasOnlineSellingOptions,
     PORTAL_BUSINESS_TYPES,
     normalizeBusinessType,
+    ALLOWED_COUNTRIES,
+    isAllowedCountry,
+    applyUnsupportedCountryRule,
     ELIGIBLE_WORKING_BUSINESS_TYPES,
     isEligibleWorkingBusinessType,
     applyBusinessTypeEligibilityRule,
