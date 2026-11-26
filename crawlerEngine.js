@@ -19,7 +19,7 @@ const CrawlerEngine = (() => {
     : (typeof window !== "undefined" && window.CompanyNormalizer ? window.CompanyNormalizer : (typeof self !== "undefined" && self.CompanyNormalizer ? self.CompanyNormalizer : (typeof globalThis !== "undefined" && globalThis.CompanyNormalizer ? globalThis.CompanyNormalizer : null)));
 
   // Regex patterns for HTML processing in environments without DOM
-  const SCRIPT_STYLE_REGEX = /<(?:script|style|noscript|svg|canvas|iframe|template|nav)\b[^<]*(?:(?!<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>)<[^<]*)*<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>/gi;
+  const SCRIPT_STYLE_REGEX = /<(script|style|noscript|svg|canvas|iframe|template|nav)\b[^>]*>[\s\S]*?<\/\1>/gi;
   const HTML_TAG_REGEX = /<[^>]+>/g;
   const A_HREF_REGEX = /<a\s+(?:[^>]*?\s+)?href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))[^>]*>([\s\S]*?)<\/a>/gi;
   const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;

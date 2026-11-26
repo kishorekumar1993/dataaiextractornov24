@@ -49,6 +49,7 @@ const AddressNormalizer = (() => {
     "sec": "Section", "sec.": "Section",
     "dist": "District", "dist.": "District",
     "ind": "Industrial", "ind.": "Industrial",
+    "indl": "Industrial", "indl.": "Industrial",
     "plz": "Plaza", "plz.": "Plaza",
     "ctr": "Center", "ctr.": "Center",
     "no": "Number", "no.": "Number",
