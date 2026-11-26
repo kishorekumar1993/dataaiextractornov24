@@ -579,20 +579,24 @@
 
     function normalizeCountryName(country) {
     if (!country) return "";
-    let c = String(country).trim();
-    if (/^(?:united\s+states(?:\s+of\s+america)?|usa|u\.s\.a\.?|u\.s\.?|us)$/i.test(c)) {
-      return "United States Of America";
+    if (typeof GeminiClient !== "undefined" && typeof GeminiClient.normalizeCountryName === "function") {
+      return GeminiClient.normalizeCountryName(country);
     }
-    if (/^(?:uae|u\.a\.e\.?|united\s+arab\s+emirates)$/i.test(c)) {
-      return "United Arab Emirates";
-    }
-    if (/^(?:uk|u\.k\.?)$/i.test(c)) {
-      return "United Kingdom";
-    }
-    if (/^(?:ksa|k\.s\.a\.?)$/i.test(country)) {
-      return "Saudi Arabia";
-    }
-    return c;
+    const c = String(country).trim();
+    const aliases = {
+      "usa": "United States Of America", "u.s.a.": "United States Of America", "u.s.a": "United States Of America",
+      "u.s.": "United States Of America", "u.s": "United States Of America", "us": "United States Of America",
+      "united states": "United States Of America", "united states of america": "United States Of America",
+      "uae": "United Arab Emirates", "u.a.e.": "United Arab Emirates", "united arab emirates": "United Arab Emirates",
+      "uk": "United Kingdom", "u.k.": "United Kingdom", "great britain": "United Kingdom",
+      "ksa": "Saudi Arabia", "k.s.a.": "Saudi Arabia",
+      "prc": "China", "p.r.c.": "China", "p.r. china": "China",
+      "roc": "Taiwan", "r.o.c.": "Taiwan", "chinese taipei": "Taiwan",
+      "rok": "South Korea", "republic of korea": "South Korea", "korea": "South Korea",
+      "czechia": "Czech Republic", "holland": "Netherlands", "turkiye": "Turkey", "türkiye": "Turkey",
+      "russian federation": "Russia", "viet nam": "Vietnam", "hong kong sar": "Hong Kong"
+    };
+    return aliases[c.toLowerCase()] || c;
   }
 
   function resolveProductCountDefault(val) {
