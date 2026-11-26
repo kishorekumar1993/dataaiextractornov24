@@ -181,8 +181,8 @@ const AddressNormalizer = (() => {
                .replace(/&#(\d+);/g, (m, dec) => String.fromCharCode(dec))
                .replace(/&#x([0-9a-f]+);/gi, (m, hex) => String.fromCharCode(parseInt(hex, 16)));
 
-    // Remove outer brackets or parentheses only if wrapping the entire address
-    addr = addr.replace(/^\(([^)]+)\)$/, "$1").replace(/^\[([^\]]+)\]$/, "$1");
+    // Remove all bracket/parenthesis characters while keeping the words/landmarks inside
+    addr = addr.replace(/[()[\]]/g, " ");
 
     // Clean multiple spaces and preserve newlines as spaces (NEVER insert artificial commas for newlines)
     addr = addr.replace(/\r\n/g, "\n").replace(/\r/g, "\n");

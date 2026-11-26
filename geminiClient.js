@@ -921,7 +921,9 @@
     "burma": "Myanmar",
     "cote d'ivoire": "Ivory Coast",
     "côte d'ivoire": "Ivory Coast",
-    "swaziland": "Eswatini"
+    "swaziland": "Eswatini",
+    "republic of kenya": "Kenya",
+    "ke": "Kenya"
   };
 
   function normalizeCountryName(rawCountry) {
