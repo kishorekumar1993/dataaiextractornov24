@@ -21,7 +21,7 @@ const CrawlerEngine = (() => {
   // Regex patterns for HTML processing in environments without DOM
   const SCRIPT_STYLE_REGEX = /<(?:script|style|noscript|svg|canvas|iframe|template|nav)\b[^<]*(?:(?!<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>)<[^<]*)*<\/(?:script|style|noscript|svg|canvas|iframe|template|nav)>/gi;
   const HTML_TAG_REGEX = /<[^>]+>/g;
-  const A_HREF_REGEX = /<a\s+(?:[^>]*?\s+)?href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const A_HREF_REGEX = /<a\s+(?:[^>]*?\s+)?href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))[^>]*>([\s\S]*?)<\/a>/gi;
   const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
   const PHONE_REGEX = /(?:\+?\d{1,4}[-.\s]?)?\(?\d{1,4}\)?[-.\s]?\d{2,4}[-.\s]?\d{3,5}/g;
 
@@ -1087,11 +1087,36 @@ const CrawlerEngine = (() => {
 
   function extractFooterText(html) {
     if (!html) return "";
-    const footerMatch = html.match(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i) ||
-      html.match(/<div\b[^>]*\b(?:id|class)=["'][^"']*\bfooter\b[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+    const footerMatch = html.match(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i);
     if (footerMatch && footerMatch[1]) {
-      const rawFooter = cleanHtmlToText(footerMatch[1]);
-      if (rawFooter && rawFooter.length > 10 && rawFooter.length < 2000) {
+      const rawFooter = cleanHtmlToText(footerMatch[1], false);
+      if (rawFooter && rawFooter.length > 10 && rawFooter.length < 2500) {
+        return rawFooter;
+      }
+    }
+    const divStart = html.match(/<div\b[^>]*\b(?:id|class)=["'][^"']*\bfooter\b[^"']*["'][^>]*>/i);
+    if (divStart && divStart.index !== undefined) {
+      // Walk nested <div> tags so inner </div> does not truncate the footer address
+      let depth = 0;
+      const startIdx = divStart.index;
+      const tagRe = /<\/?div\b[^>]*>/gi;
+      tagRe.lastIndex = startIdx;
+      let m;
+      let endIdx = Math.min(html.length, startIdx + 12000);
+      while ((m = tagRe.exec(html)) !== null) {
+        if (m[0].startsWith("</")) {
+          depth--;
+          if (depth <= 0) {
+            endIdx = m.index;
+            break;
+          }
+        } else {
+          depth++;
+        }
+        if (m.index - startIdx > 12000) break;
+      }
+      const rawFooter = cleanHtmlToText(html.slice(startIdx + divStart[0].length, endIdx), false);
+      if (rawFooter && rawFooter.length > 10 && rawFooter.length < 2500) {
         return rawFooter;
       }
     }
@@ -1111,8 +1136,8 @@ const CrawlerEngine = (() => {
     }
 
     while ((match = regex.exec(html)) !== null) {
-      const rawHref = match[1]?.trim();
-      const rawText = cleanHtmlToText(match[2] || "").toLowerCase();
+      const rawHref = (match[1] ?? match[2] ?? match[3] ?? "").trim();
+      const rawText = cleanHtmlToText(match[4] || "").toLowerCase();
 
       if (!rawHref || rawHref.startsWith("#") || rawHref.startsWith("javascript:") ||
         rawHref.startsWith("mailto:") || rawHref.startsWith("tel:")) {
@@ -1295,18 +1320,23 @@ FIELD RULES:
 1. "websiteStatus": "Working" ONLY if the site loaded AND "businessType" is eligible ("Manufacturer" to "Wholesaler": Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler). Otherwise mark "Not Working" (or "Non English", "Redirect Site", "Flash", "Manual Review") and explain in "notWorkingReason".
 2. "businessType": Strictly one of: "Manufacturer", "Industrial Services", "Exporter", "Trader", "Distributer", "Supplier", "Wholesaler", "Service Provider", "Online Shopping", "Restricted Site", "Other". Only Manufacturer to Wholesaler qualify as "Working".
 3. "companyProfile": "Available" if about/company description exists, else "Not Available".
-4. "companyName": Longest, most complete official legal registered company name (Footer copyright/imprint > About Us > Contact header > Terms > Logo/Title) in Title Case. Expand business/legal abbreviations (Co., Ltd. -> Company, Limited; Co. Ltd. -> Company Limited; Pvt./Pte. Ltd. -> Private Limited; Pty. Ltd. -> Proprietary Limited; Inc. -> Incorporated; Corp. -> Corporation; LLC -> Limited Liability Company; LLP -> Limited Liability Partnership; PLC -> Public Limited Company; Sdn. Bhd. -> Sendirian Berhad; Mfg. -> Manufacturing; Ind. -> Industrial; Tech. -> Technology; Intl. -> International; Eng. -> Engineering; Sys. -> Systems; GmbH/SARL/S.p.A./B.V./K.K. full forms). Keep brand acronyms (IBM, BMW) and special characters as-is; strip brackets/slogans/copyright text.
+4. "companyName": You must take the complete company name in full form (Footer copyright/imprint > About Us > Contact header > Terms > Logo/Title).
+   - BRACKETS & COUNTRY IN NAME: Remove all brackets/parentheses/square brackets from the company name while keeping the words inside (e.g. "Manufacturing Group (China) Limited" -> "Manufacturing Group China Limited"). If a country name is mentioned in the company name, take it as it is.
+   - CAPITALIZATION & BOUNDARY CLEANUP: Capitalize the first letter of every word (Title Case), and remove any special characters from the beginning or at the end of the name.
+   - UNIVERSAL EXPANSION (NO SHORTENING): Expand EVERY abbreviated word in the company name into its complete full form (all business, industry, technical, geographic, and legal entity abbreviations—never leave any recognizable abbreviation shortened).
+   - COMMA PRESERVATION: Preserve any comma in the source legal suffix ("Co., Ltd." -> "Company, Limited"; "Co. Ltd." -> "Company Limited"). Never insert artificial commas where none existed.
+   - COMPLETENESS & INTERNAL SYMBOLS: Never truncate internal words or legal suffixes; keep established brand acronyms (IBM, BMW) and internal special characters (&, -, /, ') as-is; strip slogans and copyright text.
 5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", "United Kingdom" (or constituent country e.g. "England" if explicitly stated), etc. Infer from city/state if omitted.
 
 6. "companyAddress" — Contact Page, Footer and Map Address Comparison:
-   - Sources: Contact Page – Primary Source; Website Footer – Secondary Source; Embedded Map – Additional Address Verification Source.
+   - STRICT PRIORITY ORDER: (1) Contact Page – Primary Source + Embedded Map – Additional Address Verification Source (ABSOLUTE HIGHEST PRIORITY); (2) Website Footer – Secondary Source (ONLY use Footer if Contact Page + Map have NO address, or if Footer explicitly has Corporate Office/HQ while Contact Page only lists a Registered/Branch Office).
    - HQ (Headquarters) address is always first priority over Registered Office, Branch, Factory, or Plant.
    - Current Active Address Priority (CRITICAL): NEVER select former, historical, or previous addresses ("prior to", "formerly located at", "relocated from").
    - Comparison:
      * Scenario 1: All Three Addresses Are Identical -> Select Contact Page address.
-     * Scenario 2: Contact Page Address Is Incomplete -> Compare all three; if Map/Footer has fuller verified details for the same physical location, use the full-detail address.
-     * Scenario 3: Contact Page and Footer Are Different -> Select Corporate Office / HQ over Registered/Branch Office. If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
-     * Scenario 4: Contact Page and Map Are Different -> If Map has fuller details for the same location, adopt it; if Map is a different city, ignore it.
+     * Scenario 2: Contact Page Address Is Incomplete -> Compare Contact Page and Embedded Map (and Footer only if needed); if Map has fuller verified details for the same physical location, use the full-detail Map/Contact address.
+     * Scenario 3: Contact Page and Footer Are Different -> ALWAYS prefer Contact Page (+ Map) over Footer, UNLESS Footer explicitly designates Corporate Office / HQ and Contact Page only lists a Registered/Branch Office. If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
+     * Scenario 4: Contact Page and Map Are Different -> Compare Contact Page and Map: if Map has fuller details for the same location, adopt it; if Map is a different city, ignore it. If Contact Page has only a form + Map, take Contact Map address.
      * Scenario 5: All Three Addresses Are Different -> Do not merge different locations; use Contact Page as base and set "websiteStatus": "Manual Review" if irreconcilable.
      * Scenario 6: Contact Page Address Is Not Available in Text -> If Contact Page has only a form + Map, take Contact Map address; else fallback to Footer.
    - Address Completion Rules: Supplement only from the same verified physical HQ location; never add unrelated branches or guessed details.
@@ -1316,9 +1346,9 @@ FIELD RULES:
      * Floor Designations: Expand any floor abbreviation ("1F" -> "1Floor", "3f.-6" -> "3Floor - 6", "1st F"/"1st Fl." -> "1st Floor").
      * "No." / "Number" Rule: Expand "No."/"No.2" to "Number" ONLY if "No."/"Number" was in the source; NEVER prepend "Number" to pure street numbers or slash-separated units.
      * Commas: Preserve source commas exactly; NEVER insert artificial commas (e.g., before State/Province or when joining multi-line addresses).
-     * Cleanup: Remove pincode/postal/ZIP codes, country names, company names, brackets, leading labels ("Address:", "HQ:"), and trailing phone/email/punctuation.
+     * Cleanup: Remove pincode/postal/ZIP codes (e.g. "Taoyuan 330" -> "Taoyuan"), country names (including "Taiwan R.O.C." / "R.O.C."), company names, brackets, leading labels ("Address:", "HQ:"), and trailing phone/email/punctuation.
 
-7. "state": Strictly "Available" or "Not Available". Country Capitals (CRITICAL UNIVERSAL RULE): If a country's capital is mentioned in the address, both City and State are "Available". Official States & Provinces: Any recognized first-level administrative division (State, County, Province, Prefecture, Territory) = "Available". Disregard State Names in Street Lines (e.g. "Pennsylvania Avenue"). Non-capital cities/districts alone -> "Not Available".
+7. "state": Strictly "Available" or "Not Available". Country Capitals (CRITICAL UNIVERSAL RULE): If a country's capital is mentioned in the address, both City and State are "Available". Official States & Provinces: Any recognized first-level administrative division (State, County, Province, Prefecture, Territory) = "Available". Disregard State Names in Street Lines (e.g. "Pennsylvania Avenue"). Non-capital cities/municipalities alone (e.g. Taoyuan, Taichung, Kaohsiung, Tainan, New Taipei) -> "Not Available".
 8. "city": Strictly "Available" or "Not Available". Official Cities, Towns, Municipalities, Administrative Districts, and Country Capitals = "Available". Suburbs (without parent city), villages, neighborhoods, and industrial estates alone = "Not Available".
 9. "emailId" / "secondaryEmailId": Real business emails explicitly present in crawled text; never fabricate. Return "" if none.
 10. "phoneNumber": Digits only matching the selected HQ address. Strip international country calling codes (+1, +44, +91, +86, etc.), spaces, punctuation, and leading zeros. Reject toll-free (1800, 800, 888, 877, 866, 855, 844, 400) and pick the secondary direct/local phone if main is toll-free.
@@ -1360,6 +1390,47 @@ ${context.crawledText}`;
     } finally {
       if (timer) clearTimeout(timer);
     }
+  }
+
+  function cleanAddressCountryAndPostal(rawAddr, countryName = "") {
+    if (!rawAddr || rawAddr === "Not Available") return rawAddr || "";
+    let addr = String(rawAddr).trim();
+
+    // 1. Strip trailing country names & common political suffixes (e.g. "Taiwan R.O.C.", "R.O.C.", "P.R.C.", "U.S.A.")
+    const countryPatterns = [
+      /,?\s*\bTaiwan\s*,?\s*R\.?O\.?C\.?\s*$/i,
+      /,?\s*\bR\.?O\.?C\.?\s*$/i,
+      /,?\s*\bP\.?R\.?C\.?\s*$/i,
+      /,?\s*\bU\.?S\.?A\.?\s*$/i,
+      /,?\s*\bUnited\s+States(?:\s+Of\s+America)?\s*$/i,
+      /,?\s*\bUnited\s+Kingdom\s*$/i
+    ];
+    for (const pat of countryPatterns) {
+      addr = addr.replace(pat, "");
+    }
+    if (countryName && countryName !== "Not Available") {
+      const escapedCountry = String(countryName).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (escapedCountry) {
+        addr = addr.replace(new RegExp(`,?\\s*\\b${escapedCountry}\\b\\s*$`, "i"), "");
+      }
+    }
+
+    // 2. Strip trailing/end-of-segment postal/ZIP codes while protecting P.O. Box, Lane, Alley, Section, Suite, Unit, Floor, Number
+    const protectedPrefixRe = /\b(?:post\s+office\s+box|p\.?\s*o\.?\s*box|post\s+bag|box|number|no\.?|lane|alley|sec(?:tion)?|sector|phase|suite|ste\.?|unit|apt\.?|room|rm\.?|block|blk\.?|floor|fl\.?|plot|lot|h\.?\s*no\.?)\s*$/i;
+    // Strip trailing 3-6 digit postal code (e.g. "Taoyuan 330" -> "Taoyuan", "Illinois 62701" -> "Illinois")
+    addr = addr.replace(/^(.*?)([,\s]+)(\d{3,6})(?:-\d{4})?\s*$/, (full, before, sep, zip) => {
+      if (protectedPrefixRe.test(before)) return full;
+      return before;
+    });
+    // Also strip postal code immediately before a comma (e.g. "Taoyuan 330, ..." if anything remains)
+    addr = addr.replace(/([A-Za-z]{2,})\s+(\d{3,6})(?=\s*,)/g, (full, word, zip) => {
+      if (protectedPrefixRe.test(word)) return full;
+      return word;
+    });
+
+    // Clean stray trailing commas/spaces
+    addr = addr.replace(/[,\s]+$/, "").trim();
+    return addr;
   }
 
   // Orchestrates full crawl of target URL
@@ -1437,7 +1508,7 @@ ${context.crawledText}`;
       }
     }
 
-    const mainLinks = extractLinks(mainHtml, origin);
+    const mainLinks = extractLinks(mainHtml, cleanUrl);
     const mainContacts = extractContactsAndProducts(mainText, mainHtml);
 
     // 3. Select priority subpages to crawl (with fallback probes if nav links are missing/JS-only)
@@ -1482,12 +1553,15 @@ ${context.crawledText}`;
           }
           const subFooter = extractFooterText(subHtml);
           const subContacts = extractContactsAndProducts(subText, subHtml);
+          const contactSnippet = subText.length > 7500
+            ? subText.slice(0, 4000) + "\n...\n" + subText.slice(-3500)
+            : subText;
           return {
             page: {
               url: link.url,
               category: link.category,
               sourceType: link.category === "contact" ? "CONTACT_PAGE" : link.category.toUpperCase(),
-              textSnippet: subText.slice(0, link.category === "contact" ? 4500 : 2500),
+              textSnippet: link.category === "contact" ? contactSnippet : subText.slice(0, 2500),
               html: subHtml,
               mapAddresses: subMapAddresses,
               footerText: subFooter
@@ -1521,7 +1595,25 @@ ${context.crawledText}`;
       }
     } catch (_) {}
 
-    let pagesText = `MAIN / INITIAL PAGE (${cleanUrl}):\n`;
+    let pagesText = "";
+
+    // Put CONTACT PAGE + EMBEDDED MAP first (Primary Source) before Main Page & Footer
+    const contactPages = crawledPages.filter(p => p.category === "contact" || p.sourceType === "CONTACT_PAGE");
+    const otherPages = crawledPages.filter(p => p.category !== "contact" && p.sourceType !== "CONTACT_PAGE");
+
+    contactPages.forEach((p, idx) => {
+      pagesText += `--- CONTACT PAGE (PRIMARY SOURCE) ${idx + 1}: ${p.url} ---\n`;
+      pagesText += `Content:\n${p.textSnippet}\n`;
+      if (p.mapAddresses && p.mapAddresses.length > 0) {
+        pagesText += `\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: ${p.mapAddresses.join(" | ")}\n`;
+      }
+      if (p.footerText && p.footerText.length > 10) {
+        pagesText += `\n--- FOOTER (SECONDARY SOURCE) ---\n${p.footerText}\n`;
+      }
+      pagesText += "\n";
+    });
+
+    pagesText += `MAIN / INITIAL PAGE (${cleanUrl}):\n`;
     if (mainMeta.title || mainMeta.ogSiteName || mainMeta.logoAlt || mainMeta.jsonLd.length > 0) {
       pagesText += `--- STRUCTURED METADATA (SCHEMA / META) ---\n`;
       if (mainMeta.title) pagesText += `Page Title: ${mainMeta.title}\n`;
@@ -1531,7 +1623,10 @@ ${context.crawledText}`;
         pagesText += `JSON-LD Organization/Business: ${JSON.stringify(mainMeta.jsonLd)}\n`;
       }
     }
-    pagesText += `Content:\n${mainText.slice(0, 3500)}\n`;
+    const mainSnippet = mainText.length > 5000
+      ? mainText.slice(0, 3000) + "\n...\n" + mainText.slice(-2000)
+      : mainText;
+    pagesText += `Content:\n${mainSnippet}\n`;
     if (mainMapAddresses.length > 0) {
       pagesText += `\n--- EMBEDDED MAP VERIFICATION SOURCE ---\nMap Location / Address: ${mainMapAddresses.join(" | ")}\n`;
     }
@@ -1540,9 +1635,8 @@ ${context.crawledText}`;
     }
     pagesText += "\n";
 
-    crawledPages.forEach((p, idx) => {
-      const isContact = p.category === "contact" || p.sourceType === "CONTACT_PAGE";
-      const categoryTag = isContact ? "CONTACT PAGE (PRIMARY SOURCE)" : p.category.toUpperCase();
+    otherPages.forEach((p, idx) => {
+      const categoryTag = p.category.toUpperCase();
       pagesText += `--- CRAWLED SUBPAGE ${idx + 1}: [${categoryTag}] ${p.url} ---\n`;
       pagesText += `Content:\n${p.textSnippet}\n`;
       if (p.mapAddresses && p.mapAddresses.length > 0) {
@@ -1554,8 +1648,8 @@ ${context.crawledText}`;
       pagesText += "\n";
     });
 
-    if (pagesText.length > 15000) {
-      pagesText = pagesText.slice(0, 15000) + "\n...[truncated for token efficiency]";
+    if (pagesText.length > 20000) {
+      pagesText = pagesText.slice(0, 20000) + "\n...[truncated for token efficiency]";
     }
 
     const context = {
@@ -1687,6 +1781,17 @@ ${context.crawledText}`;
           }
         }
       }
+      if (cAddress === "Not Available" && mainMeta && Array.isArray(mainMeta.jsonLd)) {
+        const ldWithAddr = mainMeta.jsonLd.find(n => n && n.address && n.address.trim().length > 5);
+        if (ldWithAddr) cAddress = ldWithAddr.address.trim();
+      }
+      if (cAddress === "Not Available") {
+        const addrTagMatch = (htmlSource || "").match(/<address\b[^>]*>([\s\S]*?)<\/address>/i);
+        if (addrTagMatch && addrTagMatch[1]) {
+          const cleaned = cleanHtmlToText(addrTagMatch[1], false);
+          if (cleaned && cleaned.length > 5) cAddress = cleaned;
+        }
+      }
       if (cAddress !== "Not Available") {
         cAddress = cAddress.trim();
       }
@@ -1798,11 +1903,7 @@ ${context.crawledText}`;
         }
       }
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
-        if (companyNorm && companyNorm.normalizeCompanyName) {
-          aiResult.data.companyName = companyNorm.normalizeCompanyName(aiResult.data.companyName);
-        } else {
-          aiResult.data.companyName = aiResult.data.companyName.trim();
-        }
+        aiResult.data.companyName = aiResult.data.companyName.trim();
       }
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
         aiResult.data.companyAddress = aiResult.data.companyAddress.trim();
@@ -1860,6 +1961,7 @@ ${context.crawledText}`;
     buildSystemInstruction,
     buildUserPrompt,
     normalizeAddress: (raw) => (AddressNormalizer && AddressNormalizer.normalizeAddress ? AddressNormalizer.normalizeAddress(raw) : raw),
+    cleanAddressCountryAndPostal,
     resolveMapEmbedAddress,
     RestrictionValidator: (typeof RestrictionValidator !== "undefined" ? RestrictionValidator : null),
     crawlAndExtractUrl

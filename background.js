@@ -128,13 +128,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   // 6. Crawl & Extract for Portal Autofill (orchestrated in background)
+  const CRAWL_CACHE_VERSION = "v8";
   if (request.action === "crawlAndExtractForPortal") {
     (async () => {
       try {
         await queueReady;
         const cleanKey = request.targetUrl.toLowerCase().split("#")[0].split("?")[0].replace(/\/$/, "");
         const cached = !request.forceRefresh ? queueManager.completedMap[cleanKey] : null;
-        if (cached && cached.data && cached.completedAt) {
+        if (cached && cached.cacheVersion === CRAWL_CACHE_VERSION && cached.data && cached.completedAt) {
           const ageMs = Date.now() - (Date.parse(cached.completedAt) || 0);
           if (ageMs >= 0 && ageMs < 15 * 60 * 1000) {
             sendResponse({
@@ -217,6 +218,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         // Cache completed result (bounded)
         queueManager.recordCompleted(cleanKey, {
+          cacheVersion: CRAWL_CACHE_VERSION,
           data: result.data,
           meta: result.meta,
           completedAt: new Date().toISOString()
