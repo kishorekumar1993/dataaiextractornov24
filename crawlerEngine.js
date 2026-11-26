@@ -1349,10 +1349,10 @@ FIELD RULES:
      * Floor Designations: Expand any floor abbreviation ("1F" -> "1Floor", "3f.-6" -> "3Floor - 6", "1st F"/"1st Fl." -> "1st Floor").
      * "No." / "Number" Rule: Expand "No."/"No.2" to "Number" ONLY if "No."/"Number" was in the source; NEVER prepend "Number" to pure street numbers or slash-separated units.
      * Commas: Preserve source commas exactly; NEVER insert artificial commas (e.g., before State/Province or when joining multi-line addresses).
-     * Cleanup: Remove pincode/postal/ZIP codes (e.g. "Taoyuan 330" -> "Taoyuan"), country names (including "Taiwan R.O.C." / "R.O.C."), company names, brackets, leading labels ("Address:", "HQ:"), and trailing phone/email/punctuation.
+     * Cleanup: Remove pincode/postal/ZIP codes (e.g. "Taoyuan 330" -> "Taoyuan", UK postcodes like "MK14 5AN" or "NR6 6NN" -> ""), country names (including "United Kingdom", "England", "Taiwan R.O.C.", "R.O.C."), company names, brackets, leading labels ("Address:", "HQ:"), and trailing phone/fax/email/registration/punctuation.
 
-7. "state": Strictly "Available" or "Not Available". Country Capitals (CRITICAL UNIVERSAL RULE): If a country's capital is mentioned in the address, both City and State are "Available". Official States & Provinces: Any recognized first-level administrative division (State, County, Province, Prefecture, Territory) = "Available". Disregard State Names in Street Lines (e.g. "Pennsylvania Avenue"). Non-capital cities/municipalities alone (e.g. Taoyuan, Taichung, Kaohsiung, Tainan, New Taipei) -> "Not Available".
-8. "city": Strictly "Available" or "Not Available". Official Cities, Towns, Municipalities, Administrative Districts, and Country Capitals = "Available". Suburbs (without parent city), villages, neighborhoods, and industrial estates alone = "Not Available".
+7. "state": Strictly "Available" or "Not Available". Country Capitals (CRITICAL UNIVERSAL RULE): If a country's capital is mentioned in the address, both City and State are "Available". Official States & Provinces: Any recognized first-level administrative division (State, County / Hsien, Province, Prefecture, Territory) = "Available". Disregard State Names in Street Lines (e.g. "Pennsylvania Avenue"). Non-capital cities/municipalities alone (e.g. Taoyuan, Taichung City, Kaohsiung, Tainan, New Taipei) -> "Not Available".
+8. "city": Strictly "Available" or "Not Available". Official Cities, Towns, Townships (e.g. Shiang/Xiang/Zhen), Municipalities, Administrative Districts, and Country Capitals = "Available". Suburbs (without parent city), villages (e.g. Chuen/Village), neighborhoods, and industrial estates alone = "Not Available".
 9. "emailId" / "secondaryEmailId": Real business emails explicitly present in crawled text; never fabricate. Return "" if none.
 10. "phoneNumber": Digits only matching the selected HQ address. Strip international country calling codes (+1, +44, +91, +86, etc.), spaces, punctuation, and leading zeros. Reject toll-free (1800, 800, 888, 877, 866, 855, 844, 400) and pick the secondary direct/local phone if main is toll-free.
 11. "numberOfProducts" / "productImages" / "numberOfProductDescriptions": Default to "3" for all three fields ("3" for 3 or more, "2" for 2, "1" for 1). Never output "0" unless all images are prohibited.
@@ -1399,40 +1399,48 @@ ${context.crawledText}`;
     if (!rawAddr || rawAddr === "Not Available") return rawAddr || "";
     let addr = String(rawAddr).trim();
 
-    // 1. Strip trailing country names & common political suffixes (e.g. "Taiwan R.O.C.", "R.O.C.", "P.R.C.", "U.S.A.")
+    // 0. Strip leading labels and trailing phone/fax/email/company registration clutter
+    addr = addr.replace(/^(?:address|location|hq|headquarters|corporate\s+office|registered\s+office)\s*[:\-]\s*/i, "");
+    addr = addr.replace(/(?:,?\s*(?:tel|telephone|phone|ph|fax|email|e-mail|web|website|company\s+no\.?|reg(?:istered)?\s+no\.?)\s*[:\-].*)$/i, "");
+
+    // 1. Strip trailing country names & common political/constituent suffixes
     const countryPatterns = [
       /,?\s*\bTaiwan\s*,?\s*R\.?O\.?C\.?\s*$/i,
       /,?\s*\bR\.?O\.?C\.?\s*$/i,
       /,?\s*\bP\.?R\.?C\.?\s*$/i,
       /,?\s*\bU\.?S\.?A\.?\s*$/i,
       /,?\s*\bUnited\s+States(?:\s+Of\s+America)?\s*$/i,
-      /,?\s*\bUnited\s+Kingdom\s*$/i
+      /,?\s*\b(?:United\s+Kingdom|Great\s+Britain|U\.?K\.?|England|Scotland|Wales|Northern\s+Ireland)\s*$/i
     ];
-    for (const pat of countryPatterns) {
-      addr = addr.replace(pat, "");
-    }
-    if (countryName && countryName !== "Not Available") {
-      const escapedCountry = String(countryName).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      if (escapedCountry) {
-        addr = addr.replace(new RegExp(`,?\\s*\\b${escapedCountry}\\b\\s*$`, "i"), "");
+    for (let pass = 0; pass < 2; pass++) {
+      for (const pat of countryPatterns) {
+        addr = addr.replace(pat, "");
+      }
+      if (countryName && countryName !== "Not Available") {
+        const escapedCountry = String(countryName).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (escapedCountry) {
+          addr = addr.replace(new RegExp(`,?\\s*\\b${escapedCountry}\\b\\s*$`, "i"), "");
+        }
       }
     }
 
-    // 2. Strip trailing/end-of-segment postal/ZIP codes while protecting P.O. Box, Lane, Alley, Section, Suite, Unit, Floor, Number
+    // 2. Strip UK alphanumeric postcodes (e.g. "MK14 5AN", "NR6 6NN", "SW1A 1AA") and Canadian postcodes (e.g. "L4T 3C8")
+    addr = addr.replace(/,?\s*\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b(?=\s*(?:,|$))/gi, "");
+    addr = addr.replace(/,?\s*\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b(?=\s*(?:,|$))/gi, "");
+
+    // 3. Strip trailing/end-of-segment numeric postal/ZIP codes while protecting P.O. Box, Lane, Alley, Section, Suite, Unit, Floor, Number
     const protectedPrefixRe = /\b(?:post\s+office\s+box|p\.?\s*o\.?\s*box|post\s+bag|box|number|no\.?|lane|alley|sec(?:tion)?|sector|phase|suite|ste\.?|unit|apt\.?|room|rm\.?|block|blk\.?|floor|fl\.?|plot|lot|h\.?\s*no\.?)\s*$/i;
-    // Strip trailing 3-6 digit postal code (e.g. "Taoyuan 330" -> "Taoyuan", "Illinois 62701" -> "Illinois")
-    addr = addr.replace(/^(.*?)([,\s]+)(\d{3,6})(?:-\d{4})?\s*$/, (full, before, sep, zip) => {
+    addr = addr.replace(/^(.*?)([,\s]+)(\d{3,6})(?:-\d{4})?\s*$/, (full, before) => {
       if (protectedPrefixRe.test(before)) return full;
       return before;
     });
-    // Also strip postal code immediately before a comma (e.g. "Taoyuan 330, ..." if anything remains)
-    addr = addr.replace(/([A-Za-z]{2,})\s+(\d{3,6})(?=\s*,)/g, (full, word, zip) => {
+    addr = addr.replace(/([A-Za-z]{2,})\s+(\d{3,6})(?=\s*,)/g, (full, word) => {
       if (protectedPrefixRe.test(word)) return full;
       return word;
     });
 
-    // Clean stray trailing commas/spaces
-    addr = addr.replace(/[,\s]+$/, "").trim();
+    // Clean stray commas/spaces
+    addr = addr.replace(/,\s*,+/g, ", ").replace(/[,\s]+$/, "").trim();
     return addr;
   }
 
@@ -1909,7 +1917,11 @@ ${context.crawledText}`;
         aiResult.data.companyName = aiResult.data.companyName.trim();
       }
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
-        aiResult.data.companyAddress = aiResult.data.companyAddress.trim();
+        let cleanedAddr = cleanAddressCountryAndPostal(aiResult.data.companyAddress, aiResult.data.countryName);
+        if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
+          cleanedAddr = AddressNormalizer.normalizeAddress(cleanedAddr);
+        }
+        aiResult.data.companyAddress = cleanAddressCountryAndPostal(cleanedAddr, aiResult.data.countryName);
       }
       if (String(aiResult.data.websiteStatus || "").trim().toLowerCase() === "working") {
         const normCount = (v, allowZero = false) => {
