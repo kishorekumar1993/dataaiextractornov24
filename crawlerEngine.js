@@ -1355,7 +1355,7 @@ FIELD RULES:
 8. "city": Strictly "Available" or "Not Available". Official Cities, Towns, Municipalities, Administrative Districts, and Country Capitals = "Available". Suburbs (without parent city), villages, neighborhoods, and industrial estates alone = "Not Available".
 9. "emailId" / "secondaryEmailId": Real business emails explicitly present in crawled text; never fabricate. Return "" if none.
 10. "phoneNumber": Digits only matching the selected HQ address. Strip international country calling codes (+1, +44, +91, +86, etc.), spaces, punctuation, and leading zeros. Reject toll-free (1800, 800, 888, 877, 866, 855, 844, 400) and pick the secondary direct/local phone if main is toll-free.
-11. "numberOfProducts" / "productImages" / "numberOfProductDescriptions": Use "One" (for 1) or "Three" / "3" (for >1), never "0" unless all images are prohibited.
+11. "numberOfProducts" / "productImages" / "numberOfProductDescriptions": Default to "3" for all three fields ("3" for 3 or more, "2" for 2, "1" for 1). Never output "0" unless all images are prohibited.
     - Prohibited Categories (Rule 15): Porn / Adult Content, Medicine / Medical / Hospital, Food, Weapons (including Knife) / Defence, Aircraft / Marine (Aerospace/Ship), Chemicals, Alcohol, Animals. If all images are prohibited, set "productImages": "0".
 
 UNPAID / INELIGIBLE RULES (Mark "websiteStatus": "Not Working" for 1-11):
@@ -1808,9 +1808,9 @@ ${context.crawledText}`;
         primaryPhone = gemini.sanitizePhoneNumber(primaryPhone, cName) || primaryPhone;
       }
 
-      const pCount = String(Math.min(3, Math.max(1, ctx?.heuristicProducts || 3)));
-      const iCount = String(Math.min(3, Math.max(1, ctx?.heuristicImages || 3)));
-      const dCount = String(Math.min(3, Math.max(1, ctx?.heuristicDescriptions || 3)));
+      const pCount = "3";
+      const iCount = "3";
+      const dCount = "3";
 
       let bType = "Manufacturer";
       const fullTxt = ((htmlSource || "") + " " + (ctx?.crawledText || "")).toLowerCase();
@@ -1910,6 +1910,18 @@ ${context.crawledText}`;
       }
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
         aiResult.data.companyAddress = aiResult.data.companyAddress.trim();
+      }
+      if (String(aiResult.data.websiteStatus || "").trim().toLowerCase() === "working") {
+        const normCount = (v, allowZero = false) => {
+          const s = String(v ?? "").trim().toLowerCase();
+          if (s === "one" || s === "1") return "1";
+          if (s === "two" || s === "2") return "2";
+          if (allowZero && s === "0") return "0";
+          return "3";
+        };
+        aiResult.data.numberOfProducts = normCount(aiResult.data.numberOfProducts, false);
+        aiResult.data.productImages = normCount(aiResult.data.productImages, true);
+        aiResult.data.numberOfProductDescriptions = normCount(aiResult.data.numberOfProductDescriptions, false);
       }
     }
 

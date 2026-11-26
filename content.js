@@ -603,9 +603,11 @@
       if (val === undefined || val === null || val === "" || val === "Not Available") {
         return "3";
       }
-      const str = String(val).trim();
-      const n = parseInt(str, 10);
-      return (!isNaN(n) && n >= 0 && n <= 3) ? String(n) : "3";
+      const str = String(val).trim().toLowerCase();
+      if (str === "one" || str === "1") return "1";
+      if (str === "two" || str === "2") return "2";
+      if (str === "0") return "0";
+      return "3";
     }
 
     // Map extracted JSON to portal fields (if Not Working, mark Not Working and empty all other fields)
