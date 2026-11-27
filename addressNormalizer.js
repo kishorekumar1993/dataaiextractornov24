@@ -349,8 +349,10 @@ const AddressNormalizer = (() => {
                      .replace(/^Number\s+(\d+\s+[A-Za-z])/i, "$1");
     }
 
-    // Expand common Canadian province abbreviations (without inserting any commas)
-    result = result.replace(/\bBC\b/gi, "British Columbia");
+    // Expand common Canadian province & Malaysian road abbreviations (without inserting any commas)
+    result = result.replace(/\bBC\b/gi, "British Columbia")
+                   .replace(/\bPJU\b/gi, "Petaling Jaya Utara")
+                   .replace(/\bPJS\b/gi, "Petaling Jaya Selatan");
 
     return result;
   }
