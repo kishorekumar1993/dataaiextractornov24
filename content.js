@@ -1378,9 +1378,12 @@
         if (el) {
           const v = getElementValue(el);
           if (isValidUrlOrDomain(v)) {
+            const trimmed = v.trim();
             const targetEl = document.getElementById("site-intel-widget-target");
-            if (targetEl && targetEl.textContent.trim() !== v.trim()) {
-              updateFloatingWidgetTarget(v.trim());
+            if (targetEl && targetEl.textContent.trim() !== trimmed) {
+              updateFloatingWidgetTarget(trimmed);
+            } else if (getAutoCrawlEnabled() && normalizeTargetKey(trimmed) !== lastAutoCrawledUrl) {
+              scheduleAutoCrawl(trimmed);
             }
           }
         }

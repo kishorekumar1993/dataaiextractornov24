@@ -1273,8 +1273,8 @@ const CrawlerEngine = (() => {
     if (pathname === "/" || pathname === "" || text === "home") {
       return "home";
     }
-    if (/contact|contact-us|contactus|reach-us|get-in-touch|locate-us|locate|support|feedback|location|imprint|impressum|headquarters|offices|branches|find-us|where-to-buy|enquir|inquir/i.test(pathname) ||
-      /contact|reach us|touch with us|locate us|find us|our offices|headquarters|imprint|impressum/i.test(text)) {
+    if (/contact|contact-us|contactus|reach-us|get-in-touch|locate-us|locate|support|customer-care|customer-service|customer-support|feedback|location|imprint|impressum|headquarters|offices|branches|find-us|where-to-buy|enquir|inquir/i.test(pathname) ||
+      /contact|reach us|touch with us|locate us|find us|our offices|headquarters|customer care|customer service|imprint|impressum/i.test(text)) {
       return "contact";
     }
     if (/about|company|profile|who-we-are|introduction|overview|history|factory|plant|manufacturing|infrastructure|facilities|capabilities|machinery|production|workshop/i.test(pathname) ||
@@ -1590,6 +1590,12 @@ ${context.crawledText}
     addr = addr.replace(/([A-Za-z]{2,})\s*[-–]?\s*(\d{3,6})(?=\s*,)/g, (full, word) => {
       if (protectedPrefixRe.test(word)) return full;
       return word;
+    });
+    // Strip 5-6 digit postal code appearing after a comma before a city/locality (e.g. ", 47810 Kota Damansara" -> ", Kota Damansara")
+    addr = addr.replace(/(,\s*)(\d{5,6})(?=\s+[A-Za-z])/g, (full, comma, digits, offset) => {
+      const before = addr.slice(0, offset);
+      if (protectedPrefixRe.test(before)) return full;
+      return comma;
     });
 
     // Clean stray commas/spaces
@@ -2142,7 +2148,17 @@ ${context.crawledText}
         if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
           cleanedAddr = AddressNormalizer.normalizeAddress(cleanedAddr);
         }
-        aiResult.data.companyAddress = cleanAddressCountryAndPostal(cleanedAddr, aiResult.data.countryName);
+        cleanedAddr = cleanAddressCountryAndPostal(cleanedAddr, aiResult.data.countryName);
+        // Strip hallucinated leading "Number " if the crawled website text never had "No." / "Number" before that street number
+        const leadingNumMatch = cleanedAddr.match(/^Number\s+(\d+)\b/i);
+        if (leadingNumMatch && context && context.crawledText) {
+          const num = leadingNumMatch[1];
+          const sourceHadNo = new RegExp(`\\b(?:no\\.?|number)\\s*${num}\\b`, "i").test(context.crawledText);
+          if (!sourceHadNo) {
+            cleanedAddr = cleanedAddr.replace(/^Number\s+/i, "");
+          }
+        }
+        aiResult.data.companyAddress = cleanedAddr;
       }
       if (String(aiResult.data.websiteStatus || "").trim().toLowerCase() === "working") {
         // Deterministically backfill emailId / secondaryEmailId from all crawled pages & linked social emails
