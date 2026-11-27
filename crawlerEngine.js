@@ -2262,11 +2262,28 @@ ${context.crawledText}
         return seg || "home";
       } catch (_) { return "site"; }
     })();
+    const addrSourcePage = sourcePagesOrdered.find(sp => sp.url === addrSource);
+    const addrSourceText = addrSourcePage ? addrSourcePage.text : "";
     const strippedNotes = [];
-    if (typeof rawPreCleanAddr === "string" && rawPreCleanAddr && dObj.companyAddress && rawPreCleanAddr !== dObj.companyAddress) {
-      const pcMatch = rawPreCleanAddr.match(/\b([A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}|\d{5,6}(?:-\d{4})?)\b/i);
-      if (pcMatch && !dObj.companyAddress.includes(pcMatch[1])) strippedNotes.push(`Postcode ${pcMatch[1]} stripped`);
-      if (dObj.countryName && new RegExp(`\\b${String(dObj.countryName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(rawPreCleanAddr)) {
+    const checkRawText = [rawPreCleanAddr, addrSourceText].filter(Boolean).join("\n");
+    if (dObj.companyAddress && dObj.companyAddress !== "Not Available") {
+      // Detect postcode stripped either from rawPreCleanAddr or near the street/city in addrSourceText
+      let pcFound = "";
+      if (rawPreCleanAddr && rawPreCleanAddr !== dObj.companyAddress) {
+        const pcM = rawPreCleanAddr.match(/\b([A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}|\d{5,6}(?:-\d{4})?)\b/i);
+        if (pcM && !dObj.companyAddress.includes(pcM[1])) pcFound = pcM[1];
+      }
+      if (!pcFound && addrSourceText && addrParts.length > 0) {
+        const anchor = (addrParts[addrParts.length - 1] || addrParts[0]).slice(0, 20);
+        const aIdx = anchor ? addrSourceText.toLowerCase().indexOf(anchor.toLowerCase()) : -1;
+        if (aIdx !== -1) {
+          const near = addrSourceText.slice(Math.max(0, aIdx - 80), aIdx + 100);
+          const pcM = near.match(/\b([A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}|\d{5,6}(?:-\d{4})?)\b/i);
+          if (pcM && !dObj.companyAddress.includes(pcM[1])) pcFound = pcM[1];
+        }
+      }
+      if (pcFound) strippedNotes.push(`Postcode ${pcFound} stripped`);
+      if (dObj.countryName && rawPreCleanAddr && new RegExp(`\\b${String(dObj.countryName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(rawPreCleanAddr)) {
         strippedNotes.push(`${dObj.countryName} stripped`);
       }
     }
@@ -2274,13 +2291,16 @@ ${context.crawledText}
       ? (strippedNotes.length > 0 ? `${strippedNotes.join(" & ")} (${addrSourceSlug})` : `Verified from ${addrSourceSlug}`)
       : "No address found";
     const lastPart = addrParts.length > 0 ? addrParts[addrParts.length - 1] : "";
-    const secondLastPart = addrParts.length > 1 ? addrParts[addrParts.length - 2] : "";
+    const rawSecondLast = addrParts.length > 1 ? addrParts[addrParts.length - 2] : "";
+    // If no comma separated the street and locality (e.g. "1880 Open Meadows Road Ashville"), extract the locality after the thoroughfare word
+    const streetSuffixMatch = rawSecondLast.match(/\b(?:Road|Street|Avenue|Boulevard|Highway|Drive|Lane|Court|Place|Parkway|Way)\s+([A-Za-z][A-Za-z\s'-]{1,35})$/i);
+    const cleanLocality = streetSuffixMatch ? streetSuffixMatch[1].trim() : rawSecondLast;
     const stateReason = String(dObj.state || "").toLowerCase() === "available"
       ? (lastPart ? `${lastPart} (State/County/Province)` : "State/County/Province present")
       : "No State/County/Province in address";
     const cityReason = String(dObj.city || "").toLowerCase() === "available"
-      ? (secondLastPart ? `${secondLastPart} (City/Town)` : (lastPart ? `${lastPart} (City/Capital)` : "City/Town present"))
-      : (secondLastPart ? `${secondLastPart} (Not official City/Town)` : "No official City/Town in address");
+      ? (cleanLocality ? `${cleanLocality} (City/Town)` : (lastPart ? `${lastPart} (City/Capital)` : "City/Town present"))
+      : (cleanLocality ? `${cleanLocality} (Not official City/Town)` : "No official City/Town in address");
     const fieldReasons = {
       companyAddress: addrReason,
       state: stateReason,

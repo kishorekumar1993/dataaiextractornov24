@@ -1025,7 +1025,7 @@
 
           <!-- Key-Value Table showing ALL 15 fields -->
           <div style="max-height:240px; overflow-y:auto; border:1px solid #334155; border-radius:6px; background:#020617;">
-            <table style="width:100%; border-collapse:collapse; font-size:11px; text-align:left;">
+            <table style="width:100%; table-layout:fixed; word-break:break-word; border-collapse:collapse; font-size:11px; text-align:left;">
               <tbody id="site-intel-table-body">
                 <!-- Dynamically populated rows -->
               </tbody>
