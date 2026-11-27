@@ -921,7 +921,18 @@ const CrawlerEngine = (() => {
     if (preserveFooter) {
       footerText = extractFooterText(html);
     }
-    let text = html.replace(SCRIPT_STYLE_REGEX, " ");
+    // Decode Cloudflare obfuscated emails (data-cfemail / email-protection) before stripping tags
+    let text = html.replace(/<a\b[^>]*\bdata-cfemail=["']([0-9a-f]+)["'][^>]*>[\s\S]*?<\/a>/gi, (_, hex) => {
+      const dec = decodeCloudflareEmail(hex);
+      return dec ? ` ${dec} ` : " ";
+    }).replace(/<span\b[^>]*\bdata-cfemail=["']([0-9a-f]+)["'][^>]*>[\s\S]*?<\/span>/gi, (_, hex) => {
+      const dec = decodeCloudflareEmail(hex);
+      return dec ? ` ${dec} ` : " ";
+    }).replace(/\/cdn-cgi\/l\/email-protection#([0-9a-f]+)/gi, (_, hex) => {
+      const dec = decodeCloudflareEmail(hex);
+      return dec ? ` ${dec} ` : " ";
+    });
+    text = text.replace(SCRIPT_STYLE_REGEX, " ");
     text = text.replace(/<br\s*\/?>/gi, "\n")
       .replace(/<\/(p|div|tr|li|h[1-6]|section|article)>/gi, "\n");
     text = text.replace(HTML_TAG_REGEX, " ");
@@ -1313,6 +1324,16 @@ const CrawlerEngine = (() => {
     return list;
   }
 
+  function decodeCloudflareEmail(hex) {
+    if (!hex || hex.length < 4 || !/^[0-9a-f]+$/i.test(hex)) return "";
+    const key = parseInt(hex.slice(0, 2), 16);
+    let out = "";
+    for (let i = 2; i < hex.length; i += 2) {
+      out += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16) ^ key);
+    }
+    return out.trim();
+  }
+
   function isValidCompanyEmail(email) {
     if (!email || typeof email !== "string") return false;
     const lower = email.trim().toLowerCase();
@@ -1320,22 +1341,45 @@ const CrawlerEngine = (() => {
     if (/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|pdf|woff2?)$/i.test(lower)) return false;
     if (/^(?:primary_email|secondary_email|your|name|user|test|noreply|no-reply|donotreply)@/i.test(lower)) return false;
     const domain = lower.split("@")[1] || "";
-    if (["example.com", "domain.com", "email.com", "test.com", "sentry.io", "wixpress.com", "wix.com"].some(d => domain === d || domain.endsWith("." + d))) {
+    if (["example.com", "domain.com", "email.com", "test.com", "sentry.io", "wixpress.com", "wix.com", "w3.org", "schema.org", "facebook.com", "fbcdn.net"].some(d => domain === d || domain.endsWith("." + d))) {
       return false;
     }
     return true;
   }
 
   function extractContactsAndProducts(text, html) {
-    const emailSet = new Set((text.match(EMAIL_REGEX) || []).filter(isValidCompanyEmail));
+    const emailSet = new Set((text.match(EMAIL_REGEX) || []).map(e => e.trim().toLowerCase()).filter(isValidCompanyEmail));
+    // Also catch [at] / (at) obfuscated emails in text
+    const obfuscatedMatches = text.match(/\b[a-zA-Z0-9._%+-]+\s*(?:\[at\]|\(at\))\s*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/gi) || [];
+    for (const om of obfuscatedMatches) {
+      const norm = om.replace(/\s*(?:\[at\]|\(at\))\s*/i, "@").trim().toLowerCase();
+      if (isValidCompanyEmail(norm)) emailSet.add(norm);
+    }
     if (html) {
       const mailtoRegex = /href=["']mailto:([^"'?#]+)/gi;
       let mm;
       while ((mm = mailtoRegex.exec(html)) !== null) {
         try {
-          const decoded = decodeURIComponent(mm[1]).trim();
+          const decoded = decodeURIComponent(mm[1]).trim().toLowerCase();
           if (isValidCompanyEmail(decoded)) emailSet.add(decoded);
         } catch (_) { }
+      }
+      // Decode Cloudflare data-cfemail and /cdn-cgi/l/email-protection#HEX
+      const cfRegex = /(?:data-cfemail=["']|\/cdn-cgi\/l\/email-protection#)([0-9a-f]+)/gi;
+      let cm;
+      while ((cm = cfRegex.exec(html)) !== null) {
+        const dec = decodeCloudflareEmail(cm[1]).toLowerCase();
+        if (isValidCompanyEmail(dec)) emailSet.add(dec);
+      }
+      // Decode HTML numeric entities (e.g. &#64; / &#x40; for @) in raw HTML
+      if (/&#(?:64|x40);/i.test(html)) {
+        const entityDecoded = html
+          .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(d))
+          .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
+        (entityDecoded.match(EMAIL_REGEX) || []).forEach(em => {
+          const lower = em.trim().toLowerCase();
+          if (isValidCompanyEmail(lower)) emailSet.add(lower);
+        });
       }
     }
     const emails = Array.from(emailSet);
@@ -1653,23 +1697,30 @@ ${context.crawledText}
     }
     const priorityLinks = selectPriorityPages(candidateLinks, cleanUrl, maxPages);
 
-    // 4. Fetch subpages in parallel batches (concurrency = 3) with per-request timeout
+    // 4. Fetch subpages in a single parallel batch (concurrency = 6) with fast per-request timeout
     const crawledPages = [];
     let totalProducts = mainContacts.productCount;
     let totalImages = mainContacts.imgCount;
     let totalDescriptions = mainContacts.descCount;
     const allEmails = new Set(mainContacts.emails);
     const allPhones = new Set(mainContacts.phones);
-    const subpageTimeoutMs = options.subpageTimeoutMs || 12000;
-    const SUBPAGE_CONCURRENCY = 3;
+    const subpageTimeoutMs = options.subpageTimeoutMs || 6000;
+    const SUBPAGE_CONCURRENCY = 6;
 
     for (let i = 0; i < priorityLinks.length; i += SUBPAGE_CONCURRENCY) {
       const batch = priorityLinks.slice(i, i + SUBPAGE_CONCURRENCY);
       const batchResults = await Promise.all(batch.map(async (link) => {
         try {
           const resp = await fetchWithTimeout(fetchFn, link.url, subpageTimeoutMs);
-          if (!resp || !resp.ok) return null;
-          const subHtml = await resp.text();
+          let subHtml = "";
+          if (resp && resp.ok) {
+            subHtml = await resp.text();
+          } else if ((link.category === "contact" || link.category === "about") && typeof options.renderTabFallback === "function") {
+            try {
+              subHtml = (await options.renderTabFallback(link.url)) || "";
+            } catch (_) { }
+          }
+          if (!subHtml) return null;
           const subText = cleanHtmlToText(subHtml);
           let subMapAddresses = extractMapAddresses(subHtml);
           if (link.category === "contact" || subMapAddresses.length === 0) {
@@ -1712,51 +1763,56 @@ ${context.crawledText}
     // 5. Build text compilation with Metadata, Contact (Primary), Footer (Secondary), Map (Verification), and Linked Social Profiles
     const socialLinkRegex = /<a\b[^>]*\bhref=["'](https?:\/\/(?:www\.|m\.)?(?:facebook\.com|linkedin\.com\/company)\/[^"'#?]+)["'][^>]*>/gi;
     const socialUrlsSet = new Set();
-    let sm;
-    while ((sm = socialLinkRegex.exec(mainHtml)) !== null) {
-      const sUrl = sm[1].trim();
-      if (!/sharer\.php|\/share\b|shareArticle|\/plugins\//i.test(sUrl)) {
-        socialUrlsSet.add(sUrl);
+    const htmlSourcesForSocial = [mainHtml, ...crawledPages.map(p => p.html).filter(Boolean)];
+    for (const hSrc of htmlSourcesForSocial) {
+      socialLinkRegex.lastIndex = 0;
+      let sm;
+      while ((sm = socialLinkRegex.exec(hSrc)) !== null) {
+        const sUrl = sm[1].trim();
+        if (!/sharer\.php|\/share\b|shareArticle|\/plugins\//i.test(sUrl)) {
+          socialUrlsSet.add(sUrl);
+        }
       }
     }
     const socialUrls = Array.from(socialUrlsSet).slice(0, 4);
-    const socialProfilesInfo = [];
-    for (const sUrl of socialUrls) {
-      let sTitle = "";
-      const sEmails = [];
-      try {
-        if (fetchFn && /facebook\.com/i.test(sUrl)) {
-          const sRes = await fetchFn(sUrl);
-          if (sRes && sRes.ok) {
-            const sHtml = await sRes.text();
-            const ogT = sHtml.match(/property=["']og:title["'][^>]*content=["']([^"']+)["']/i)
-              || sHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-            if (ogT && ogT[1] && !/^error$/i.test(ogT[1].trim())) {
-              sTitle = ogT[1].replace(/\s*\|\s*Facebook\s*$/i, "").trim();
-            }
-            const foundEmails = sHtml.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
-            for (const em of foundEmails) {
-              const lower = em.toLowerCase();
-              if (!/facebook\.com|fbcdn\.net|sentry\.io|w3\.org|example\.com/i.test(lower)) {
-                allEmails.add(lower);
-                if (!sEmails.includes(lower)) sEmails.push(lower);
-              }
-            }
-          }
-        }
-      } catch (_) { }
-      socialProfilesInfo.push({ url: sUrl, title: sTitle, emails: sEmails });
-    }
 
     const mainMeta = extractStructuredMetadata(mainHtml);
     const mainFooter = extractFooterText(mainHtml);
     let mainMapAddresses = extractMapAddresses(mainHtml);
-    try {
-      const mainEmbedAddrs = await resolveMapEmbedAddress(mainHtml, fetchFn);
-      if (mainEmbedAddrs.length > 0) {
-        mainMapAddresses = Array.from(new Set([...mainMapAddresses, ...mainEmbedAddrs]));
-      }
-    } catch (_) { }
+
+    // Run main-page map embed resolution and linked social profile fetches in parallel with short timeouts
+    const [mainEmbedResult, socialProfilesInfo] = await Promise.all([
+      resolveMapEmbedAddress(mainHtml, fetchFn).catch(() => []),
+      Promise.all(socialUrls.map(async (sUrl) => {
+        let sTitle = "";
+        const sEmails = [];
+        try {
+          if (fetchFn && /facebook\.com/i.test(sUrl)) {
+            const sRes = await fetchWithTimeout(fetchFn, sUrl, 3500);
+            if (sRes && sRes.ok) {
+              const sHtml = await sRes.text();
+              const ogT = sHtml.match(/property=["']og:title["'][^>]*content=["']([^"']+)["']/i)
+                || sHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+              if (ogT && ogT[1] && !/^error$/i.test(ogT[1].trim())) {
+                sTitle = ogT[1].replace(/\s*\|\s*Facebook\s*$/i, "").trim();
+              }
+              const foundEmails = sHtml.match(EMAIL_REGEX) || [];
+              for (const em of foundEmails) {
+                const lower = em.trim().toLowerCase();
+                if (isValidCompanyEmail(lower)) {
+                  allEmails.add(lower);
+                  if (!sEmails.includes(lower)) sEmails.push(lower);
+                }
+              }
+            }
+          }
+        } catch (_) { }
+        return { url: sUrl, title: sTitle, emails: sEmails };
+      }))
+    ]);
+    if (Array.isArray(mainEmbedResult) && mainEmbedResult.length > 0) {
+      mainMapAddresses = Array.from(new Set([...mainMapAddresses, ...mainEmbedResult]));
+    }
 
     let pagesText = "";
 
@@ -2082,6 +2138,25 @@ ${context.crawledText}
         aiResult.data.companyAddress = cleanAddressCountryAndPostal(cleanedAddr, aiResult.data.countryName);
       }
       if (String(aiResult.data.websiteStatus || "").trim().toLowerCase() === "working") {
+        // Deterministically backfill emailId / secondaryEmailId from all crawled pages & linked social emails
+        const validDetectedEmails = Array.from(new Set(
+          (context && Array.isArray(context.detectedEmails) ? context.detectedEmails : [])
+            .map(e => String(e || "").trim().toLowerCase())
+            .filter(isValidCompanyEmail)
+        ));
+        const curPrimary = String(aiResult.data.emailId || "").trim();
+        const curSecondary = String(aiResult.data.secondaryEmailId || "").trim();
+        if (!curPrimary || curPrimary === "Not Available") {
+          aiResult.data.emailId = validDetectedEmails[0] || "";
+        }
+        const primaryLower = String(aiResult.data.emailId || "").trim().toLowerCase();
+        if (!curSecondary || curSecondary === "Not Available" || curSecondary.toLowerCase() === primaryLower) {
+          const siteRootHost = hostname.replace(/^www\./i, "").toLowerCase();
+          const distinctCandidates = validDetectedEmails.filter(e => e !== primaryLower);
+          const sameDomainCandidate = distinctCandidates.find(e => e.endsWith("@" + siteRootHost) || e.endsWith("." + siteRootHost));
+          aiResult.data.secondaryEmailId = sameDomainCandidate || distinctCandidates[0] || "";
+        }
+
         const normCount = (v, allowZero = false) => {
           const s = String(v ?? "").trim().toLowerCase();
           if (s === "one" || s === "1") return "1";
