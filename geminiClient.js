@@ -809,11 +809,14 @@
       if (context.crawledText && context.crawledText.toLowerCase().includes(lower)) return true;
       return false;
     };
+    clean.emailId = String(clean.emailId || "").replace(/[\s\u00A0]+/g, "");
+    clean.secondaryEmailId = String(clean.secondaryEmailId || "").replace(/[\s\u00A0]+/g, "");
+
     if (!isRealEmail(clean.emailId) || !isPresentInSource(clean.emailId)) {
       const fallbackEmail = (context && Array.isArray(context.detectedEmails)) ? context.detectedEmails.find(isRealEmail) : "";
-      clean.emailId = fallbackEmail || "";
+      clean.emailId = String(fallbackEmail || "").replace(/[\s\u00A0]+/g, "");
     }
-    if (!isRealEmail(clean.secondaryEmailId) || !isPresentInSource(clean.secondaryEmailId) || clean.secondaryEmailId.trim().toLowerCase() === clean.emailId.trim().toLowerCase()) {
+    if (!isRealEmail(clean.secondaryEmailId) || !isPresentInSource(clean.secondaryEmailId) || clean.secondaryEmailId.toLowerCase() === clean.emailId.toLowerCase()) {
       clean.secondaryEmailId = "";
     }
 
@@ -953,8 +956,14 @@
     if (!rawPhone) return "";
     let phone = String(rawPhone).trim();
 
-    // Check toll-free prefixes (US 1800/800/888/877/866/855/844, China 400, etc.)
-    if (/^(?:\+?1[-.\s]?)?(?:800|888|877|866|855|844)/.test(phone) || /^400[-.\s]?\d/.test(phone)) {
+    // Check toll-free prefixes before stripping punctuation (handles +1 (800), (800), 1-833, 0800, 0808, 1800, 1300, 400, etc.)
+    const rawDigits = phone.replace(/\D/g, "");
+    if (
+      /^(?:\+?1[-.\s]?)?\(?(?:800|888|877|866|855|844|833)\)?[-.\s]?\d/.test(phone) ||
+      /^(?:0800|0808|1800|1300|400)[-.\s]?\d/.test(phone) ||
+      /^1?(?:800|888|877|866|855|844|833)\d{7}$/.test(rawDigits) ||
+      /^(?:0800|0808|1800|1300)\d{6,}$/.test(rawDigits)
+    ) {
       return "";
     }
 
@@ -988,7 +997,7 @@
     }
 
     // Final toll-free check on cleaned digits
-    if (/^(?:800|888|877|866|855|844|400)/.test(phone)) {
+    if (/^(?:800|888|877|866|855|844|833)\d{7}$/.test(phone) || /^400\d{6,}$/.test(phone)) {
       return "";
     }
 

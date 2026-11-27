@@ -2078,9 +2078,11 @@ ${context.crawledText}
         const titleMatch = htmlSource.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
         if (titleMatch && titleMatch[1]) {
           let t = cleanHtmlToText(titleMatch[1]).trim();
-          t = t.split(/[\|\-–—:•]/)[0].trim();
-          if (t && t.length > 2 && t.length < 80 && !/^(?:home|welcome|index|default)$/i.test(t)) {
-            compName = t;
+          const segments = t.split(/[\|\-–—:•]/).map(s => s.trim()).filter(Boolean);
+          const corpSegment = segments.find(s => /\b(?:ltd\.?|limited|inc\.?|incorporated|corp\.?|corporation|llc|llp|gmbh|co\.|company|plc|sdn\s+bhd|pvt\.?\s*ltd\.?|pte\.?\s*ltd\.?)\b/i.test(s));
+          const chosen = corpSegment || segments[0] || "";
+          if (chosen && chosen.length > 2 && chosen.length < 80 && !/^(?:home|welcome|index|default)$/i.test(chosen)) {
+            compName = chosen;
           }
         }
         if (!compName) {
@@ -2205,9 +2207,18 @@ ${context.crawledText}
       const detectedP = ctx?.detectedPhones || [];
       const primaryEmail = detectedE.length > 0 ? detectedE[0] : "Not Available";
       const secondaryEmail = detectedE.length > 1 ? detectedE[1] : "Not Available";
-      let primaryPhone = detectedP.length > 0 ? detectedP[0] : "Not Available";
-      if (gemini && gemini.sanitizePhoneNumber && primaryPhone !== "Not Available") {
-        primaryPhone = gemini.sanitizePhoneNumber(primaryPhone, cName) || primaryPhone;
+      let primaryPhone = "Not Available";
+      for (const rawCandidate of detectedP) {
+        if (gemini && gemini.sanitizePhoneNumber) {
+          const sanitized = gemini.sanitizePhoneNumber(rawCandidate, cName);
+          if (sanitized && sanitized.length >= 7 && sanitized.length <= 15) {
+            primaryPhone = sanitized;
+            break;
+          }
+        } else if (rawCandidate) {
+          primaryPhone = rawCandidate;
+          break;
+        }
       }
 
       const pCount = "3";
@@ -2320,6 +2331,9 @@ ${context.crawledText}
       }
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
         let compNameClean = aiResult.data.companyName.trim();
+        if (CompanyNormalizer && CompanyNormalizer.normalizeCompanyName) {
+          compNameClean = CompanyNormalizer.normalizeCompanyName(compNameClean);
+        }
         // Preserve country codes (UK, USA, U.S.A.) inside companyName if Gemini expanded them to full country names
         if (context && context.crawledText) {
           const codePairs = [
@@ -2432,13 +2446,15 @@ ${context.crawledText}
             .map(e => String(e || "").trim().toLowerCase())
             .filter(isValidCompanyEmail)
         ));
-        const curPrimary = String(aiResult.data.emailId || "").trim();
-        const curSecondary = String(aiResult.data.secondaryEmailId || "").trim();
-        if (!curPrimary || curPrimary === "Not Available") {
+        const curPrimary = String(aiResult.data.emailId || "").replace(/[\s\u00A0]+/g, "");
+        const curSecondary = String(aiResult.data.secondaryEmailId || "").replace(/[\s\u00A0]+/g, "");
+        aiResult.data.emailId = curPrimary;
+        aiResult.data.secondaryEmailId = curSecondary;
+        if (!curPrimary || curPrimary === "NotAvailable") {
           aiResult.data.emailId = validDetectedEmails[0] || "";
         }
-        const primaryLower = String(aiResult.data.emailId || "").trim().toLowerCase();
-        if (!curSecondary || curSecondary === "Not Available" || curSecondary.toLowerCase() === primaryLower) {
+        const primaryLower = String(aiResult.data.emailId || "").replace(/[\s\u00A0]+/g, "").toLowerCase();
+        if (!curSecondary || curSecondary === "NotAvailable" || curSecondary.toLowerCase() === primaryLower) {
           const siteRootHost = hostname.replace(/^www\./i, "").toLowerCase();
           const distinctCandidates = validDetectedEmails.filter(e => e !== primaryLower);
           const sameDomainCandidate = distinctCandidates.find(e => e.endsWith("@" + siteRootHost) || e.endsWith("." + siteRootHost));

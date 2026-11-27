@@ -96,14 +96,22 @@ const CompanyNormalizer = (() => {
     { regex: /\b(?:coop\.)(?=\s|,|$)/gi, replacement: "Cooperative" }
   ];
 
+  const KNOWN_ACRONYMS = new Set([
+    "USA", "UK", "UAE", "KSA", "PRC", "ROC", "IBM", "BMW", "CNC", "OEM", "ODM",
+    "LED", "LCD", "PVC", "ABS", "ISO", "CAD", "CAM", "ERP", "CRM", "B2B", "B2C",
+    "AG", "KG", "SA", "SL", "BV", "NV", "KK", "AB", "AS", "OY", "CV", "PT"
+  ]);
+
   /**
    * Title cases a single token while preserving acronyms and numbers
    */
-  function titleCaseToken(token) {
+  function titleCaseToken(token, isAllCapsSource = false) {
     if (!token) return "";
-    // Preserve acronyms of 2-4 uppercase characters (e.g. IBM, BMW, 4C, AG, KG)
-    if (token === token.toUpperCase() && token.length <= 4 && /^[A-Z0-9&+-]+$/.test(token)) {
-      return token;
+    // Preserve known acronyms, or 2-4 uppercase chars when the overall company name is NOT all-caps
+    if (token === token.toUpperCase() && /^[A-Z0-9&+-]+$/.test(token)) {
+      if (KNOWN_ACRONYMS.has(token) || token.length <= 2 || (!isAllCapsSource && token.length <= 4)) {
+        return token;
+      }
     }
     // Alphanumeric with numbers (e.g. 4CPlus, 3D, B2B)
     if (/\d/.test(token)) {
@@ -120,6 +128,7 @@ const CompanyNormalizer = (() => {
 
     let raw = name.trim();
     if (!raw || raw.toLowerCase() === "not available") return "Not Available";
+    const isAllCapsSource = raw === raw.toUpperCase() && /[A-Z]/.test(raw) && raw.split(/\s+/).length >= 2;
 
     // 1. Decode HTML entities
     raw = raw.replace(/&nbsp;/g, " ")
@@ -183,9 +192,9 @@ const CompanyNormalizer = (() => {
         if (lowerWords.has(core.toLowerCase()) && prefix === "" && suffix === "") {
           return core.toLowerCase();
         }
-        return prefix + titleCaseToken(core) + suffix;
+        return prefix + titleCaseToken(core, isAllCapsSource) + suffix;
       }
-      return titleCaseToken(w);
+      return titleCaseToken(w, isAllCapsSource);
     });
 
     let result = titleCasedWords.join(" ");

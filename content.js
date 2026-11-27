@@ -649,17 +649,17 @@
         { key: "numberOfProductDescriptions", value: "" }
       ]
       : [
-        { key: "websiteStatus", value: data.websiteStatus || "Working" },
-        { key: "businessType", value: data.businessType || "" },
-        { key: "companyProfile", value: data.companyProfile || "Available" },
-        { key: "companyName", value: (data.companyName || "").trim() },
-        { key: "companyAddress", value: data.companyAddress || "" },
-        { key: "countryName", value: normalizeCountryName(data.countryName || "") },
-        { key: "state", value: data.state || "Available" },
-        { key: "city", value: data.city || "Available" },
-        { key: "emailId", value: data.emailId || "" },
-        { key: "secondaryEmailId", value: data.secondaryEmailId || "" },
-        { key: "phoneNumber", value: data.phoneNumber || "" },
+        { key: "websiteStatus", value: (data.websiteStatus || "Working").trim() },
+        { key: "businessType", value: (data.businessType || "").trim() },
+        { key: "companyProfile", value: (data.companyProfile || "Available").trim() },
+        { key: "companyName", value: (data.companyName || "").replace(/^[\s\u00A0]+|[\s\u00A0]+$/g, "") },
+        { key: "companyAddress", value: (data.companyAddress || "").replace(/^[\s\u00A0]+|[\s\u00A0]+$/g, "") },
+        { key: "countryName", value: normalizeCountryName((data.countryName || "").trim()) },
+        { key: "state", value: (data.state || "Available").trim() },
+        { key: "city", value: (data.city || "Available").trim() },
+        { key: "emailId", value: (data.emailId || "").replace(/[\s\u00A0]+/g, "") },
+        { key: "secondaryEmailId", value: (data.secondaryEmailId || "").replace(/[\s\u00A0]+/g, "") },
+        { key: "phoneNumber", value: (data.phoneNumber || "").replace(/[\s\u00A0]+/g, "") },
         { key: "numberOfProducts", value: resolveProductCountDefault(data.numberOfProducts) },
         { key: "productImages", value: resolveProductCountDefault(data.productImages) },
         { key: "numberOfProductDescriptions", value: resolveProductCountDefault(data.numberOfProductDescriptions) }
@@ -711,7 +711,7 @@
   }
 
   function setNativeInputValue(el, value) {
-    const strVal = value === undefined || value === null ? "" : String(value);
+    const strVal = value === undefined || value === null ? "" : String(value).replace(/^[\s\u00A0]+|[\s\u00A0]+$/g, "");
     el.focus();
 
     // React/Vue prototype setter descriptor bypass
