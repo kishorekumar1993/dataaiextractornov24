@@ -1487,7 +1487,7 @@ FIELD RULES:
 5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", "United Kingdom" (or constituent country e.g. "England" if explicitly stated), etc. Infer from city/state if omitted.
 
 6. "companyAddress" — Contact Page, Footer and Map Address Comparison:
-   - STRICT PRIORITY ORDER: (1) Contact Page – Primary Source + Embedded Map – Additional Address Verification Source (ABSOLUTE HIGHEST PRIORITY); (2) Website Footer – Secondary Source (ONLY use Footer if Contact Page + Map have NO address, or if Footer explicitly has Corporate Office/HQ while Contact Page only lists a Registered/Branch Office).
+   - STRICT PRIORITY ORDER: (1) Visible Contact Page – Primary Source + Embedded Map – Additional Address Verification Source (ABSOLUTE HIGHEST PRIORITY); (2) Visible Website Footer – Secondary Source (ONLY use Footer if Contact Page + Map have NO address, or if Footer explicitly has Corporate Office/HQ while Contact Page only lists a Registered/Branch Office); (3) Hidden JSON-LD / Schema metadata is ONLY a fallback — if visible Contact Page or Footer shows a different address, ALWAYS use the visible Contact Page / Footer address (JSON-LD often holds stale/outdated addresses).
    - HQ (Headquarters) address is always first priority over Registered Office, Branch, Factory, or Plant.
    - Current Active Address Priority (CRITICAL): NEVER select former, historical, or previous addresses ("prior to", "formerly located at", "relocated from").
    - Comparison:
