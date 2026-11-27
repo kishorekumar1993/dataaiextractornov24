@@ -2311,6 +2311,38 @@ ${context.crawledText}
             return hadSlash ? full : `${fNum}Floor`;
           });
         }
+        // Deterministically merge missing sub-locality/village/area segments from Contact Embedded Map (Scenario 2)
+        const allContactMaps = [
+          ...contactPages.flatMap(p => p.mapAddresses || []),
+          ...mainMapAddresses
+        ].filter(Boolean);
+        const normNoSpace = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const addrNoSpace = normNoSpace(cleanedAddr);
+        const addrTokens = cleanedAddr.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 4);
+        for (const mAddr of allContactMaps) {
+          const mNoSpace = normNoSpace(mAddr);
+          const overlapCount = addrTokens.filter(t => mNoSpace.includes(t)).length;
+          if (overlapCount < 2) continue;
+          const mParts = mAddr.split(",").map(s => s.trim()).filter(Boolean);
+          for (let mi = 1; mi < mParts.length - 1; mi++) {
+            const seg = mParts[mi];
+            const segNoSpace = normNoSpace(seg);
+            if (!segNoSpace || segNoSpace.length < 4) continue;
+            if (addrNoSpace.includes(segNoSpace)) continue;
+            if (/^\d{3,6}$/.test(seg) || /\b(?:taiwan|india|china|united\s+states|united\s+kingdom|ltd|limited|inc|corp|llc)\b/i.test(seg)) continue;
+            if (!/\b(?:village|hamlet|barangay|subdistrict|sector|colony|nagar|khera|park|estate|phase|block|area)\b/i.test(seg)) continue;
+            const nextSeg = mParts[mi + 1];
+            const nextNoSpace = normNoSpace(nextSeg.replace(/\b(?:dist\.?|district)\b/gi, ""));
+            if (!nextNoSpace || nextNoSpace.length < 3) continue;
+            const cParts = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
+            const insertIdx = cParts.findIndex(cp => normNoSpace(cp).includes(nextNoSpace));
+            if (insertIdx > 0) {
+              cParts.splice(insertIdx, 0, seg);
+              cleanedAddr = cParts.join(", ");
+              break;
+            }
+          }
+        }
         aiResult.data.companyAddress = cleanedAddr;
       }
       // Enforce Taiwan State rule (13 active Counties + Taipei City capital only) and explicit District/Town/Municipality City rule
