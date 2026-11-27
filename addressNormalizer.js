@@ -259,9 +259,10 @@ const AddressNormalizer = (() => {
     addr = addr.replace(/\b(?:b\/f)\b/gi, "Basement Floor");
     addr = addr.replace(/\b(?:h\.?no\.?|h\s+no\.?)\s*([a-zA-Z0-9\/-]+)\b/gi, "House Number $1");
 
-    // 5. Contextual floor expansion on raw string before tokenization (e.g. "7/F." -> "7/Floor", "3F" -> "3Floor", "2nd Fl.", "1st F")
+    // 5. Contextual floor expansion on raw string before tokenization (e.g. "7/F." -> "7/Floor", "10F.-4" -> "10Floor - 4", "3F" -> "3Floor", "2nd Fl.", "1st F")
     addr = addr.replace(/\b(\d+)\/(?:fl\.?|f)\b\.?/gi, "$1/Floor");
-    addr = addr.replace(/\b(\d+)(?:st|nd|rd|th)?\s*(?:fl\.|fl|f)\b/gi, (match, num) => {
+    addr = addr.replace(/\b(\d+)(?:st|nd|rd|th)?\s*(?:fl\.?|f)\.?\s*[-–—]\s*(\d+[A-Za-z]?)\b/gi, "$1Floor - $2");
+    addr = addr.replace(/\b(\d+)(?:st|nd|rd|th)?\s*(?:fl\.|fl|f)\b\.?/gi, (match, num) => {
       if (match.toLowerCase().includes("st") || match.toLowerCase().includes("nd") || 
           match.toLowerCase().includes("rd") || match.toLowerCase().includes("th")) {
         const ordMatch = match.match(/^(\d+(?:st|nd|rd|th))/i);

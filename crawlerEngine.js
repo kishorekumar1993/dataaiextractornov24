@@ -1383,10 +1383,10 @@ const CrawlerEngine = (() => {
     if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(lower)) return false;
     if (/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|pdf|woff2?)$/i.test(lower)) return false;
     const [localPart = "", domain = ""] = lower.split("@");
-    if (/^(?:primary_email|secondary_email|your|you|name|user|username|youremail|your\.email|myemail|someone|sample|demo|placeholder|fake|dummy|test|testing|abc|xyz|john\.?doe|jane\.?doe|noreply|no-reply|donotreply|do-not-reply|mailer-daemon)$/i.test(localPart)) {
+    if (/^(?:primary_email|secondary_email|contact_privacy|your|you|name|yourname|your_name|user|username|youremail|your\.email|myemail|someone|sample|demo|placeholder|fake|dummy|test|testing|abc|xyz|john\.?doe|jane\.?doe|noreply|no-reply|donotreply|do-not-reply|mailer-daemon)$/i.test(localPart)) {
       return false;
     }
-    if (["example.com", "example.org", "example.net", "domain.com", "domain.org", "yourdomain.com", "yoursite.com", "mysite.com", "website.com", "company.com", "companyname.com", "email.com", "mail.com", "test.com", "test.org", "sample.com", "doe.com", "sentry.io", "wixpress.com", "wix.com", "w3.org", "schema.org", "facebook.com", "fbcdn.net", "godaddy.com", "squarespace.com", "shopify.com"].some(d => domain === d || domain.endsWith("." + d))) {
+    if (["example.com", "example.org", "example.net", "domain.com", "domain.org", "yourdomain.com", "yourdomain.org", "yoursite.com", "mysite.com", "website.com", "company.com", "yourcompany.com", "your-company.com", "yourbusiness.com", "mybusiness.com", "examplecompany.com", "companyname.com", "email.com", "mail.com", "test.com", "test.org", "sample.com", "doe.com", "sentry.io", "wixpress.com", "wix.com", "w3.org", "schema.org", "facebook.com", "fbcdn.net", "godaddy.com", "squarespace.com", "shopify.com"].some(d => domain === d || domain.endsWith("." + d))) {
       return false;
     }
     return true;
