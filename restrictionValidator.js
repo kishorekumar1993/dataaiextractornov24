@@ -145,7 +145,12 @@ const RestrictionValidator = (() => {
         /\bpharmaceutical packaging (?:machine|equipment|line)\b/i,
         /\btablet (?:press|compression machine|tooling)\b/i,
         /\bcapsule filling machine\b/i,
-        /\bcleanroom (?:panels?|equipment|doors?)\b/i
+        /\bcleanroom (?:panels?|equipment|doors?)\b/i,
+        /\b(?:pharmaceuticals?|medicines?)\s+(?:industry|industries|sector|applications?|bottles?|packaging|containers?|vials?|locks?|lockers?|couplings?|valves?|fittings?)\b/i,
+        /\b(?:strapping|packaging|wrapping|sealing)\s+machines?\b/i,
+        /\b(?:forklifts?|pallet\s+trucks?|stackers?|material\s+handling)\b/i,
+        /\b(?:camlock|couplings?|padlocks?|cabinet\s+locks?)\b/i,
+        /\b(?:nail\s+polish\s+bottles?|cosmetic\s+bottles?|glass\s+bottles?)\b/i
       ],
       reason: "Unpaid Category: Pharmaceutical or medicinal products manufacturer, supplier, or trader."
     },
@@ -276,7 +281,8 @@ const RestrictionValidator = (() => {
         /\bshipbuilding steel plates?\b/i,
         /\bvalves for shipbuilding\b/i,
         /\bshipbuilding cables?\b/i,
-        /\bcoatings for shipbuilding\b/i
+        /\bcoatings for shipbuilding\b/i,
+        /\b(?:overhead cranes?|gantry cranes?|bridge cranes?|jib cranes?|hoists?|crane systems?)\b/i
       ],
       reason: "Unpaid Category: Shipbuilding, shipyard, dry dock, or vessel repair facility."
     },
@@ -345,7 +351,8 @@ const RestrictionValidator = (() => {
         /\bfood-grade (?:tubing|silicone|stainless steel|conveyor|lubricant|grease|belts?|valves?|pumps?)\b/i,
         /\bconveyor belts for food\b/i,
         /\bfood storage bins?\b/i,
-        /\bfood service equipment manufacturing\b/i
+        /\bfood service equipment manufacturing\b/i,
+        /\b(?:overhead cranes?|gantry cranes?|jibs?|monorails?|materials?\s+handling|height safety)\b/i
       ],
       reason: "Unpaid Category: Food, beverage, restaurant, or edible consumer products company."
     },

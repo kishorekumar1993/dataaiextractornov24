@@ -959,8 +959,19 @@
     // Strip trailing extension suffixes (e.g. "ext. 102", "extension 45", "x123")
     phone = phone.replace(/(?:\s*(?:ext\.?|extension|x)\s*\d+)\s*$/i, "").trim();
 
-    // Check toll-free prefixes before stripping punctuation (handles +1 (800), (800), 1-833, 0800, 0808, 0500, 00800, 1800, 1860, 0120, 400)
+    // Reject copyright/date year ranges (e.g. "2006-2025", "2005-2026") and DDMMYYYY/MMDDYYYY dates (e.g. "12-10-2025", "12102025")
     const rawDigits = phone.replace(/\D/g, "");
+    if (
+      /^(?:19|20)\d{2}\s*[-–—\/]\s*(?:19|20)\d{2}$/.test(phone) ||
+      /^(?:19|20)\d{2}(?:19|20)\d{2}$/.test(rawDigits) ||
+      /^(?:0?[1-9]|[12]\d|3[01])[-/.](?:0?[1-9]|1[0-2])[-/.](?:19|20)\d{2}$/.test(phone) ||
+      /^(?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12]\d|3[01])[-/.](?:19|20)\d{2}$/.test(phone) ||
+      (/^\d{8}$/.test(rawDigits) && /(?:19\d{2}|20[0-3]\d)$/.test(rawDigits) && /^(?:0[1-9]|[12]\d|3[01])(?:0[1-9]|1[0-2])|^(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])/.test(rawDigits))
+    ) {
+      return "";
+    }
+
+    // Check toll-free prefixes before stripping punctuation (handles +1 (800), (800), 1-833, 0800, 0808, 0500, 00800, 1800, 1860, 0120, 400)
     if (
       /^(?:\+?1[-.\s]?)?\(?(?:800|888|877|866|855|844|833)\)?[-.\s]?\d/.test(phone) ||
       /^(?:0800|0808|0500|00800|1800|1860|0120|400)[-.\s]?\d/.test(phone) ||
@@ -995,6 +1006,15 @@
     } else if (phone.length === 11 && phone.startsWith("1") && !/^1300/.test(phone)) {
       // Strip leading 1 on 11-digit NANP numbers even when countryName is unavailable
       phone = phone.slice(1);
+    } else if (!matchedCountry && /^(?:886|852|853|81|82|86|91|44|49|61|60|65)/.test(phone) && phone.length >= 10) {
+      // Strip common international country calling code if phone starts with it + separator or >= 10 digits
+      const sortedCodes = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
+      for (const item of sortedCodes) {
+        if (phone.startsWith(item.code) && (phone.length - item.code.length) >= 7) {
+          phone = phone.slice(item.code.length);
+          break;
+        }
+      }
     }
 
     // Strip leading zeros so number never starts with 0 (e.g. UK +44 (0)1582 -> 01582 -> 1582)

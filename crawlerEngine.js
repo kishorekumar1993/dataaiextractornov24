@@ -1409,6 +1409,7 @@ const CrawlerEngine = (() => {
   function isValidCompanyEmail(email) {
     if (!email || typeof email !== "string") return false;
     const lower = email.trim().toLowerCase();
+    if (/^%[0-9a-f]{2}/i.test(lower) || /[\s%]/.test(lower)) return false;
     if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(lower)) return false;
     if (/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|pdf|woff2?)$/i.test(lower)) return false;
     const [localPart = "", domain = ""] = lower.split("@");
@@ -1422,7 +1423,8 @@ const CrawlerEngine = (() => {
   }
 
   function extractContactsAndProducts(text, html) {
-    const emailSet = new Set((text.match(EMAIL_REGEX) || []).map(e => e.trim().toLowerCase()).filter(isValidCompanyEmail));
+    const cleanEmailToken = (e) => String(e || "").replace(/^(?:%20|%09|%0a|%0d|[\s\u00A0])+|(?:%20|%09|%0a|%0d|[\s\u00A0])+$/gi, "").toLowerCase();
+    const emailSet = new Set((text.match(EMAIL_REGEX) || []).map(cleanEmailToken).filter(isValidCompanyEmail));
     // Also catch [at] / (at) obfuscated emails in text
     const obfuscatedMatches = text.match(/\b[a-zA-Z0-9._%+-]+\s*(?:\[at\]|\(at\))\s*[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b/gi) || [];
     for (const om of obfuscatedMatches) {
@@ -1451,14 +1453,19 @@ const CrawlerEngine = (() => {
           .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(d))
           .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
         (entityDecoded.match(EMAIL_REGEX) || []).forEach(em => {
-          const lower = em.trim().toLowerCase();
+          const lower = cleanEmailToken(em);
           if (isValidCompanyEmail(lower)) emailSet.add(lower);
         });
       }
     }
     const emails = Array.from(emailSet);
-    const phones = Array.from(new Set(text.match(PHONE_REGEX) || []))
-      .filter(p => p.replace(/\D/g, "").length >= 7 && p.replace(/\D/g, "").length <= 15);
+    const collapsedPhoneText = text.replace(/\s+/g, " ").replace(/\b\d+\s*%/g, " ");
+    const isYearRange = (p) => {
+      const digits = p.replace(/\D/g, "");
+      return /^(?:19|20)\d{2}\s*[-–—\/]\s*(?:19|20)\d{2}$/.test(p.trim()) || /^(?:19|20)\d{2}(?:19|20)\d{2}$/.test(digits);
+    };
+    const phones = Array.from(new Set(collapsedPhoneText.match(PHONE_REGEX) || []))
+      .filter(p => !isYearRange(p) && p.replace(/\D/g, "").length >= 7 && p.replace(/\D/g, "").length <= 15);
 
     if (html) {
       const telRegex = /href=["']tel:([^"']+)["']/gi;
