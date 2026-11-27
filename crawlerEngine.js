@@ -1135,11 +1135,23 @@ const CrawlerEngine = (() => {
     while ((m = ldRegex.exec(html)) !== null) {
       try {
         const parsed = JSON.parse(m[1].trim());
-        const nodes = Array.isArray(parsed) ? parsed : (Array.isArray(parsed["@graph"]) ? parsed["@graph"] : [parsed]);
+        const rawNodes = Array.isArray(parsed) ? parsed : (Array.isArray(parsed["@graph"]) ? parsed["@graph"] : [parsed]);
+        const nodes = [];
+        for (const rn of rawNodes) {
+          if (rn && typeof rn === "object") {
+            nodes.push(rn);
+            if (rn.mainEntity && typeof rn.mainEntity === "object") nodes.push(rn.mainEntity);
+            if (Array.isArray(rn.itemListElement)) {
+              for (const el of rn.itemListElement) {
+                if (el && typeof el.item === "object" && el.item) nodes.push(el.item);
+              }
+            }
+          }
+        }
         for (const node of nodes) {
           if (!node || typeof node !== "object") continue;
           const t = String(node["@type"] || "").toLowerCase();
-          if (/(organization|localbusiness|corporation|store|manufacturer|company|place)/.test(t) || node.address || node.telephone || node.legalName) {
+          if (/(organization|localbusiness|corporation|store|manufacturer|company|place|article|aboutpage)/.test(t) || node.address || node.telephone || node.legalName || node.articleBody) {
             const addr = node.address;
             let addrStr = "";
             if (typeof addr === "string") {
@@ -1156,7 +1168,7 @@ const CrawlerEngine = (() => {
               address: addrStr,
               telephone: node.telephone || (Array.isArray(node.contactPoint) ? node.contactPoint[0]?.telephone : node.contactPoint?.telephone) || "",
               email: node.email || (Array.isArray(node.contactPoint) ? node.contactPoint[0]?.email : node.contactPoint?.email) || "",
-              description: node.description || ""
+              description: node.description || (node.articleBody ? String(node.articleBody).slice(0, 600) : "")
             });
           }
         }
@@ -1277,8 +1289,11 @@ const CrawlerEngine = (() => {
       /contact|reach us|touch with us|locate us|find us|our offices|headquarters|customer care|customer service|imprint|impressum/i.test(text)) {
       return "contact";
     }
-    if (/^\/(?:en|eng|english)(?:\/|$)/i.test(pathname) || /^(?:english|en)$/i.test(text.trim())) {
+    if (/^\/(?:en|eng|english)\/?$/i.test(pathname) || /^(?:english|en)$/i.test(text.trim())) {
       return "about";
+    }
+    if (/privacy|cookie/i.test(pathname)) {
+      return "other";
     }
     if (/about|company|profile|who-we-are|introduction|overview|history|factory|plant|manufacturing|infrastructure|facilities|capabilities|machinery|production|workshop/i.test(pathname) ||
       /about|company|profile|who we are|our story|factory|manufacturing|infrastructure|capabilities|facilities/i.test(text)) {
@@ -1738,6 +1753,10 @@ ${context.crawledText}
           }
           const subFooter = extractFooterText(subHtml);
           const subContacts = extractContactsAndProducts(subText, subHtml);
+          const subMeta = (link.category === "about" || link.category === "contact") ? extractStructuredMetadata(subHtml) : null;
+          const subLdNote = (subMeta && subMeta.jsonLd && subMeta.jsonLd.length > 0)
+            ? `\n--- STRUCTURED METADATA ---\n${JSON.stringify(subMeta.jsonLd)}\n`
+            : "";
           const contactSnippet = subText.length > 7500
             ? subText.slice(0, 4000) + "\n...\n" + subText.slice(-3500)
             : subText;
@@ -1746,7 +1765,7 @@ ${context.crawledText}
               url: link.url,
               category: link.category,
               sourceType: link.category === "contact" ? "CONTACT_PAGE" : link.category.toUpperCase(),
-              textSnippet: link.category === "contact" ? contactSnippet : subText.slice(0, 2500),
+              textSnippet: (link.category === "contact" ? contactSnippet : subText.slice(0, 2500)) + subLdNote,
               html: subHtml,
               mapAddresses: subMapAddresses,
               footerText: subFooter
