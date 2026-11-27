@@ -958,35 +958,34 @@
       return "";
     }
 
-    const lowerCountry = (countryName || "").toLowerCase();
+    const normCountry = normalizeCountryName(countryName || "");
+    const lowerCountry = normCountry.toLowerCase();
     const matchedCountry = COUNTRY_CODES.find(c => lowerCountry.includes(c.name));
+    const hasIntlPrefix = /^\s*(?:\+|00|\(\+\d+\))/.test(phone);
 
-    // If starts with +, strip + and then country code
-    if (phone.startsWith("+")) {
-      phone = phone.replace(/^\+/, "");
-      if (matchedCountry && phone.startsWith(matchedCountry.code)) {
-        phone = phone.slice(matchedCountry.code.length);
-      } else {
-        const sortedCodes = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
-        for (const item of sortedCodes) {
-          if (phone.startsWith(item.code) && (phone.length - item.code.length) >= 7) {
-            phone = phone.slice(item.code.length);
-            break;
-          }
+    // Normalize (+886) / + / 00 international prefixes before extracting digits
+    phone = phone.replace(/^\s*(?:\+|00)/, "").replace(/\D/g, "");
+
+    // Strip country code if matchedCountry applies, or if an explicit + / 00 international prefix was present
+    if (matchedCountry && phone.startsWith(matchedCountry.code) && (phone.length - matchedCountry.code.length) >= 7) {
+      phone = phone.slice(matchedCountry.code.length);
+    } else if (hasIntlPrefix) {
+      const sortedCodes = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
+      for (const item of sortedCodes) {
+        if (phone.startsWith(item.code) && (phone.length - item.code.length) >= 7) {
+          phone = phone.slice(item.code.length);
+          break;
         }
       }
     }
 
-    // Strip all non-digits
-    phone = phone.replace(/\D/g, "");
-
-    // If country code is still attached at the beginning of digit string
-    if (matchedCountry && phone.startsWith(matchedCountry.code) && (phone.length - matchedCountry.code.length) >= 7) {
-      phone = phone.slice(matchedCountry.code.length);
-    }
-
-    // Strip leading zeros so it never starts with zero
+    // Strip leading zeros (e.g. UK +44 (0)1582 -> 01582 -> 1582)
     phone = phone.replace(/^0+/, "");
+
+    // Re-check matchedCountry in case leading 0 preceded the country code
+    if (matchedCountry && phone.startsWith(matchedCountry.code) && (phone.length - matchedCountry.code.length) >= 8) {
+      phone = phone.slice(matchedCountry.code.length).replace(/^0+/, "");
+    }
 
     // Final toll-free check on cleaned digits
     if (/^(?:800|888|877|866|855|844|400)/.test(phone)) {
