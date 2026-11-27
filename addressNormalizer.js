@@ -345,8 +345,8 @@ const AddressNormalizer = (() => {
     result = result.replace(/\bNumber\s+(\d+\s*\/\s*\d+)/gi, "$1");
 
     // Strip unwanted leading "Number " before pure street numbers or hyphenated numbers (e.g. "Number 12900 - 87th Avenue" -> "12900 - 87th Avenue")
-    // ONLY keep "Number" if the original raw address explicitly contained "no." or "no"
-    const hadExplicitNo = /\bno\.?\b/i.test(rawAddress);
+    // ONLY keep "Number" if the input contained "no."/"no"/"number" (crawlerEngine verifies against crawledText)
+    const hadExplicitNo = /\b(?:no\.?|number)\b/i.test(rawAddress);
     if (!hadExplicitNo) {
       result = result.replace(/^Number\s+(\d+\s*[-–—]\s*\d+)/i, "$1")
                      .replace(/^Number\s+(\d+\s+[A-Za-z])/i, "$1");

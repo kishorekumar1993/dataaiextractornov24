@@ -1527,7 +1527,7 @@ FIELD RULES:
 2. "businessType": Strictly one of: "Manufacturer", "Industrial Services", "Exporter", "Trader", "Distributer", "Supplier", "Wholesaler", "Service Provider", "Online Shopping", "Restricted Site", "Other". Only Manufacturer to Wholesaler qualify as "Working".
 3. "companyProfile": "Available" if about/company description exists, else "Not Available".
 4. "companyName": You must take the complete company name in full form (Footer copyright/imprint > About Us > Contact header > Terms > Logo/Title).
-   - BRACKETS & COUNTRY IN NAME: Remove all brackets/parentheses/square brackets from the company name while keeping the words inside (e.g. "Manufacturing Group (China) Limited" -> "Manufacturing Group China Limited"). If a country name is mentioned in the company name, take it as it is.
+   - BRACKETS & COUNTRY IN NAME (STRICT): Remove all brackets/parentheses/square brackets from the company name while keeping the words inside (e.g. "Manufacturing Group (China) Limited" -> "Manufacturing Group China Limited"). If a country name or country code (e.g. China, Taiwan, India, USA, U.S.A., UK, U.K., America, Canada, Singapore, Japan, etc.) is mentioned anywhere in the company name, ALWAYS KEEP IT AS IT IS—NEVER remove it from "companyName" (only strip country names from "companyAddress") and NEVER rewrite or expand it (e.g. keep "UK" as "UK" NEVER "United Kingdom", keep "USA" as "USA"/"Usa" NEVER "United States Of America", keep "America" as "America", "U.S.A." as "U.S.A.").
    - CAPITALIZATION & BOUNDARY CLEANUP: Capitalize the first letter of every word (Title Case), and remove any special characters from the beginning or at the end of the name.
    - UNIVERSAL EXPANSION (NO SHORTENING): Expand EVERY abbreviated word in the company name into its complete full form (never leave any recognizable abbreviation shortened), including:
      * Legal forms: Co., Ltd. -> Company, Limited; Co. Ltd. -> Company Limited; Co. -> Company; Ltd. -> Limited; Pvt./Pte. Ltd. -> Private Limited; Pty. Ltd. -> Proprietary Limited; Inc. -> Incorporated; Corp. -> Corporation; LLC -> Limited Liability Company; LLP -> Limited Liability Partnership; PLC -> Public Limited Company; Sdn. Bhd. -> Sendirian Berhad; GmbH -> Gesellschaft Mit Beschränkter Haftung; AG -> Aktiengesellschaft; SARL -> Société À Responsabilité Limitée; SAS -> Société Par Actions Simplifiée; S.p.A. -> Società Per Azioni; S.r.l. -> Società A Responsabilità Limitata; B.V. -> Besloten Vennootschap; N.V. -> Naamloze Vennootschap; K.K. -> Kabushiki Kaisha.
@@ -2286,7 +2286,32 @@ ${context.crawledText}
         }
       }
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
-        aiResult.data.companyName = aiResult.data.companyName.trim();
+        let compNameClean = aiResult.data.companyName.trim();
+        // Preserve country codes (UK, USA, U.S.A.) inside companyName if Gemini expanded them to full country names
+        if (context && context.crawledText) {
+          const codePairs = [
+            { expanded: /\bUnited\s+Kingdom\b/gi, codes: ["UK", "U.K."] },
+            { expanded: /\bUnited\s+States(?:\s+Of\s+America)?\b/gi, codes: ["USA", "U.S.A."] }
+          ];
+          for (const pair of codePairs) {
+            if (pair.expanded.test(compNameClean)) {
+              const prefixTokens = compNameClean.split(pair.expanded)[0].trim().split(/\s+/).filter(Boolean);
+              const anchor = prefixTokens.slice(-2).join("\\s+");
+              if (anchor) {
+                for (const code of pair.codes) {
+                  const escCode = code.replace(/\./g, "\\.");
+                  const hasCodeInSource = new RegExp(`${anchor}\\s+\\(?${escCode}\\)?\\b`, "i").test(context.crawledText);
+                  const hasExpInSource = new RegExp(`${anchor}\\s+\\(?${pair.expanded.source}\\)?`, "i").test(context.crawledText);
+                  if (hasCodeInSource && !hasExpInSource) {
+                    compNameClean = compNameClean.replace(pair.expanded, code);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+        aiResult.data.companyName = compNameClean;
       }
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
         rawPreCleanAddr = String(aiResult.data.companyAddress).trim();
