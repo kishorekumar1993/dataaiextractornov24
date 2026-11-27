@@ -951,38 +951,54 @@ const CrawlerEngine = (() => {
 
   async function resolveMapEmbedAddress(html, fetchFn = (typeof fetch !== "undefined" ? fetch : null)) {
     if (!html || !fetchFn) return [];
-    const iframeRegex = /<iframe\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
+    const iframeRegex = /<iframe\b[^>]*\b(?:data-lazy-src|data-src|src)=["']([^"']+)["'][^>]*>/gi;
+    const iframeAttrRegex = /\b(?:data-lazy-src|data-src|src)=["']([^"']+)["']/gi;
+    const iframeTagRegex = /<iframe\b[^>]*>/gi;
     const addrs = [];
-    let match;
-    while ((match = iframeRegex.exec(html)) !== null) {
-      const src = match[1];
-      if (src && src.includes("google.com/maps/embed?pb=")) {
-        try {
-          let cleanSrc = src.replace(/&#39;/g, "%27")
-            .replace(/&amp;/g, "&")
-            .replace(/&#(\d+);/g, (m, dec) => String.fromCharCode(dec))
-            .replace(/&#x([0-9a-f]+);/gi, (m, hex) => String.fromCharCode(parseInt(hex, 16)));
-          const fullUrl = cleanSrc.startsWith("//") ? "https:" + cleanSrc : cleanSrc;
-          const res = await fetchFn(fullUrl);
-          if (res && res.ok) {
-            const embedHtml = await res.text();
+    const seenSrcs = new Set();
+    let tagMatch;
+    while ((tagMatch = iframeTagRegex.exec(html)) !== null) {
+      iframeAttrRegex.lastIndex = 0;
+      let attrMatch;
+      while ((attrMatch = iframeAttrRegex.exec(tagMatch[0])) !== null) {
+        const src = attrMatch[1];
+        if (src && src.includes("google.com/maps/embed?pb=") && !seenSrcs.has(src)) {
+          seenSrcs.add(src);
+          try {
+            let cleanSrc = src.replace(/&#39;/g, "%27")
+              .replace(/&amp;/g, "&")
+              .replace(/&#(\d+);/g, (m, dec) => String.fromCharCode(dec))
+              .replace(/&#x([0-9a-f]+);/gi, (m, hex) => String.fromCharCode(parseInt(hex, 16)));
+            const fullUrl = cleanSrc.startsWith("//") ? "https:" + cleanSrc : cleanSrc;
+            const res = await fetchFn(fullUrl);
+            if (res && res.ok) {
+              const embedHtml = await res.text();
 
-            // 1. Look for structured address segment array: ["Unit, B3, Sapphire Way","Rhombus Business Park","Norwich NR6 6NN"]
-            const arrayRegex = /\["([^"]+?)","([^"]+?)","([^"]+?)"\]/g;
-            let m;
-            while ((m = arrayRegex.exec(embedHtml)) !== null) {
-              const seg1 = m[1].trim();
-              const seg2 = m[2].trim();
-              const seg3 = m[3].trim();
-              const combined = `${seg1}, ${seg2}, ${seg3}`;
-              if (/\b(?:road|rd|street|st|way|lane|ln|avenue|ave|park|drive|dr|court|ct|boulevard|blvd|unit|bldg|building|suite|ste|box|po)\b/i.test(combined)) {
-                const fullUK = /\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b/i.test(combined) && !/united kingdom|uk\b/i.test(combined)
-                  ? `${combined}, United Kingdom`
-                  : combined;
-                addrs.push(fullUK);
-                addrs.push(combined);
+              // 1a. Look for 3-element structured address array: ["Unit, B3, Sapphire Way","Rhombus Business Park","Norwich NR6 6NN"]
+              const arrayRegex = /\["([^"]+?)","([^"]+?)","([^"]+?)"\]/g;
+              let m;
+              while ((m = arrayRegex.exec(embedHtml)) !== null) {
+                const combined = `${m[1].trim()}, ${m[2].trim()}, ${m[3].trim()}`;
+                if (/\b(?:road|rd|street|st|way|lane|ln|avenue|ave|park|drive|dr|court|ct|boulevard|blvd|hwy|highway|pkwy|parkway|unit|bldg|building|suite|ste|box|po)\b/i.test(combined)) {
+                  const fullUK = /\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b/i.test(combined) && !/united kingdom|uk\b/i.test(combined)
+                    ? `${combined}, United Kingdom`
+                    : combined;
+                  addrs.push(fullUK);
+                  addrs.push(combined);
+                }
               }
-            }
+
+              // 1b. Look for 2-element structured address array: ["3416 Sylvester Rd #6403","Albany, GA 31705"]
+              const array2Regex = /\["([^"]+?)","([^"]+?)"\]/g;
+              while ((m = array2Regex.exec(embedHtml)) !== null) {
+                const seg1 = m[1].trim();
+                const seg2 = m[2].trim();
+                if (/^0x[a-f0-9]+:0x[a-f0-9]+$/i.test(seg1) || /^\/url\?/i.test(seg1)) continue;
+                const combined = `${seg1}, ${seg2}`;
+                if (/\b(?:road|rd|street|st|way|lane|ln|avenue|ave|park|drive|dr|court|ct|boulevard|blvd|hwy|highway|pkwy|parkway|unit|bldg|building|suite|ste|box|po)\b/i.test(seg1)) {
+                  addrs.push(combined);
+                }
+              }
 
             // 2. Full place string in [["0x...:0x...", "..."]
             const placeFullRegex = /\["0x[a-f0-9]+:0x[a-f0-9]+","([^"]+)"/gi;
@@ -1014,8 +1030,9 @@ const CrawlerEngine = (() => {
               cleaned = cleaned.replace(/\s*[\u4e00-\u9fa5]+\/[^,]+$/i, "").trim();
               addrs.push(cleaned);
             }
-          }
-        } catch (e) { }
+            }
+          } catch (e) { }
+        }
       }
     }
     return Array.from(new Set(addrs));
@@ -1025,12 +1042,16 @@ const CrawlerEngine = (() => {
     if (!html) return [];
     const mapAddresses = [];
 
-    // 1. Check iframes with map sources (Google Maps, OpenStreetMap, Bing, etc.)
-    const iframeRegex = /<iframe\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi;
-    let match;
-    while ((match = iframeRegex.exec(html)) !== null) {
-      const src = match[1];
-      if (/maps\.google|google\.com\/maps|openstreetmap|bing\.com\/maps/i.test(src)) {
+    // 1. Check iframes with map sources (Google Maps, OpenStreetMap, Bing, etc.) including lazy-loaded data-src / data-lazy-src
+    const iframeTagRegex = /<iframe\b[^>]*>/gi;
+    const iframeAttrRegex = /\b(?:data-lazy-src|data-src|src)=["']([^"']+)["']/gi;
+    let tagMatch;
+    while ((tagMatch = iframeTagRegex.exec(html)) !== null) {
+      iframeAttrRegex.lastIndex = 0;
+      let attrMatch;
+      while ((attrMatch = iframeAttrRegex.exec(tagMatch[0])) !== null) {
+        const src = attrMatch[1];
+        if (/maps\.google|google\.com\/maps|openstreetmap|bing\.com\/maps/i.test(src)) {
         try {
           const u = new URL(src.startsWith("//") ? "https:" + src : src);
           const q = u.searchParams.get("q") || u.searchParams.get("query");
@@ -1056,11 +1077,13 @@ const CrawlerEngine = (() => {
             mapAddresses.push(decodeURIComponent(qMatch[1]).replace(/\+/g, " ").trim());
           }
         }
+        }
       }
     }
 
     // 2. Check <a> links to Google Maps
     const aRegex = /<a\b[^>]*\bhref=["']([^"']*(?:maps\.google|google\.com\/maps|goo\.gl\/maps)[^"']*)["'][^>]*>/gi;
+    let match;
     while ((match = aRegex.exec(html)) !== null) {
       const href = match[1];
       try {
@@ -1382,8 +1405,8 @@ Analyze the crawled website content and return strictly a raw valid JSON object 
 
 CORE RULE - SPECIAL CHARACTER PRESERVATION:
 - Special characters MUST ALWAYS be kept AS IT IS.
-- NEVER expand or replace "&" with "and" or "And", NEVER expand or replace "@" with "at", and DO NOT remove internal hyphens "-", slashes "/", apostrophes "'", or dots within words/names.
-- Special characters, hyphens, slashes, ampersands ("&"), and numbers MUST be kept exactly as in the source.
+- NEVER expand or replace "&" with "and" or "And", NEVER expand or replace "@" with "at", NEVER expand or replace "#" with "Number" (keep "#6403", "#101", "#A" exactly as "#6403", "#101", "#A"), and DO NOT remove internal hyphens "-", slashes "/", apostrophes "'", "#" signs, or dots within words/names.
+- Special characters, hyphens, slashes, ampersands ("&"), hash signs ("#"), and numbers MUST be kept exactly as in the source.
 
 FIELD RULES:
 1. "websiteStatus": "Working" ONLY if the site loaded AND "businessType" is eligible ("Manufacturer" to "Wholesaler": Manufacturer, Industrial Services, Exporter, Trader, Distributer, Supplier, Wholesaler). Otherwise mark "Not Working" (or "Non English", "Redirect Site", "Flash", "Manual Review") and explain in "notWorkingReason".
@@ -1416,7 +1439,7 @@ FIELD RULES:
      * Expand all recognizable abbreviations in Title Case: Rd -> Road, St -> Street, Ave -> Avenue, Blvd -> Boulevard, Hwy -> Highway, Dr -> Drive, Ln -> Lane, Ct -> Court, Pl -> Place, Pkwy -> Parkway, Jl./Jln. -> Jalan, Km/Km. -> Kilometer, Kab. -> Kabupaten, Kec. -> Kecamatan, Sec. -> Section, Dist. -> District, Ind./Indl. -> Industrial, Bldg. -> Building, Rm. -> Room, Ste. -> Suite, Apt. -> Apartment, Blk. -> Block, P.O. Box -> Post Office Box (NEVER remove P.O. Box!), P.O. -> Post Office, P.B. -> Post Bag, C/O -> Care Of, H.No. -> House Number, US/CA/AU state codes (WI -> Wisconsin, CA -> California, Vic -> Victoria, ON -> Ontario).
      * Directional prefixes attached to numbers: "N173" -> "North173", "W21640" -> "West21640", N/S/E/W -> North/South/East/West.
      * Floor Designations: Expand any floor abbreviation ("1F" -> "1Floor", "3f.-6" -> "3Floor - 6", "1st F"/"1st Fl." -> "1st Floor").
-     * "No." / "Number" Rule: Expand "No." / "No" to "Number" with a space and NO dot (e.g. "No.2" -> "Number 2", "No. 10" -> "Number 10", NEVER "Number.2") ONLY if "No."/"No"/"Number" was in the source; NEVER prepend "Number" to pure street numbers or slash-separated units.
+     * "No." / "Number" Rule: Expand "No." / "No" to "Number" with a space and NO dot (e.g. "No.2" -> "Number 2", "No. 10" -> "Number 10", NEVER "Number.2") ONLY if "No."/"No"/"Number" was in the source; NEVER prepend "Number" to pure street numbers or slash-separated units, and NEVER convert "#" into "Number" (keep "#" as "#"!).
      * Commas: Preserve source commas exactly; NEVER insert artificial commas (e.g., before State/Province or when joining multi-line addresses).
      * Cleanup: Remove pincode/postal/ZIP codes (e.g. "Taoyuan 330" -> "Taoyuan", UK postcodes like "MK14 5AN" or "NR6 6NN" -> ""), country names (including "United Kingdom", "England", "Taiwan R.O.C.", "R.O.C."), company names, leading labels ("Address:", "HQ:"), and trailing phone/fax/email/registration/punctuation. ALWAYS remove all bracket/parenthesis characters ( ), [ ] from companyAddress while keeping the words/landmarks inside (e.g. "(Opposite KCC cheese Factory)" -> "Opposite KCC Cheese Factory"). NEVER drop state/province names (e.g. Central Java, Maharashtra, Wisconsin) from companyAddress.
 
