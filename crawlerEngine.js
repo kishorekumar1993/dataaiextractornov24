@@ -971,7 +971,7 @@ const CrawlerEngine = (() => {
       let attrMatch;
       while ((attrMatch = iframeAttrRegex.exec(tagMatch[0])) !== null) {
         const src = attrMatch[1];
-        if (src && src.includes("google.com/maps/embed?pb=") && !seenSrcs.has(src)) {
+        if (src && (/google\.com[^/]*\/maps\/embed/i.test(src) || (/maps\.google\./i.test(src) && /output=embed/i.test(src))) && !seenSrcs.has(src)) {
           seenSrcs.add(src);
           try {
             let cleanSrc = src.replace(/&#39;/g, "%27")
@@ -1078,7 +1078,7 @@ const CrawlerEngine = (() => {
       iframeAttrRegex.lastIndex = 0;
       let attrMatch;
       while ((attrMatch = iframeAttrRegex.exec(tagMatch[0])) !== null) {
-        const src = attrMatch[1];
+        const src = attrMatch[1].replace(/&amp;/g, "&");
         if (/maps\.google|google\.com\/maps|openstreetmap|bing\.com\/maps/i.test(src)) {
         try {
           const u = new URL(src.startsWith("//") ? "https:" + src : src);
@@ -1113,7 +1113,7 @@ const CrawlerEngine = (() => {
     const aRegex = /<a\b[^>]*\bhref=["']([^"']*(?:maps\.google|google\.com\/maps|goo\.gl\/maps)[^"']*)["'][^>]*>/gi;
     let match;
     while ((match = aRegex.exec(html)) !== null) {
-      const href = match[1];
+      const href = match[1].replace(/&amp;/g, "&");
       try {
         const u = new URL(href.startsWith("//") ? "https:" + href : href);
         const q = u.searchParams.get("q") || u.searchParams.get("query");
@@ -1545,12 +1545,12 @@ FIELD RULES:
    - Current Active Address Priority (CRITICAL): NEVER select former, historical, or previous addresses ("prior to", "formerly located at", "relocated from").
    - Comparison:
      * Scenario 1: All Three Addresses Are Identical -> Select Contact Page address.
-     * Scenario 2: Contact Page Address Is Incomplete -> Compare Contact Page and Embedded Map (and Footer only if needed); if Map has fuller verified details (such as extra street, unit, road, sub-locality, or area names) for the same physical location, ALWAYS merge/use the full-detail Map/Contact address.
+     * Scenario 2: Contact Page Address Is Incomplete -> Compare Contact Page and Embedded Map (and Footer only if needed); when both refer to the same physical location (even with minor street/spacing variations), MERGE all non-conflicting verified components from both sources: keep the Contact Page's exact street/unit number and city/state AND insert any additional street, road, sub-locality, village, or area name shown on the Embedded Map in its proper position.
      * Scenario 3: Contact Page and Footer Are Different -> ALWAYS prefer Contact Page (+ Map) over Footer, UNLESS Footer explicitly designates Corporate Office / HQ and Contact Page only lists a Registered/Branch Office. If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
      * Scenario 4: Contact Page and Map Are Different -> Compare Contact Page and Map: if Map has fuller details for the same location, adopt it; if Map is a different city, ignore it. If Contact Page has only a form + Map, take Contact Map address.
      * Scenario 5: All Three Addresses Are Different -> Do not merge different locations; use Contact Page as base and set "websiteStatus": "Manual Review" if irreconcilable.
      * Scenario 6: Contact Page Address Is Not Available in Text -> If Contact Page has only a form + Map, take Contact Map address; else fallback to Footer.
-   - Address Completion Rules: Supplement only from the same verified physical HQ location; never add unrelated branches or guessed details.
+   - Address Completion Rules: Supplement only from the same verified physical HQ location; never add unrelated branches or guessed details. NEVER omit any Village, Sub-locality, Area, Sector, Industrial Estate, or Street/Unit name shown on the Embedded Map when merging with the Contact Page address (Rule 8 only governs the "city" dropdown, NEVER remove Village/Locality words from "companyAddress").
    - Formatting & Expansion:
      * Expand all recognizable abbreviations in Title Case: Rd -> Road, St -> Street, Ave -> Avenue, Blvd -> Boulevard, Hwy -> Highway, Dr -> Drive, Ln -> Lane, Ct -> Court, Pl -> Place, Pkwy -> Parkway, Jl./Jln. -> Jalan, PJU -> Petaling Jaya Utara, PJS -> Petaling Jaya Selatan, Km/Km. -> Kilometer, Kab. -> Kabupaten, Kec. -> Kecamatan, Sec. -> Section, Dist. -> District, Ind./Indl. -> Industrial, Bldg. -> Building, Rm. -> Room, Ste. -> Suite, Apt. -> Apartment, Blk. -> Block, P.O. Box -> Post Office Box (NEVER remove P.O. Box!), P.O. -> Post Office, P.B. -> Post Bag, C/O -> Care Of, H.No. -> House Number, US/CA/AU state codes (WI -> Wisconsin, CA -> California, Vic -> Victoria, ON -> Ontario).
      * Directional prefixes attached to numbers: "N173" -> "North173", "W21640" -> "West21640", N/S/E/W -> North/South/East/West.
