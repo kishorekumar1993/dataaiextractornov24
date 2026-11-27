@@ -822,7 +822,6 @@ const CrawlerEngine = (() => {
     "china",
     "united kingdom",
     "australia",
-    "malaysia",
     "india",
     "south africa",
     "new zealand",
