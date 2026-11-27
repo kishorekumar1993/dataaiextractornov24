@@ -1282,15 +1282,22 @@ const CrawlerEngine = (() => {
   }
 
   function classifyLink(url, pathname, text) {
+    let linkHost = "";
+    try { linkHost = new URL(url).hostname.toLowerCase(); } catch (_) { }
+    if ((/^(?:en|eng|english)\./i.test(linkHost) && (pathname === "/" || pathname === "")) ||
+      /^\/(?:en|eng|english)\/?$/i.test(pathname) || /^(?:english|en)$/i.test(text.trim())) {
+      return "about";
+    }
     if (pathname === "/" || pathname === "" || text === "home") {
       return "home";
     }
-    if (/contact|contact-us|contactus|reach-us|get-in-touch|locate-us|locate|support|customer-care|customer-service|customer-support|feedback|location|imprint|impressum|headquarters|offices|branches|find-us|where-to-buy|enquir|inquir/i.test(pathname) ||
-      /contact|reach us|touch with us|locate us|find us|our offices|headquarters|customer care|customer service|imprint|impressum/i.test(text)) {
+    const isProductPath = /^\/products?(?:\/|$)/i.test(pathname);
+    if (!isProductPath && (
+      /(?:^|[\/_-])(?:contact|contact-us|contactus|reach-us|get-in-touch|locate-us|locate|customer-care|customer-service|customer-support|feedback|location|imprint|impressum|headquarters|offices|branches|find-us|where-to-buy|enquir|inquir)(?:[\/_.-]|$)/i.test(pathname) ||
+      /(?:^|\/)support(?:\/|$)/i.test(pathname) ||
+      /contact|reach us|touch with us|locate us|find us|our offices|headquarters|customer care|customer service|imprint|impressum/i.test(text)
+    )) {
       return "contact";
-    }
-    if (/^\/(?:en|eng|english)\/?$/i.test(pathname) || /^(?:english|en)$/i.test(text.trim())) {
-      return "about";
     }
     if (/privacy|cookie/i.test(pathname)) {
       return "other";
@@ -1355,9 +1362,11 @@ const CrawlerEngine = (() => {
     const lower = email.trim().toLowerCase();
     if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(lower)) return false;
     if (/\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|pdf|woff2?)$/i.test(lower)) return false;
-    if (/^(?:primary_email|secondary_email|your|name|user|test|noreply|no-reply|donotreply)@/i.test(lower)) return false;
-    const domain = lower.split("@")[1] || "";
-    if (["example.com", "domain.com", "email.com", "test.com", "sentry.io", "wixpress.com", "wix.com", "w3.org", "schema.org", "facebook.com", "fbcdn.net"].some(d => domain === d || domain.endsWith("." + d))) {
+    const [localPart = "", domain = ""] = lower.split("@");
+    if (/^(?:primary_email|secondary_email|your|you|name|user|username|youremail|your\.email|myemail|someone|sample|demo|placeholder|fake|dummy|test|testing|abc|xyz|john\.?doe|jane\.?doe|noreply|no-reply|donotreply|do-not-reply|mailer-daemon)$/i.test(localPart)) {
+      return false;
+    }
+    if (["example.com", "example.org", "example.net", "domain.com", "domain.org", "yourdomain.com", "yoursite.com", "mysite.com", "website.com", "company.com", "companyname.com", "email.com", "mail.com", "test.com", "test.org", "sample.com", "doe.com", "sentry.io", "wixpress.com", "wix.com", "w3.org", "schema.org", "facebook.com", "fbcdn.net", "godaddy.com", "squarespace.com", "shopify.com"].some(d => domain === d || domain.endsWith("." + d))) {
       return false;
     }
     return true;
@@ -1484,6 +1493,7 @@ FIELD RULES:
    - COMMA PRESERVATION: Preserve any comma in the source legal suffix ("Co., Ltd." -> "Company, Limited"; "Co. Ltd." -> "Company Limited"). Never insert artificial commas where none existed.
    - COMPLETENESS & INTERNAL SYMBOLS: Never truncate internal words or legal suffixes; keep established brand acronyms (IBM, BMW) and internal special characters (&, -, /, ') as-is; strip slogans and copyright text.
     - LINKED SOCIAL (FACEBOOK/LINKEDIN) TITLE & SLUG: If the website text/footer/header only shows a short/trade name without a legal suffix (Inc, LLC, Ltd, Corp, etc.), check the linked on-site Facebook/LinkedIn URL slug or page title in LINKED SOCIAL PROFILES for the full legal company name (preserving "&" if present in the brand/title).
+    - OFFICIAL ENGLISH VERSION PRIORITY: If an official English version of the site (/en or en. subdomain) is crawled alongside a non-English page, ALWAYS prefer the official English company name and English address from the English page (e.g. "PAT NBK CO., LTD." -> "Pat Nbk Company, Limited") instead of translating the non-English name/address yourself.
 5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", "United Kingdom" (or constituent country e.g. "England" if explicitly stated), etc. Infer from city/state if omitted.
 
 6. "companyAddress" — Contact Page, Footer and Map Address Comparison:
@@ -1754,8 +1764,12 @@ ${context.crawledText}
           const subFooter = extractFooterText(subHtml);
           const subContacts = extractContactsAndProducts(subText, subHtml);
           const subMeta = (link.category === "about" || link.category === "contact") ? extractStructuredMetadata(subHtml) : null;
-          const subLdNote = (subMeta && subMeta.jsonLd && subMeta.jsonLd.length > 0)
-            ? `\n--- STRUCTURED METADATA ---\n${JSON.stringify(subMeta.jsonLd)}\n`
+          const subLdParts = [];
+          if (subMeta && subMeta.ogSiteName) subLdParts.push(`Site Name: ${subMeta.ogSiteName}`);
+          if (subMeta && subMeta.title) subLdParts.push(`Page Title: ${subMeta.title}`);
+          if (subMeta && subMeta.jsonLd && subMeta.jsonLd.length > 0) subLdParts.push(JSON.stringify(subMeta.jsonLd));
+          const subLdNote = subLdParts.length > 0
+            ? `\n--- STRUCTURED METADATA ---\n${subLdParts.join("\n")}\n`
             : "";
           const contactSnippet = subText.length > 7500
             ? subText.slice(0, 4000) + "\n...\n" + subText.slice(-3500)
@@ -1785,6 +1799,41 @@ ${context.crawledText}
         totalProducts = Math.max(totalProducts, res.subContacts.productCount);
         totalImages = Math.max(totalImages, res.subContacts.imgCount);
         totalDescriptions = Math.max(totalDescriptions, res.subContacts.descCount);
+      }
+    }
+
+    // 4b. If fewer than 2 valid emails found so far, sweep up to 6 more un-crawled internal pages in parallel for primary/secondary email
+    if (allEmails.size < 2 && mainLinks.length > 0) {
+      const alreadyCrawled = new Set([cleanUrl, cleanUrl + "/", ...priorityLinks.map(l => l.url.replace(/\/+$/, ""))]);
+      const extraCandidates = mainLinks
+        .filter(l => {
+          const normU = l.url.replace(/\/+$/, "");
+          return !alreadyCrawled.has(normU) && !alreadyCrawled.has(l.url) && !/\.(?:pdf|jpg|jpeg|png|gif|zip|mp4)$/i.test(l.url);
+        })
+        .sort((a, b) => {
+          const score = (x) => (/sales|support|service|team|staff|career|terms|legal|privacy|imprint|about|contact|faq/i.test(x.url) ? 0 : 1);
+          return score(a) - score(b);
+        })
+        .slice(0, 6);
+      if (extraCandidates.length > 0) {
+        const extraResults = await Promise.all(extraCandidates.map(async (link) => {
+          try {
+            const resp = await fetchWithTimeout(fetchFn, link.url, 4500);
+            if (!resp || !resp.ok) return null;
+            const subHtml = await resp.text();
+            const subText = cleanHtmlToText(subHtml);
+            const subContacts = extractContactsAndProducts(subText, subHtml);
+            return { url: link.url, category: link.category, html: subHtml, textSnippet: subText.slice(0, 1500), subContacts };
+          } catch (_) { return null; }
+        }));
+        for (const er of extraResults) {
+          if (!er) continue;
+          if (er.subContacts.emails.length > 0) {
+            crawledPages.push({ url: er.url, category: er.category, sourceType: er.category.toUpperCase(), textSnippet: er.textSnippet, html: er.html, mapAddresses: [], footerText: "" });
+            er.subContacts.emails.forEach(e => allEmails.add(e));
+          }
+          er.subContacts.phones.forEach(p => allPhones.add(p));
+        }
       }
     }
 
