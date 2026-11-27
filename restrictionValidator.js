@@ -150,7 +150,8 @@ const RestrictionValidator = (() => {
         /\b(?:strapping|packaging|wrapping|sealing)\s+machines?\b/i,
         /\b(?:forklifts?|pallet\s+trucks?|stackers?|material\s+handling)\b/i,
         /\b(?:camlock|couplings?|padlocks?|cabinet\s+locks?)\b/i,
-        /\b(?:nail\s+polish\s+bottles?|cosmetic\s+bottles?|glass\s+bottles?)\b/i
+        /\b(?:nail\s+polish\s+bottles?|cosmetic\s+bottles?|glass\s+bottles?)\b/i,
+        /\b(?:rolling|overhead|sectional|fire|security)\s+doors?\b/i
       ],
       reason: "Unpaid Category: Pharmaceutical or medicinal products manufacturer, supplier, or trader."
     },
@@ -166,7 +167,8 @@ const RestrictionValidator = (() => {
         /\bprecision (?:machining|cnc|parts) for medical\b/i,
         /\bmedical grade (?:silicone|tubing|stainless steel|titanium|polymer|resins?)\b/i,
         /\bmedical industry components?\b/i,
-        /\bcontract manufacturing for medical oem\b/i
+        /\bcontract manufacturing for medical oem\b/i,
+        /\b(?:replacement\s+windows?|vinyl\s+windows?|window\s+installation|energy\s+efficient\s+windows?)\b/i
       ],
       reason: "Unpaid Category: Medical devices or medical equipment manufacturer, supplier, or trader."
     },
@@ -299,7 +301,8 @@ const RestrictionValidator = (() => {
         /\bchemical resistance\b/i,
         /\bchemical storage tanks?\b/i,
         /\bchemical processing (?:equipment|machinery|pumps?|valves?)\b/i,
-        /\bchemical fume hoods?\b/i
+        /\bchemical fume hoods?\b/i,
+        /\b(?:crane\s+parts?|overhead\s+cranes?|hoists?|gantr(?:y|ies))\b/i
       ],
       reason: "Unpaid Category: Chemical manufacturer, petrochemical, pesticide, or bulk chemical distributor."
     },
@@ -317,7 +320,8 @@ const RestrictionValidator = (() => {
         /\balcohol wipes?\b/i,
         /\balcohol rubbing\b/i,
         /\bbrewery (?:tanks?|equipment|machinery)\b/i,
-        /\bbrewing equipment manufacturer\b/i
+        /\bbrewing equipment manufacturer\b/i,
+        /\b(?:door\s+hardware|architectural\s+hardware|cabinet\s+hardware|hinges?|locks?|handles?)\b/i
       ],
       reason: "Unpaid Category: Alcoholic beverage manufacturer, distillery, brewery, winery, or liquor supplier."
     },
@@ -352,7 +356,8 @@ const RestrictionValidator = (() => {
         /\bconveyor belts for food\b/i,
         /\bfood storage bins?\b/i,
         /\bfood service equipment manufacturing\b/i,
-        /\b(?:overhead cranes?|gantry cranes?|jibs?|monorails?|materials?\s+handling|height safety)\b/i
+        /\b(?:overhead cranes?|gantry cranes?|jibs?|monorails?|materials?\s+handling|height safety)\b/i,
+        /\b(?:strip\s+curtains?|dock\s+doors?|dock\s+seals?|air\s+curtains?|industrial\s+doors?)\b/i
       ],
       reason: "Unpaid Category: Food, beverage, restaurant, or edible consumer products company."
     },

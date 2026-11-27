@@ -1459,24 +1459,33 @@ const CrawlerEngine = (() => {
       }
     }
     const emails = Array.from(emailSet);
-    const collapsedPhoneText = text.replace(/\s+/g, " ").replace(/\b\d+\s*%/g, " ");
+    const collapsedPhoneText = text
+      .replace(/[ \t\u00A0]+/g, " ")
+      .replace(/(\(\d{2,4}\)\s*\d{3,4})\s*\n+\s*(\d{3,4})\b/g, "$1 $2")
+      .replace(/\b\d+\s*%/g, " ")
+      .replace(/\b[A-Z]{2}\s+\d{5}-\d{4}\b/g, " ");
     const isYearRange = (p) => {
       const digits = p.replace(/\D/g, "");
       return /^(?:19|20)\d{2}\s*[-–—\/]\s*(?:19|20)\d{2}$/.test(p.trim()) || /^(?:19|20)\d{2}(?:19|20)\d{2}$/.test(digits);
     };
+    const isZipPlus4 = (p) => /^\d{5}-\d{4}$/.test(p.trim());
     const phones = Array.from(new Set(collapsedPhoneText.match(PHONE_REGEX) || []))
-      .filter(p => !isYearRange(p) && p.replace(/\D/g, "").length >= 7 && p.replace(/\D/g, "").length <= 15);
+      .filter(p => !isYearRange(p) && !isZipPlus4(p) && p.replace(/\D/g, "").length >= 7 && p.replace(/\D/g, "").length <= 15);
 
     if (html) {
       const telRegex = /href=["']tel:([^"']+)["']/gi;
       let tm;
+      const telPhones = [];
       while ((tm = telRegex.exec(html)) !== null) {
         try {
           const rawTel = decodeURIComponent(tm[1]).trim();
           if (rawTel.replace(/\D/g, "").length >= 7 && rawTel.replace(/\D/g, "").length <= 15) {
-            phones.push(rawTel);
+            telPhones.push(rawTel);
           }
         } catch (_) { }
+      }
+      if (telPhones.length > 0) {
+        phones.unshift(...telPhones);
       }
     }
 
