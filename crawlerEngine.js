@@ -1250,13 +1250,14 @@ const CrawlerEngine = (() => {
           });
           const queryStr = cleanParams.toString();
           const normalizedPath = resolved.pathname === "/" ? "/" : resolved.pathname.replace(/\/+$/, "");
-          const cleanUrl = resolved.origin + normalizedPath + (queryStr ? `?${queryStr}` : "");
+          const dedupeKey = resolved.origin + normalizedPath + (queryStr ? `?${queryStr}` : "");
+          const actualUrl = resolved.origin + resolved.pathname + (queryStr ? `?${queryStr}` : "");
           const pathAndQueryLower = (resolved.pathname + (queryStr ? `?${queryStr}` : "")).toLowerCase();
-          const category = classifyLink(cleanUrl, pathAndQueryLower, rawText);
+          const category = classifyLink(actualUrl, pathAndQueryLower, rawText);
 
-          if (!links.has(cleanUrl)) {
-            links.set(cleanUrl, {
-              url: cleanUrl,
+          if (!links.has(dedupeKey)) {
+            links.set(dedupeKey, {
+              url: actualUrl,
               text: rawText,
               category: category
             });
@@ -1493,7 +1494,7 @@ FIELD RULES:
    - QUALIFYING ONLY: Mark "Available" ONLY if the named place is legally an incorporated City, Town, District, Municipality, or Country Capital. (If a country's capital is mentioned in the address, both City and State = "Available".)
    - DISQUALIFYING (MUST BE "Not Available"): Hamlet, unincorporated community, census-designated place (CDP), village, suburb, exurb, neighborhood, residential colony, or industrial estate/park alone.
    - POSTAL LOCALITY TRAP (CRITICAL): In postal/mailing addresses ("Street, Locality, State/Province ZIP"), the locality name before the State/Postcode is frequently a mailing-only hamlet, CDP, or unincorporated community rather than an incorporated municipality. NEVER assume a postal locality is a City by its position in the address! Verify its actual municipal status; if it is a hamlet, CDP, unincorporated community, village, suburb, exurb, or not a verified incorporated City/Town/District/Municipality, you MUST output "Not Available".
-9. "emailId" / "secondaryEmailId": Real business emails explicitly present in crawled text OR on linked on-site Facebook/LinkedIn profiles; never fabricate. Return "" if none. If a linked Facebook/LinkedIn profile provides an additional valid business email, include it in "emailId" or "secondaryEmailId".
+9. "emailId" / "secondaryEmailId": Real business emails explicitly present in crawled text OR on linked on-site Facebook/LinkedIn profiles; never fabricate. Return "" if none. Priority for "emailId" (Primary): Contact Page top/main company or sales email > Footer/Header email. Put the second distinct business email (from Contact Page, Footer, other pages, or linked Facebook/LinkedIn) in "secondaryEmailId".
 10. "phoneNumber": Digits only matching the selected HQ address. Strip international country calling codes (+1, +44, +91, +86, +60, etc.), spaces, punctuation, and leading zeros. Prefer the main Office/Tel landline over WhatsApp-only/mobile numbers. Reject toll-free (1800, 800, 888, 877, 866, 855, 844, 400) and pick the secondary direct/local phone if main is toll-free.
 11. "numberOfProducts" / "productImages" / "numberOfProductDescriptions": Default to "3" for all three fields ("3" for 3 or more, "2" for 2, "1" for 1). Never output "0" unless all images are prohibited.
     - Prohibited Categories (Rule 15): Porn / Adult Content, Medicine / Medical / Hospital, Food, Weapons (including Knife) / Defence, Aircraft / Marine (Aerospace/Ship), Chemicals, Alcohol, Animals. If all images are prohibited, set "productImages": "0".
@@ -1701,7 +1702,7 @@ ${context.crawledText}
     let totalDescriptions = mainContacts.descCount;
     const allEmails = new Set(mainContacts.emails);
     const allPhones = new Set(mainContacts.phones);
-    const subpageTimeoutMs = options.subpageTimeoutMs || 6000;
+    const subpageTimeoutMs = options.subpageTimeoutMs || 10000;
     const SUBPAGE_CONCURRENCY = 6;
 
     for (let i = 0; i < priorityLinks.length; i += SUBPAGE_CONCURRENCY) {
@@ -1874,10 +1875,19 @@ ${context.crawledText}
       pagesText = pagesText.slice(0, 20000) + "\n...[truncated for token efficiency]";
     }
 
+    const orderedEmailSet = new Set();
+    contactPages.forEach(p => {
+      if (p.html) {
+        const ceContacts = extractContactsAndProducts(cleanHtmlToText(p.html), p.html);
+        ceContacts.emails.forEach(e => orderedEmailSet.add(e));
+      }
+    });
+    allEmails.forEach(e => orderedEmailSet.add(e));
+
     const context = {
       domain: hostname,
       url: cleanUrl,
-      detectedEmails: Array.from(allEmails),
+      detectedEmails: Array.from(orderedEmailSet),
       detectedPhones: Array.from(allPhones),
       heuristicProducts: totalProducts,
       heuristicImages: totalImages,
