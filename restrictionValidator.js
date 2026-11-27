@@ -857,7 +857,13 @@ const RestrictionValidator = (() => {
   };
 })();
 
-// Export for Node.js / module environments
+// Export for Node.js / module & Service Worker environments
 if (typeof module !== "undefined" && module.exports) {
   module.exports = RestrictionValidator;
+}
+if (typeof self !== "undefined") {
+  self.RestrictionValidator = RestrictionValidator;
+}
+if (typeof globalThis !== "undefined") {
+  globalThis.RestrictionValidator = RestrictionValidator;
 }

@@ -2665,7 +2665,13 @@ ${context.crawledText}
   };
 })();
 
-// Export for Node.js / module environments
+// Export for Node.js / module & Service Worker environments
 if (typeof module !== "undefined" && module.exports) {
   module.exports = CrawlerEngine;
+}
+if (typeof self !== "undefined") {
+  self.CrawlerEngine = CrawlerEngine;
+}
+if (typeof globalThis !== "undefined") {
+  globalThis.CrawlerEngine = CrawlerEngine;
 }

@@ -400,7 +400,13 @@ const AddressNormalizer = (() => {
   };
 })();
 
-// Export for Node.js / module environments
+// Export for Node.js / module & Service Worker environments
 if (typeof module !== "undefined" && module.exports) {
   module.exports = AddressNormalizer;
+}
+if (typeof self !== "undefined") {
+  self.AddressNormalizer = AddressNormalizer;
+}
+if (typeof globalThis !== "undefined") {
+  globalThis.AddressNormalizer = AddressNormalizer;
 }

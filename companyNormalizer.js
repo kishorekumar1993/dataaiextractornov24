@@ -202,7 +202,13 @@ const CompanyNormalizer = (() => {
   };
 })();
 
-// Export for Node.js / module environments
+// Export for Node.js / module & Service Worker environments
 if (typeof module !== "undefined" && module.exports) {
   module.exports = CompanyNormalizer;
+}
+if (typeof self !== "undefined") {
+  self.CompanyNormalizer = CompanyNormalizer;
+}
+if (typeof globalThis !== "undefined") {
+  globalThis.CompanyNormalizer = CompanyNormalizer;
 }
