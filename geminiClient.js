@@ -841,6 +841,12 @@
     if (clean.countryName) {
       clean.countryName = normalizeCountryName(clean.countryName);
     }
+    if (typeof parsed.stateReason === "string" && parsed.stateReason.trim()) {
+      clean.stateReason = parsed.stateReason.trim();
+    }
+    if (typeof parsed.cityReason === "string" && parsed.cityReason.trim()) {
+      clean.cityReason = parsed.cityReason.trim();
+    }
 
     return clean;
   }

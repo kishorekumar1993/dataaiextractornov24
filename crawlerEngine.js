@@ -1436,7 +1436,9 @@ Analyze the crawled website content and return strictly a raw valid JSON object 
   "countryName": "Country of company",
   "companyAddress": "Full physical or registered address",
   "state": "Available",
+  "stateReason": "e.g. New York (State) / Derbyshire (County) / No State/County/Province in address",
   "city": "Available",
+  "cityReason": "e.g. Heanor (Town) / Ashville (Hamlet / Unincorporated community, not an official City/Town) / Kota Damansara (Township / Suburb)",
   "emailId": "",
   "secondaryEmailId": "",
   "phoneNumber": "Main contact phone number",
@@ -2114,7 +2116,18 @@ ${context.crawledText}
     }
 
     // Apply Business Type eligibility & Unpaid Category conditions (Manufacturer to Wholesaler only are Working, non-manufacturer cart options marked Not Working)
+    let rawPreCleanAddr = "";
+    let aiStateReason = "";
+    let aiCityReason = "";
     if (aiResult && aiResult.data) {
+      if (typeof aiResult.data.stateReason === "string") {
+        aiStateReason = aiResult.data.stateReason.trim();
+        delete aiResult.data.stateReason;
+      }
+      if (typeof aiResult.data.cityReason === "string") {
+        aiCityReason = aiResult.data.cityReason.trim();
+        delete aiResult.data.cityReason;
+      }
       const currentPhone = aiResult.data.phoneNumber;
       const sanitizedPhone = (gemini && gemini.sanitizePhoneNumber)
         ? gemini.sanitizePhoneNumber(currentPhone, aiResult.data.countryName)
@@ -2143,7 +2156,6 @@ ${context.crawledText}
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
         aiResult.data.companyName = aiResult.data.companyName.trim();
       }
-      let rawPreCleanAddr = "";
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
         rawPreCleanAddr = String(aiResult.data.companyAddress).trim();
         let cleanedAddr = cleanAddressCountryAndPostal(rawPreCleanAddr, aiResult.data.countryName);
@@ -2295,12 +2307,12 @@ ${context.crawledText}
     // If no comma separated the street and locality (e.g. "1880 Open Meadows Road Ashville"), extract the locality after the thoroughfare word
     const streetSuffixMatch = rawSecondLast.match(/\b(?:Road|Street|Avenue|Boulevard|Highway|Drive|Lane|Court|Place|Parkway|Way)\s+([A-Za-z][A-Za-z\s'-]{1,35})$/i);
     const cleanLocality = streetSuffixMatch ? streetSuffixMatch[1].trim() : rawSecondLast;
-    const stateReason = String(dObj.state || "").toLowerCase() === "available"
+    const stateReason = aiStateReason || (String(dObj.state || "").toLowerCase() === "available"
       ? (lastPart ? `${lastPart} (State/County/Province)` : "State/County/Province present")
-      : "No State/County/Province in address";
-    const cityReason = String(dObj.city || "").toLowerCase() === "available"
+      : "No State/County/Province in address");
+    const cityReason = aiCityReason || (String(dObj.city || "").toLowerCase() === "available"
       ? (cleanLocality ? `${cleanLocality} (City/Town)` : (lastPart ? `${lastPart} (City/Capital)` : "City/Town present"))
-      : (cleanLocality ? `${cleanLocality} (Not official City/Town)` : "No official City/Town in address");
+      : (cleanLocality ? `${cleanLocality} (Not official City/Town)` : "No official City/Town in address"));
     const fieldReasons = {
       companyAddress: addrReason,
       state: stateReason,
