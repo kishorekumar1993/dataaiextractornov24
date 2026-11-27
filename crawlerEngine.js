@@ -1421,6 +1421,7 @@ FIELD RULES:
      * Examples: "ANSON Hydraulics Ind. Co., Ltd." -> "Anson Hydraulics Industrial Company, Limited"; "ABC Mfg. & Engg. (China) Corp." -> "Abc Manufacturing & Engineering China Corporation".
    - COMMA PRESERVATION: Preserve any comma in the source legal suffix ("Co., Ltd." -> "Company, Limited"; "Co. Ltd." -> "Company Limited"). Never insert artificial commas where none existed.
    - COMPLETENESS & INTERNAL SYMBOLS: Never truncate internal words or legal suffixes; keep established brand acronyms (IBM, BMW) and internal special characters (&, -, /, ') as-is; strip slogans and copyright text.
+    - LINKED SOCIAL (FACEBOOK/LINKEDIN) TITLE & SLUG: If the website text/footer/header only shows a short/trade name without a legal suffix (Inc, LLC, Ltd, Corp, etc.), check the linked on-site Facebook/LinkedIn URL slug or page title in LINKED SOCIAL PROFILES for the full legal company name (preserving "&" if present in the brand/title).
 5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", "United Kingdom" (or constituent country e.g. "England" if explicitly stated), etc. Infer from city/state if omitted.
 
 6. "companyAddress" — Contact Page, Footer and Map Address Comparison:
@@ -1451,7 +1452,7 @@ FIELD RULES:
    - QUALIFYING ONLY: Mark "Available" ONLY if the named place is legally an incorporated City, Town, District, Municipality, or Country Capital. (If a country's capital is mentioned in the address, both City and State = "Available".)
    - DISQUALIFYING (MUST BE "Not Available"): Hamlet, unincorporated community, census-designated place (CDP), village, suburb, exurb, neighborhood, residential colony, or industrial estate/park alone.
    - POSTAL LOCALITY TRAP (CRITICAL): In postal/mailing addresses ("Street, Locality, State/Province ZIP"), the locality name before the State/Postcode is frequently a mailing-only hamlet, CDP, or unincorporated community rather than an incorporated municipality. NEVER assume a postal locality is a City by its position in the address! Verify its actual municipal status; if it is a hamlet, CDP, unincorporated community, village, suburb, exurb, or not a verified incorporated City/Town/District/Municipality, you MUST output "Not Available".
-9. "emailId" / "secondaryEmailId": Real business emails explicitly present in crawled text; never fabricate. Return "" if none.
+9. "emailId" / "secondaryEmailId": Real business emails explicitly present in crawled text OR on linked on-site Facebook/LinkedIn profiles; never fabricate. Return "" if none. If a linked Facebook/LinkedIn profile provides an additional valid business email, include it in "emailId" or "secondaryEmailId".
 10. "phoneNumber": Digits only matching the selected HQ address. Strip international country calling codes (+1, +44, +91, +86, etc.), spaces, punctuation, and leading zeros. Reject toll-free (1800, 800, 888, 877, 866, 855, 844, 400) and pick the secondary direct/local phone if main is toll-free.
 11. "numberOfProducts" / "productImages" / "numberOfProductDescriptions": Default to "3" for all three fields ("3" for 3 or more, "2" for 2, "1" for 1). Never output "0" unless all images are prohibited.
     - Prohibited Categories (Rule 15): Porn / Adult Content, Medicine / Medical / Hospital, Food, Weapons (including Knife) / Defence, Aircraft / Marine (Aerospace/Ship), Chemicals, Alcohol, Animals. If all images are prohibited, set "productImages": "0".
@@ -1708,7 +1709,45 @@ ${context.crawledText}
       }
     }
 
-    // 5. Build text compilation with Metadata, Contact (Primary), Footer (Secondary), and Map (Verification) tags
+    // 5. Build text compilation with Metadata, Contact (Primary), Footer (Secondary), Map (Verification), and Linked Social Profiles
+    const socialLinkRegex = /<a\b[^>]*\bhref=["'](https?:\/\/(?:www\.|m\.)?(?:facebook\.com|linkedin\.com\/company)\/[^"'#?]+)["'][^>]*>/gi;
+    const socialUrlsSet = new Set();
+    let sm;
+    while ((sm = socialLinkRegex.exec(mainHtml)) !== null) {
+      const sUrl = sm[1].trim();
+      if (!/sharer\.php|\/share\b|shareArticle|\/plugins\//i.test(sUrl)) {
+        socialUrlsSet.add(sUrl);
+      }
+    }
+    const socialUrls = Array.from(socialUrlsSet).slice(0, 4);
+    const socialProfilesInfo = [];
+    for (const sUrl of socialUrls) {
+      let sTitle = "";
+      const sEmails = [];
+      try {
+        if (fetchFn && /facebook\.com/i.test(sUrl)) {
+          const sRes = await fetchFn(sUrl);
+          if (sRes && sRes.ok) {
+            const sHtml = await sRes.text();
+            const ogT = sHtml.match(/property=["']og:title["'][^>]*content=["']([^"']+)["']/i)
+              || sHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+            if (ogT && ogT[1] && !/^error$/i.test(ogT[1].trim())) {
+              sTitle = ogT[1].replace(/\s*\|\s*Facebook\s*$/i, "").trim();
+            }
+            const foundEmails = sHtml.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+            for (const em of foundEmails) {
+              const lower = em.toLowerCase();
+              if (!/facebook\.com|fbcdn\.net|sentry\.io|w3\.org|example\.com/i.test(lower)) {
+                allEmails.add(lower);
+                if (!sEmails.includes(lower)) sEmails.push(lower);
+              }
+            }
+          }
+        }
+      } catch (_) { }
+      socialProfilesInfo.push({ url: sUrl, title: sTitle, emails: sEmails });
+    }
+
     const mainMeta = extractStructuredMetadata(mainHtml);
     const mainFooter = extractFooterText(mainHtml);
     let mainMapAddresses = extractMapAddresses(mainHtml);
@@ -1756,6 +1795,12 @@ ${context.crawledText}
     }
     if (mainFooter && mainFooter.length > 10) {
       pagesText += `\n--- FOOTER (SECONDARY SOURCE) ---\n${mainFooter}\n`;
+    }
+    if (socialProfilesInfo.length > 0) {
+      pagesText += `\n--- LINKED SOCIAL PROFILES (ON-SITE LINKS) ---\n`;
+      for (const sp of socialProfilesInfo) {
+        pagesText += `URL: ${sp.url}${sp.title ? ` | Title: ${sp.title}` : ""}${sp.emails.length > 0 ? ` | Emails: ${sp.emails.join(", ")}` : ""}\n`;
+      }
     }
     pagesText += "\n";
 
