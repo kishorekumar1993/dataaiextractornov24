@@ -1534,7 +1534,7 @@ FIELD RULES:
      * Floor Designations: Expand any floor abbreviation while preserving "/" if present ("7/F." -> "7/Floor", "12/F." -> "12/Floor", "1F" -> "1Floor", "3f.-6" -> "3Floor - 6", "1st F"/"1st Fl." -> "1st Floor"). NEVER remove "/" from "7/F." or "12/F."!
      * "No." / "Number" Rule: Expand "No." / "No" to "Number" with a space and NO dot (e.g. "No.2" -> "Number 2", "No. 10" -> "Number 10", NEVER "Number.2") ONLY if "No."/"No"/"Number" was in the source; NEVER prepend "Number" to pure street numbers or slash-separated units, and NEVER convert "#" into "Number" (keep "#" as "#"!).
      * Commas: Preserve source commas exactly; NEVER insert artificial commas (e.g., before State/Province or when joining multi-line addresses).
-     * Cleanup: Remove pincode/postal/ZIP codes (e.g. "Taoyuan 330" -> "Taoyuan", UK postcodes like "MK14 5AN" or "NR6 6NN" -> ""), country names (including "United Kingdom", "England", "Taiwan R.O.C.", "R.O.C."), company names, leading labels ("Address:", "HQ:"), and trailing phone/fax/email/registration/punctuation. ALWAYS remove all bracket/parenthesis characters ( ), [ ] from companyAddress while keeping the words/landmarks inside (e.g. "(Opposite KCC cheese Factory)" -> "Opposite KCC Cheese Factory"). NEVER drop state/province names (e.g. Central Java, Maharashtra, Wisconsin) from companyAddress.
+     * Cleanup: Remove pincode/postal/ZIP codes (e.g. "Taoyuan 330" -> "Taoyuan", UK postcodes like "MK14 5AN" or "NR6 6NN" -> ""), country names (including "United Kingdom", "England", "Taiwan R.O.C.", "R.O.C."), company names, leading labels ("Address:", "HQ:"), and trailing phone/fax/email/registration/punctuation. ALWAYS remove all bracket/parenthesis characters ( ), [ ] from companyAddress while keeping the words/landmarks inside (e.g. "(Opposite KCC cheese Factory)" -> "Opposite KCC Cheese Factory"). NEVER drop state/province names (e.g. Central Java, Maharashtra, Wisconsin) from companyAddress, and NEVER modernize or replace place/county names written on the website (keep "Taipei County", "Tucheng City", etc. exactly as written on the site).
 
 7. "state": Strictly "Available" or "Not Available". If the state name is given in the address, select "Available"; if not, select "Not Available". Note: (County, Province, Prefecture) should be considered as State.
    - Country Capitals (CRITICAL UNIVERSAL RULE): If a country's capital is mentioned in the address, then both City and State are considered "Available".
@@ -2279,6 +2279,13 @@ ${context.crawledText}
           if (!sourceHadNo) {
             cleanedAddr = cleanedAddr.replace(/^Number\s+/i, "");
           }
+        }
+        // Strip hallucinated "/" in "12/Floor" if the crawled website text had "12F" without a slash
+        if (context && context.crawledText) {
+          cleanedAddr = cleanedAddr.replace(/\b(\d+)\/Floor\b/gi, (full, fNum) => {
+            const hadSlash = new RegExp(`\\b${fNum}\\s*\\/\\s*(?:fl\\.?|f)\\b`, "i").test(context.crawledText);
+            return hadSlash ? full : `${fNum}Floor`;
+          });
         }
         aiResult.data.companyAddress = cleanedAddr;
       }

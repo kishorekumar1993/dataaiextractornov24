@@ -424,7 +424,7 @@
           },
           generationConfig: {
             response_mime_type: "application/json",
-            temperature: 0.1,
+            temperature: 0,
             maxOutputTokens: 1024
           }
         };
