@@ -850,8 +850,26 @@ document.addEventListener("DOMContentLoaded", async () => {
       { key: "numberOfProductDescriptions", label: "Product Descriptions" }
     ];
 
+    const fieldSources = (meta && meta.sources) ? meta.sources : {};
+    const fieldReasons = (meta && meta.reasons) ? meta.reasons : {};
+    const reasonOnlyKeys = new Set(["companyAddress", "state", "city"]);
+    const formatSourceLabel = (srcUrl) => {
+      if (!srcUrl) return "—";
+      try {
+        const u = new URL(srcUrl);
+        if (/facebook\.com/i.test(u.hostname)) return "facebook";
+        if (/linkedin\.com/i.test(u.hostname)) return "linkedin";
+        const seg = u.pathname.replace(/\/+$/, "").split("/").filter(Boolean).pop();
+        return seg ? seg.slice(0, 18) : "home";
+      } catch (_) {
+        return "link";
+      }
+    };
+
     keyLabels.forEach(item => {
       const val = data[item.key];
+      const srcUrl = fieldSources[item.key] || "";
+      const reasonText = fieldReasons[item.key] || "";
       const tr = document.createElement("tr");
 
       const tdKey = document.createElement("td");
@@ -867,8 +885,31 @@ document.addEventListener("DOMContentLoaded", async () => {
         tdVal.textContent = String(val);
       }
 
+      const tdSrc = document.createElement("td");
+      tdSrc.className = "data-src";
+      tdSrc.style.textAlign = "right";
+      tdSrc.style.fontSize = "11px";
+      if (reasonOnlyKeys.has(item.key) && reasonText && val !== undefined && val !== null && val !== "") {
+        tdSrc.textContent = reasonText;
+        tdSrc.style.color = "#94a3b8";
+      } else if (srcUrl && val !== undefined && val !== null && val !== "") {
+        tdSrc.style.whiteSpace = "nowrap";
+        const a = document.createElement("a");
+        a.href = srcUrl;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.title = srcUrl;
+        a.textContent = formatSourceLabel(srcUrl);
+        a.style.color = "#60a5fa";
+        a.style.textDecoration = "underline";
+        tdSrc.appendChild(a);
+      } else {
+        tdSrc.textContent = "—";
+      }
+
       tr.appendChild(tdKey);
       tr.appendChild(tdVal);
+      tr.appendChild(tdSrc);
       dataTableBody.appendChild(tr);
     });
 

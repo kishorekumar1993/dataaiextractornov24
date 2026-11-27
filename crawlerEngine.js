@@ -2143,8 +2143,10 @@ ${context.crawledText}
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
         aiResult.data.companyName = aiResult.data.companyName.trim();
       }
+      let rawPreCleanAddr = "";
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
-        let cleanedAddr = cleanAddressCountryAndPostal(aiResult.data.companyAddress, aiResult.data.countryName);
+        rawPreCleanAddr = String(aiResult.data.companyAddress).trim();
+        let cleanedAddr = cleanAddressCountryAndPostal(rawPreCleanAddr, aiResult.data.countryName);
         if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
           cleanedAddr = AddressNormalizer.normalizeAddress(cleanedAddr);
         }
@@ -2196,8 +2198,99 @@ ${context.crawledText}
     const finalStatus = aiResult.data?.websiteStatus || statusResult.websiteStatus;
     const finalReason = aiResult.data?.notWorkingReason || aiResult.data?.nonWorkingReason || statusResult.nonWorkingReason;
 
+    // Build per-field source page URLs so UI can display clickable provenance links
+    const sourcePagesOrdered = [
+      ...contactPages.map(p => ({ url: p.url, category: p.category, text: `${p.textSnippet || ""}\n${p.footerText || ""}\n${(p.mapAddresses || []).join(" ")}`, html: p.html || "" })),
+      { url: cleanUrl, category: "home", text: `${mainText}\n${mainFooter || ""}\n${mainMapAddresses.join(" ")}`, html: mainHtml || "" },
+      ...otherPages.map(p => ({ url: p.url, category: p.category, text: `${p.textSnippet || ""}\n${p.footerText || ""}\n${(p.mapAddresses || []).join(" ")}`, html: p.html || "" })),
+      ...socialProfilesInfo.map(sp => ({ url: sp.url, category: "social", text: `${sp.title || ""} ${(sp.emails || []).join(" ")}`, html: "" }))
+    ];
+    const findSourceByEmail = (em) => {
+      if (!em) return "";
+      const lower = String(em).trim().toLowerCase();
+      const found = sourcePagesOrdered.find(sp => sp.text.toLowerCase().includes(lower) || sp.html.toLowerCase().includes(lower));
+      return found ? found.url : cleanUrl;
+    };
+    const findSourceByPhone = (ph) => {
+      if (!ph) return "";
+      const digits = String(ph).replace(/\D/g, "");
+      if (digits.length < 6) return cleanUrl;
+      const tail = digits.slice(-7);
+      const found = sourcePagesOrdered.find(sp => sp.text.replace(/\D/g, "").includes(tail) || sp.html.replace(/\D/g, "").includes(tail));
+      return found ? found.url : cleanUrl;
+    };
+    const findSourceByTextTokens = (val, preferredCats = []) => {
+      if (!val || val === "Not Available") return cleanUrl;
+      const tokens = String(val).toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 4).slice(0, 3);
+      if (tokens.length > 0) {
+        const pool = preferredCats.length > 0
+          ? [...sourcePagesOrdered.filter(sp => preferredCats.includes(sp.category)), ...sourcePagesOrdered]
+          : sourcePagesOrdered;
+        const found = pool.find(sp => tokens.some(tok => sp.text.toLowerCase().includes(tok) || sp.url.toLowerCase().includes(tok)));
+        if (found) return found.url;
+      }
+      return cleanUrl;
+    };
+    const aboutPage = sourcePagesOrdered.find(sp => sp.category === "about");
+    const productPage = sourcePagesOrdered.find(sp => sp.category === "product");
+    const contactPage = sourcePagesOrdered.find(sp => sp.category === "contact");
+    const dObj = aiResult.data || {};
+    const addrSource = findSourceByTextTokens(dObj.companyAddress, ["contact", "home", "about"]) || (contactPage ? contactPage.url : cleanUrl);
+    const fieldSources = {
+      websiteStatus: cleanUrl,
+      notWorkingReason: dObj.notWorkingReason ? cleanUrl : "",
+      businessType: findSourceByTextTokens(dObj.businessType, ["about", "home", "product"]),
+      companyProfile: dObj.companyProfile === "Available" ? (aboutPage ? aboutPage.url : cleanUrl) : cleanUrl,
+      companyName: findSourceByTextTokens(dObj.companyName, ["home", "about", "contact", "social"]),
+      countryName: addrSource,
+      companyAddress: addrSource,
+      state: addrSource,
+      city: addrSource,
+      emailId: findSourceByEmail(dObj.emailId),
+      secondaryEmailId: findSourceByEmail(dObj.secondaryEmailId),
+      phoneNumber: findSourceByPhone(dObj.phoneNumber),
+      numberOfProducts: productPage ? productPage.url : cleanUrl,
+      productImages: productPage ? productPage.url : cleanUrl,
+      numberOfProductDescriptions: productPage ? productPage.url : cleanUrl
+    };
+
+    // Build human-readable reasons for Address, State, and City (3rd column in UI)
+    const addrParts = String(dObj.companyAddress || "").split(",").map(s => s.trim()).filter(Boolean);
+    const addrSourceSlug = (() => {
+      try {
+        const seg = new URL(addrSource).pathname.replace(/\/+$/, "").split("/").filter(Boolean).pop();
+        return seg || "home";
+      } catch (_) { return "site"; }
+    })();
+    const strippedNotes = [];
+    if (typeof rawPreCleanAddr === "string" && rawPreCleanAddr && dObj.companyAddress && rawPreCleanAddr !== dObj.companyAddress) {
+      const pcMatch = rawPreCleanAddr.match(/\b([A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}|\d{5,6}(?:-\d{4})?)\b/i);
+      if (pcMatch && !dObj.companyAddress.includes(pcMatch[1])) strippedNotes.push(`Postcode ${pcMatch[1]} stripped`);
+      if (dObj.countryName && new RegExp(`\\b${String(dObj.countryName).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(rawPreCleanAddr)) {
+        strippedNotes.push(`${dObj.countryName} stripped`);
+      }
+    }
+    const addrReason = dObj.companyAddress && dObj.companyAddress !== "Not Available"
+      ? (strippedNotes.length > 0 ? `${strippedNotes.join(" & ")} (${addrSourceSlug})` : `Verified from ${addrSourceSlug}`)
+      : "No address found";
+    const lastPart = addrParts.length > 0 ? addrParts[addrParts.length - 1] : "";
+    const secondLastPart = addrParts.length > 1 ? addrParts[addrParts.length - 2] : "";
+    const stateReason = String(dObj.state || "").toLowerCase() === "available"
+      ? (lastPart ? `${lastPart} (State/County/Province)` : "State/County/Province present")
+      : "No State/County/Province in address";
+    const cityReason = String(dObj.city || "").toLowerCase() === "available"
+      ? (secondLastPart ? `${secondLastPart} (City/Town)` : (lastPart ? `${lastPart} (City/Capital)` : "City/Town present"))
+      : (secondLastPart ? `${secondLastPart} (Not official City/Town)` : "No official City/Town in address");
+    const fieldReasons = {
+      companyAddress: addrReason,
+      state: stateReason,
+      city: cityReason
+    };
+
     aiResult.meta = {
       ...(aiResult.meta || {}),
+      sources: fieldSources,
+      reasons: fieldReasons,
       evidence: {
         crawledPages: crawledPages.map(p => ({ url: p.url, category: p.category })),
         contactPagesCount: contactPages.length,

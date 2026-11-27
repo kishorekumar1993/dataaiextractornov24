@@ -1575,8 +1575,25 @@
     ];
 
     tableBody.innerHTML = "";
+    const fieldSources = (meta && meta.sources) ? meta.sources : {};
+    const fieldReasons = (meta && meta.reasons) ? meta.reasons : {};
+    const reasonOnlyKeys = new Set(["companyAddress", "state", "city"]);
+    const formatSourceLabel = (srcUrl) => {
+      if (!srcUrl) return "—";
+      try {
+        const u = new URL(srcUrl);
+        if (/facebook\.com/i.test(u.hostname)) return "facebook";
+        if (/linkedin\.com/i.test(u.hostname)) return "linkedin";
+        const seg = u.pathname.replace(/\/+$/, "").split("/").filter(Boolean).pop();
+        return seg ? seg.slice(0, 16) : "home";
+      } catch (_) {
+        return "link";
+      }
+    };
     keyLabels.forEach((item, idx) => {
       const val = data[item.key];
+      const srcUrl = fieldSources[item.key] || "";
+      const reasonText = fieldReasons[item.key] || "";
       const row = document.createElement("tr");
       row.style.background = idx % 2 === 0 ? "rgba(30, 41, 59, 0.4)" : "transparent";
       row.style.borderBottom = "1px solid rgba(51, 65, 85, 0.4)";
@@ -1585,12 +1602,13 @@
       tdKey.style.padding = "5px 8px";
       tdKey.style.color = "#94a3b8";
       tdKey.style.fontWeight = "500";
-      tdKey.style.width = "40%";
+      tdKey.style.width = "30%";
       tdKey.textContent = item.label;
 
       const tdVal = document.createElement("td");
       tdVal.style.padding = "5px 8px";
       tdVal.style.fontWeight = "600";
+      tdVal.style.width = "42%";
       if (val === undefined || val === null || val === "") {
         tdVal.textContent = "—";
         tdVal.style.color = "#475569";
@@ -1599,8 +1617,35 @@
         tdVal.style.color = "#f8fafc";
       }
 
+      const tdSrc = document.createElement("td");
+      tdSrc.style.padding = "5px 6px";
+      tdSrc.style.width = "28%";
+      tdSrc.style.textAlign = "right";
+      tdSrc.style.fontSize = "10px";
+      if (reasonOnlyKeys.has(item.key) && reasonText && val !== undefined && val !== null && val !== "") {
+        tdSrc.textContent = reasonText;
+        tdSrc.style.color = "#94a3b8";
+        tdSrc.style.whiteSpace = "normal";
+      } else if (srcUrl && val !== undefined && val !== null && val !== "") {
+        tdSrc.style.whiteSpace = "nowrap";
+        const a = document.createElement("a");
+        a.href = srcUrl;
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+        a.title = srcUrl;
+        a.textContent = formatSourceLabel(srcUrl);
+        a.style.color = "#60a5fa";
+        a.style.textDecoration = "underline";
+        a.style.fontSize = "10px";
+        tdSrc.appendChild(a);
+      } else {
+        tdSrc.textContent = "—";
+        tdSrc.style.color = "#475569";
+      }
+
       row.appendChild(tdKey);
       row.appendChild(tdVal);
+      row.appendChild(tdSrc);
       tableBody.appendChild(row);
     });
   }
