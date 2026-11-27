@@ -956,13 +956,16 @@
     if (!rawPhone) return "";
     let phone = String(rawPhone).trim();
 
-    // Check toll-free prefixes before stripping punctuation (handles +1 (800), (800), 1-833, 0800, 0808, 1800, 1300, 400, etc.)
+    // Strip trailing extension suffixes (e.g. "ext. 102", "extension 45", "x123")
+    phone = phone.replace(/(?:\s*(?:ext\.?|extension|x)\s*\d+)\s*$/i, "").trim();
+
+    // Check toll-free prefixes before stripping punctuation (handles +1 (800), (800), 1-833, 0800, 0808, 0500, 00800, 1800, 1860, 0120, 400)
     const rawDigits = phone.replace(/\D/g, "");
     if (
       /^(?:\+?1[-.\s]?)?\(?(?:800|888|877|866|855|844|833)\)?[-.\s]?\d/.test(phone) ||
-      /^(?:0800|0808|1800|400)[-.\s]?\d/.test(phone) ||
+      /^(?:0800|0808|0500|00800|1800|1860|0120|400)[-.\s]?\d/.test(phone) ||
       /^1?(?:800|888|877|866|855|844|833)\d{7}$/.test(rawDigits) ||
-      /^(?:0800|0808|1800)\d{6,}$/.test(rawDigits)
+      /^(?:0800|0808|0500|00800|1800|1860|0120)\d{5,}$/.test(rawDigits)
     ) {
       return "";
     }
@@ -989,9 +992,12 @@
           break;
         }
       }
+    } else if (phone.length === 11 && phone.startsWith("1") && !/^1300/.test(phone)) {
+      // Strip leading 1 on 11-digit NANP numbers even when countryName is unavailable
+      phone = phone.slice(1);
     }
 
-    // Strip leading zeros (e.g. UK +44 (0)1582 -> 01582 -> 1582)
+    // Strip leading zeros so number never starts with 0 (e.g. UK +44 (0)1582 -> 01582 -> 1582)
     phone = phone.replace(/^0+/, "");
 
     // Re-check matchedCountry in case leading 0 preceded the country code
@@ -999,8 +1005,13 @@
       phone = phone.slice(matchedCountry.code.length).replace(/^0+/, "");
     }
 
-    // Final toll-free check on cleaned digits
-    if (/^(?:800|888|877|866|855|844|833)\d{7}$/.test(phone) || /^400\d{6,}$/.test(phone)) {
+    // Final toll-free check on cleaned digits (catches +44 800..., +49 800..., +1 800..., 400...)
+    if (/^(?:800|888|877|866|855|844|833)\d{6,7}$/.test(phone) || /^(?:400|1800|1860)\d{6,}$/.test(phone)) {
+      return "";
+    }
+
+    // Reject invalid/too-short numbers or anything still starting with 0
+    if (!phone || phone.startsWith("0") || phone.length < 7) {
       return "";
     }
 
