@@ -128,7 +128,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   // 6. Crawl & Extract for Portal Autofill (orchestrated in background)
-  const CRAWL_CACHE_VERSION = "v61";
+  const CRAWL_CACHE_VERSION = "v63";
   if (request.action === "crawlAndExtractForPortal") {
     (async () => {
       try {
@@ -183,7 +183,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 if (id === tabId && info.status === "complete") {
                   clearTimeout(timer);
                   chrome.tabs.onUpdated.removeListener(onUpdated);
-                  setTimeout(resolve, 800); // allow SPA hydration
+                  setTimeout(resolve, /google\.com\/maps\/embed/i.test(url) ? 1600 : 800); // allow SPA / Maps card hydration
                 }
               };
               chrome.tabs.onUpdated.addListener(onUpdated);

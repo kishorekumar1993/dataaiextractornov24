@@ -957,9 +957,8 @@ const CrawlerEngine = (() => {
     return result;
   }
 
-  async function resolveMapEmbedAddress(html, fetchFn = (typeof fetch !== "undefined" ? fetch : null)) {
+  async function resolveMapEmbedAddress(html, fetchFn = (typeof fetch !== "undefined" ? fetch : null), renderTabFallback = null) {
     if (!html || !fetchFn) return [];
-    const iframeRegex = /<iframe\b[^>]*\b(?:data-lazy-src|data-src|src)=["']([^"']+)["'][^>]*>/gi;
     const iframeAttrRegex = /\b(?:data-lazy-src|data-src|src)=["']([^"']+)["']/gi;
     const iframeTagRegex = /<iframe\b[^>]*>/gi;
     const addrs = [];
@@ -978,6 +977,25 @@ const CrawlerEngine = (() => {
               .replace(/&#(\d+);/g, (m, dec) => String.fromCharCode(dec))
               .replace(/&#x([0-9a-f]+);/gi, (m, hex) => String.fromCharCode(parseInt(hex, 16)));
             const fullUrl = cleanSrc.startsWith("//") ? "https:" + cleanSrc : cleanSrc;
+
+            // If running in the extension with renderTabFallback, render the 1st HQ map embed to capture JS-loaded sub-localities
+            if (typeof renderTabFallback === "function" && seenSrcs.size === 1) {
+              try {
+                const renderedMapHtml = await renderTabFallback(fullUrl);
+                if (renderedMapHtml) {
+                  const cardAddrMatch = renderedMapHtml.match(/class=["'][^"']*\baddress\b[^"']*["'][^>]*>([\s\S]*?)<\/(?:div|span)>/i);
+                  if (cardAddrMatch && cardAddrMatch[1]) {
+                    const cardAddr = cleanHtmlToText(cardAddrMatch[1], false).replace(/\s+/g, " ").trim();
+                    if (cardAddr.length > 8) addrs.push(cardAddr);
+                  }
+                  const renderedText = cleanHtmlToText(renderedMapHtml, false).replace(/\s+/g, " ").trim();
+                  if (renderedText.length > 12) {
+                    addrs.push(renderedText.slice(0, 350));
+                  }
+                }
+              } catch (_) { }
+            }
+
             const res = await fetchFn(fullUrl);
             if (res && res.ok) {
               const embedHtml = await res.text();
@@ -1502,7 +1520,7 @@ FIELD RULES:
    - Current Active Address Priority (CRITICAL): NEVER select former, historical, or previous addresses ("prior to", "formerly located at", "relocated from").
    - Comparison:
      * Scenario 1: All Three Addresses Are Identical -> Select Contact Page address.
-     * Scenario 2: Contact Page Address Is Incomplete -> Compare Contact Page and Embedded Map (and Footer only if needed); if Map has fuller verified details for the same physical location, use the full-detail Map/Contact address.
+     * Scenario 2: Contact Page Address Is Incomplete -> Compare Contact Page and Embedded Map (and Footer only if needed); if Map has fuller verified details (such as extra street, unit, road, sub-locality, or area names) for the same physical location, ALWAYS merge/use the full-detail Map/Contact address.
      * Scenario 3: Contact Page and Footer Are Different -> ALWAYS prefer Contact Page (+ Map) over Footer, UNLESS Footer explicitly designates Corporate Office / HQ and Contact Page only lists a Registered/Branch Office. If Contact Us is not found or does not contain an address, you can take the address from the Footer of the website.
      * Scenario 4: Contact Page and Map Are Different -> Compare Contact Page and Map: if Map has fuller details for the same location, adopt it; if Map is a different city, ignore it. If Contact Page has only a form + Map, take Contact Map address.
      * Scenario 5: All Three Addresses Are Different -> Do not merge different locations; use Contact Page as base and set "websiteStatus": "Manual Review" if irreconcilable.
@@ -1758,7 +1776,7 @@ ${context.crawledText}
           const subText = cleanHtmlToText(subHtml);
           let subMapAddresses = extractMapAddresses(subHtml);
           if (link.category === "contact" || subMapAddresses.length === 0) {
-            const embedAddrs = await resolveMapEmbedAddress(subHtml, fetchFn);
+            const embedAddrs = await resolveMapEmbedAddress(subHtml, fetchFn, link.category === "contact" ? options.renderTabFallback : null);
             if (embedAddrs.length > 0) subMapAddresses = Array.from(new Set([...subMapAddresses, ...embedAddrs]));
           }
           const subFooter = extractFooterText(subHtml);
