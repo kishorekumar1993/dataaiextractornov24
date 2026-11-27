@@ -1277,6 +1277,9 @@ const CrawlerEngine = (() => {
       /contact|reach us|touch with us|locate us|find us|our offices|headquarters|customer care|customer service|imprint|impressum/i.test(text)) {
       return "contact";
     }
+    if (/^\/(?:en|eng|english)(?:\/|$)/i.test(pathname) || /^(?:english|en)$/i.test(text.trim())) {
+      return "about";
+    }
     if (/about|company|profile|who-we-are|introduction|overview|history|factory|plant|manufacturing|infrastructure|facilities|capabilities|machinery|production|workshop/i.test(pathname) ||
       /about|company|profile|who we are|our story|factory|manufacturing|infrastructure|capabilities|facilities/i.test(text)) {
       return "about";
@@ -2174,6 +2177,28 @@ ${context.crawledText}
         }
         aiResult.data.companyAddress = cleanedAddr;
       }
+      // Enforce Taiwan State rule (13 active Counties + Taipei City capital only) and explicit District/Town/Municipality City rule
+      if (String(aiResult.data.countryName || "").trim().toLowerCase() === "taiwan" && aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
+        const addrLow = aiResult.data.companyAddress.toLowerCase();
+        const taiwanActiveCounties = [
+          "changhua county", "chiayi county", "hsinchu county", "hualien county",
+          "kinmen county", "lienchiang county", "miaoli county", "nantou county",
+          "penghu county", "pingtung county", "taitung county", "yilan county", "yunlin county"
+        ];
+        const isTaipeiCapital = /\btaipei\s+city\b/i.test(addrLow) && !/\bnew\s+taipei\s+city\b/i.test(addrLow);
+        const hasActiveCounty = taiwanActiveCounties.some(c => addrLow.includes(c));
+        aiResult.data.state = (isTaipeiCapital || hasActiveCounty) ? "Available" : "Not Available";
+        if (!aiStateReason || (aiResult.data.state === "Not Available" && /available|county|state/i.test(aiStateReason))) {
+          aiStateReason = aiResult.data.state === "Available"
+            ? (isTaipeiCapital ? "Taipei City (Capital)" : "Taiwan Active County")
+            : "Special Municipality / Non-County City in Taiwan";
+        }
+      }
+      if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
+        if (/\b(?:district|municipality)\b/i.test(aiResult.data.companyAddress) && String(aiResult.data.city || "").toLowerCase() !== "available") {
+          aiResult.data.city = "Available";
+        }
+      }
       if (String(aiResult.data.websiteStatus || "").trim().toLowerCase() === "working") {
         // Deterministically backfill emailId / secondaryEmailId from all crawled pages & linked social emails
         const validDetectedEmails = Array.from(new Set(
@@ -2233,13 +2258,35 @@ ${context.crawledText}
     };
     const findSourceByTextTokens = (val, preferredCats = []) => {
       if (!val || val === "Not Available") return cleanUrl;
-      const tokens = String(val).toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 4).slice(0, 3);
-      if (tokens.length > 0) {
+      const legalAliases = {
+        incorporated: ["incorporated", "inc"],
+        limited: ["limited", "ltd"],
+        corporation: ["corporation", "corp"],
+        company: ["company", "co"],
+        liability: ["liability", "llc"]
+      };
+      const rawTokens = String(val).toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 4);
+      const tokenGroups = rawTokens.slice(0, 6).map(t => legalAliases[t] || [t]);
+      if (tokenGroups.length > 0) {
         const pool = preferredCats.length > 0
           ? [...sourcePagesOrdered.filter(sp => preferredCats.includes(sp.category)), ...sourcePagesOrdered]
           : sourcePagesOrdered;
-        const found = pool.find(sp => tokens.some(tok => sp.text.toLowerCase().includes(tok) || sp.url.toLowerCase().includes(tok)));
-        if (found) return found.url;
+        let bestUrl = "";
+        let bestScore = 0;
+        for (const sp of pool) {
+          const hay = `${sp.text} ${sp.url}`.toLowerCase();
+          let score = 0;
+          for (const group of tokenGroups) {
+            if (group.some(tok => new RegExp(`\\b${tok}\\b`, "i").test(hay) || sp.url.toLowerCase().includes(tok))) {
+              score++;
+            }
+          }
+          if (score > bestScore) {
+            bestScore = score;
+            bestUrl = sp.url;
+          }
+        }
+        if (bestUrl) return bestUrl;
       }
       return cleanUrl;
     };

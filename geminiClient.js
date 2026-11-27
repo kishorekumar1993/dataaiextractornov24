@@ -841,11 +841,11 @@
     if (clean.countryName) {
       clean.countryName = normalizeCountryName(clean.countryName);
     }
-    if (typeof parsed.stateReason === "string" && parsed.stateReason.trim()) {
-      clean.stateReason = parsed.stateReason.trim();
+    if (typeof obj.stateReason === "string" && obj.stateReason.trim()) {
+      clean.stateReason = obj.stateReason.trim();
     }
-    if (typeof parsed.cityReason === "string" && parsed.cityReason.trim()) {
-      clean.cityReason = parsed.cityReason.trim();
+    if (typeof obj.cityReason === "string" && obj.cityReason.trim()) {
+      clean.cityReason = obj.cityReason.trim();
     }
 
     return clean;
