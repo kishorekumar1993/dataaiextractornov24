@@ -341,7 +341,19 @@ const AddressNormalizer = (() => {
           return prefix + UNITS[lower] + s;
         }
 
-        // 4. Contextual Thoroughfare Expansion (e.g., Rd -> Road, St -> Street, Ave -> Avenue)
+        // 4. Contextual Thoroughfare Expansion (e.g., Rd -> Road, St -> Street vs Saint, Ave -> Avenue)
+        if (lower === "st" || lower === "st.") {
+          const nextRaw = tokenIdx < tokens.length - 1 ? tokens[tokenIdx + 1] : "";
+          const nextCore = nextRaw.replace(/^[(\[{'"#]+|[)\]}'":;.,]+$/g, "").toLowerCase();
+          const isNextSaintName = Boolean(nextCore) &&
+            /^[a-z]/i.test(nextCore) &&
+            !DIRECTIONALS[nextCore] &&
+            !UNITS[nextCore] &&
+            !THOROUGHFARES[nextCore] &&
+            !/^(?:suite|unit|apartment|room|floor|building|box|lot|block|section)$/i.test(nextCore);
+          const s = (suffix === ".") ? "" : suffix;
+          return prefix + (isNextSaintName ? "Saint" : "Street") + s;
+        }
         if (THOROUGHFARES[lower]) {
           const s = (suffix === ".") ? "" : suffix;
           return prefix + THOROUGHFARES[lower] + s;
