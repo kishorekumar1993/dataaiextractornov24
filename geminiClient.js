@@ -969,7 +969,10 @@
 
     const normCountry = normalizeCountryName(countryName || "");
     const lowerCountry = normCountry.toLowerCase();
-    const matchedCountry = COUNTRY_CODES.find(c => lowerCountry.includes(c.name));
+    const matchedCountry = COUNTRY_CODES.find(c =>
+      lowerCountry === c.name ||
+      new RegExp(`(?:^|\\b)${c.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:\\b|$)`, "i").test(lowerCountry)
+    );
     const hasIntlPrefix = /^\s*(?:\+|00|\(\+\d+\))/.test(phone);
 
     // Normalize (+886) / + / 00 international prefixes before extracting digits
