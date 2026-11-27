@@ -37,6 +37,20 @@ const AddressNormalizer = (() => {
     "aly": "Alley", "aly.": "Alley",
     "brg": "Bridge", "brg.": "Bridge",
     "rdg": "Ridge", "rdg.": "Ridge",
+    "tpke": "Turnpike", "tpke.": "Turnpike", "tpk": "Turnpike",
+    "fwy": "Freeway", "fwy.": "Freeway",
+    "trl": "Trail", "trl.": "Trail",
+    "ext": "Extension", "ext.": "Extension",
+    "jct": "Junction", "jct.": "Junction",
+    "xing": "Crossing", "xing.": "Crossing",
+    "wy": "Way", "wy.": "Way",
+    "hts": "Heights", "hts.": "Heights",
+    "vly": "Valley", "vly.": "Valley",
+    "gdns": "Gardens", "gdns.": "Gardens",
+    "grv": "Grove", "grv.": "Grove",
+    "mdw": "Meadow", "mdws": "Meadows",
+    "byp": "Bypass", "byp.": "Bypass",
+    "cswy": "Causeway", "cswy.": "Causeway",
     "jl": "Jalan", "jl.": "Jalan", "jln": "Jalan", "jln.": "Jalan"
   };
 
@@ -45,6 +59,7 @@ const AddressNormalizer = (() => {
     "ste": "Suite", "ste.": "Suite",
     "apt": "Apartment", "apt.": "Apartment",
     "rm": "Room", "rm.": "Room",
+    "fl": "Floor", "fl.": "Floor", "flr": "Floor", "flr.": "Floor",
     "bldg": "Building", "bldg.": "Building",
     "blk": "Block", "blk.": "Block",
     "sec": "Section", "sec.": "Section",
@@ -52,13 +67,26 @@ const AddressNormalizer = (() => {
     "ind": "Industrial", "ind.": "Industrial",
     "indl": "Industrial", "indl.": "Industrial",
     "plz": "Plaza", "plz.": "Plaza",
-    "ctr": "Center", "ctr.": "Center",
+    "ctr": "Center", "ctr.": "Center", "ctre": "Centre", "ctre.": "Centre",
     "no": "Number", "no.": "Number",
     "vil": "Village", "vil.": "Village",
     "twp": "Township", "twp.": "Township",
     "subdist": "Subdistrict", "subdist.": "Subdistrict",
     "dept": "Department", "dept.": "Department",
-    "div": "Division", "div.": "Division"
+    "div": "Division", "div.": "Division",
+    "opp": "Opposite", "opp.": "Opposite",
+    "nr": "Near", "nr.": "Near",
+    "mkt": "Market", "mkt.": "Market",
+    "stn": "Station", "stn.": "Station",
+    "twr": "Tower", "twr.": "Tower", "twrs": "Towers",
+    "cplx": "Complex", "cplx.": "Complex",
+    "est": "Estate", "est.": "Estate",
+    "cnty": "County", "cnty.": "County",
+    "prov": "Province", "prov.": "Province",
+    "pref": "Prefecture", "pref.": "Prefecture",
+    "intl": "International", "intl.": "International",
+    "natl": "National", "natl.": "National",
+    "mfg": "Manufacturing", "mfg.": "Manufacturing"
   };
 
   // Roman numerals that should stay uppercase

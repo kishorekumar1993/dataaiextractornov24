@@ -1345,8 +1345,11 @@ const CrawlerEngine = (() => {
     if (/privacy|cookie/i.test(pathname)) {
       return "other";
     }
-    if (/about|company|profile|who-we-are|introduction|overview|history|factory|plant|manufacturing|infrastructure|facilities|capabilities|machinery|production|workshop/i.test(pathname) ||
-      /about|company|profile|who we are|our story|factory|manufacturing|infrastructure|capabilities|facilities/i.test(text)) {
+    if (/used-machinery/i.test(pathname)) {
+      return "product";
+    }
+    if (/about|company|profile|who-we-are|introduction|overview|history|factory|plant|manufacturing|infrastructure|facilities|capabilities|machinery|production|workshop|terms|legal/i.test(pathname) ||
+      /about|company|profile|who we are|our story|factory|manufacturing|infrastructure|capabilities|facilities|terms\s*(?:&|and)?\s*conditions/i.test(text)) {
       return "about";
     }
     if (/product|products|item|items|catalog|catalogue|goods|collection|services|solutions|portfolio/i.test(pathname) ||
@@ -1364,7 +1367,10 @@ const CrawlerEngine = (() => {
     const list = [];
     const added = new Set([baseCleanUrl.replace(/\/$/, "")]);
 
-    const abouts = internalLinks.filter(l => l.category === "about");
+    const abouts = internalLinks.filter(l => l.category === "about").sort((a, b) => {
+      const rank = (x) => (/about|company|profile|who-we-are|^https?:\/\/(?:en|eng|english)\.|\/(?:en|eng|english)\/?$/i.test(x.url) ? 0 : (/terms|legal/i.test(x.url) ? 1 : 2));
+      return rank(a) - rank(b);
+    });
     const contacts = internalLinks.filter(l => l.category === "contact");
     const products = internalLinks.filter(l => l.category === "product");
     const others = internalLinks.filter(l => l.category === "other" || l.category === "home");
@@ -1662,6 +1668,32 @@ ${context.crawledText}
         NS: "Nova Scotia", NL: "Newfoundland and Labrador", PE: "Prince Edward Island"
       };
       addr = addr.replace(/\b(NB|ON|QC|AB|BC|MB|SK|NS|NL|PE)\b/gi, (_, code) => caProvinces[code.toUpperCase()] || code);
+    }
+    if (/united\s+states/i.test(String(countryName || ""))) {
+      const usStates = {
+        AL: "Alabama", AK: "Alaska", AZ: "Arizona", AR: "Arkansas", CA: "California", CO: "Colorado",
+        CT: "Connecticut", DE: "Delaware", FL: "Florida", GA: "Georgia", HI: "Hawaii", ID: "Idaho",
+        IL: "Illinois", IN: "Indiana", IA: "Iowa", KS: "Kansas", KY: "Kentucky", LA: "Louisiana",
+        ME: "Maine", MD: "Maryland", MA: "Massachusetts", MI: "Michigan", MN: "Minnesota", MS: "Mississippi",
+        MO: "Missouri", MT: "Montana", NE: "Nebraska", NV: "Nevada", NH: "New Hampshire", NJ: "New Jersey",
+        NM: "New Mexico", NY: "New York", NC: "North Carolina", ND: "North Dakota", OH: "Ohio", OK: "Oklahoma",
+        OR: "Oregon", PA: "Pennsylvania", RI: "Rhode Island", SC: "South Carolina", SD: "South Dakota",
+        TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington",
+        WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia"
+      };
+      // Expand US state codes when at the end or preceded by a comma/space after a city (avoid directional N/S/E/W or street initials)
+      addr = addr.replace(/(?:,\s*|\s+)\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\b(?=\s*(?:,|$))/g, (full, code) => {
+        const sep = full.startsWith(",") ? ", " : " ";
+        return sep + (usStates[code.toUpperCase()] || code);
+      });
+    }
+    if (/australia/i.test(String(countryName || ""))) {
+      const auStates = {
+        NSW: "New South Wales", VIC: "Victoria", QLD: "Queensland",
+        WA: "Western Australia", SA: "South Australia", TAS: "Tasmania",
+        ACT: "Australian Capital Territory", NT: "Northern Territory"
+      };
+      addr = addr.replace(/\b(NSW|VIC|QLD|WA|SA|TAS|ACT|NT)\b(?=\s*(?:,|$))/gi, (_, code) => auStates[code.toUpperCase()] || code);
     }
 
     // 3. Strip postal/ZIP/Indian pincodes while protecting P.O. Box, Lane, Alley, Section, Suite, Unit, Floor, Number
