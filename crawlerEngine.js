@@ -1600,12 +1600,16 @@ ${context.crawledText}
 </untrusted_website_data>`;
   }
 
-  async function fetchWithTimeout(fetchFn, url, timeoutMs = 12000) {
+  async function fetchWithTimeout(fetchFn, url, timeoutMs = 12000, extraOptions = {}) {
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     let timer = null;
     try {
-      const fetchPromise = controller && !fetchFn._isMock
-        ? fetchFn(url, { signal: controller.signal }).catch(() => fetchFn(url))
+      const opts = { ...extraOptions };
+      if (controller && !fetchFn._isMock) {
+        opts.signal = controller.signal;
+      }
+      const fetchPromise = !fetchFn._isMock && Object.keys(opts).length > 0
+        ? fetchFn(url, opts).catch(() => fetchFn(url))
         : fetchFn(url);
       const timeoutPromise = new Promise((_, reject) => {
         timer = setTimeout(() => {
@@ -1932,15 +1936,16 @@ ${context.crawledText}
     }
 
     // 5. Build text compilation with Metadata, Contact (Primary), Footer (Secondary), Map (Verification), and Linked Social Profiles
-    const socialLinkRegex = /<a\b[^>]*\bhref=["'](https?:\/\/(?:www\.|m\.)?(?:facebook\.com|linkedin\.com\/company)\/[^"'#?]+)["'][^>]*>/gi;
+    const socialLinkRegex = /<a\b[^>]*\bhref=["']((?:https?:)?\/\/(?:www\.|m\.|mbasic\.)?(?:facebook\.com|fb\.com|linkedin\.com\/company)\/[^"'#]+)["'][^>]*>/gi;
     const socialUrlsSet = new Set();
     const htmlSourcesForSocial = [mainHtml, ...crawledPages.map(p => p.html).filter(Boolean)];
     for (const hSrc of htmlSourcesForSocial) {
       socialLinkRegex.lastIndex = 0;
       let sm;
       while ((sm = socialLinkRegex.exec(hSrc)) !== null) {
-        const sUrl = sm[1].trim();
-        if (!/sharer\.php|\/share\b|shareArticle|\/plugins\//i.test(sUrl)) {
+        let sUrl = sm[1].trim();
+        if (sUrl.startsWith("//")) sUrl = "https:" + sUrl;
+        if (!/sharer\.php|\/share\b|shareArticle|\/plugins\/|\/dialog\//i.test(sUrl)) {
           socialUrlsSet.add(sUrl);
         }
       }
@@ -1958,10 +1963,19 @@ ${context.crawledText}
         let sTitle = "";
         const sEmails = [];
         try {
-          if (fetchFn && /facebook\.com/i.test(sUrl)) {
-            const sRes = await fetchWithTimeout(fetchFn, sUrl, 3500);
+          if (fetchFn && /(?:facebook\.com|fb\.com)/i.test(sUrl)) {
+            const sRes = await fetchWithTimeout(fetchFn, sUrl, 6000, {
+              headers: {
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9"
+              }
+            });
             if (sRes && sRes.ok) {
-              const sHtml = await sRes.text();
+              const rawSocialHtml = await sRes.text();
+              const sHtml = rawSocialHtml
+                .replace(/\\u0040/gi, "@")
+                .replace(/\\x40/gi, "@")
+                .replace(/&#64;|&#x40;/gi, "@");
               const ogT = sHtml.match(/property=["']og:title["'][^>]*content=["']([^"']+)["']/i)
                 || sHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
               if (ogT && ogT[1] && !/^error$/i.test(ogT[1].trim())) {
@@ -1969,7 +1983,7 @@ ${context.crawledText}
               }
               const foundEmails = sHtml.match(EMAIL_REGEX) || [];
               for (const em of foundEmails) {
-                const lower = em.trim().toLowerCase();
+                const lower = em.replace(/[\s\u00A0]+/g, "").toLowerCase();
                 if (isValidCompanyEmail(lower)) {
                   allEmails.add(lower);
                   if (!sEmails.includes(lower)) sEmails.push(lower);
