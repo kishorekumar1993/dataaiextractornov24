@@ -230,6 +230,7 @@ const AddressNormalizer = (() => {
     // Separate missing space after thoroughfare words/abbreviations like "Jl.KM" -> "Jl KM" or "Number.2" -> "Number 2"
     addr = addr.replace(/\b(jalan|jln?|road|rd|street|st|avenue|ave|boulevard|blvd|drive|dr|lane|ln|court|ct|place|pl)\.(?=[A-Za-z])/gi, "$1 ");
     addr = addr.replace(/\b(number)\.\s*(?=\d)/gi, "$1 ");
+    addr = addr.replace(/\b(number\s+\d+)\.(?=\s|,|$)/gi, "$1");
     // Expand "Km" / "Km." -> "Kilometer" only when immediately followed by a number (e.g. "Km 606" -> "Kilometer 606")
     addr = addr.replace(/\bkm\.?(?=\s+\d)/gi, "Kilometer");
 

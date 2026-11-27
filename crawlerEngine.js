@@ -1298,6 +1298,29 @@ const CrawlerEngine = (() => {
       } catch (e) { }
     }
 
+    // Also extract <area href="..."> image-map links (classic sites)
+    const areaRegex = /<area\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))[^>]*>/gi;
+    while ((match = areaRegex.exec(html)) !== null) {
+      const rawHref = (match[1] ?? match[2] ?? match[3] ?? "").trim();
+      if (!rawHref || rawHref.startsWith("#") || rawHref.startsWith("javascript:") || rawHref.startsWith("mailto:") || rawHref.startsWith("tel:")) continue;
+      try {
+        const resolved = new URL(rawHref, baseOrigin);
+        if (areSameRegisteredDomain(resolved.hostname, baseHostname) && !isAssetFile(resolved.pathname)) {
+          const normalizedPath = resolved.pathname === "/" ? "/" : resolved.pathname.replace(/\/+$/, "");
+          const dedupeKey = resolved.origin + normalizedPath;
+          if (!links.has(dedupeKey)) {
+            const altM = match[0].match(/\balt=["']([^"']+)["']/i);
+            const rawText = (altM ? altM[1] : "").trim().toLowerCase();
+            links.set(dedupeKey, {
+              url: resolved.origin + resolved.pathname,
+              text: rawText,
+              category: classifyLink(resolved.href, resolved.pathname.toLowerCase(), rawText)
+            });
+          }
+        }
+      } catch (_) { }
+    }
+
     return Array.from(links.values());
   }
 
@@ -1599,6 +1622,7 @@ ${context.crawledText}
     addr = addr.replace(/(?:,?\s*(?:tel|telephone|phone|ph|fax|email|e-mail|web|website|company\s+no\.?|reg(?:istered)?\s+no\.?)\s*[:\-].*)$/i, "");
 
     // 1. Strip trailing country names & common political/constituent suffixes
+    addr = addr.replace(/[\s,.]+$/, "");
     const countryPatterns = [
       /,?\s*\bTaiwan\s*,?\s*R\.?O\.?C\.?\s*$/i,
       /,?\s*\bR\.?O\.?C\.?\s*$/i,
@@ -1623,12 +1647,12 @@ ${context.crawledText}
     addr = addr.replace(/,?\s*\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b(?=\s*(?:,|$))/gi, "");
     addr = addr.replace(/,?\s*\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b(?=\s*(?:,|$))/gi, "");
 
-    // Re-strip trailing country name in case postcode followed country (e.g. "Canada , E4V 2G2")
-    addr = addr.replace(/[\s,]+$/, "");
+    // Re-strip trailing country name in case postcode followed country (e.g. "Canada , E4V 2G2" or "Taiwan.")
+    addr = addr.replace(/[\s,.]+$/, "");
     if (countryName && countryName !== "Not Available") {
       const escapedCountry = String(countryName).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       if (escapedCountry) {
-        addr = addr.replace(new RegExp(`,?\\s*\\b${escapedCountry}\\b\\s*$`, "i"), "");
+        addr = addr.replace(new RegExp(`,?\\s*\\b${escapedCountry}\\b[\\s,.]*$`, "i"), "");
       }
     }
     if (String(countryName || "").trim().toLowerCase() === "canada") {
