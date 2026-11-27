@@ -821,6 +821,9 @@ const CrawlerEngine = (() => {
     "canada",
     "china",
     "united kingdom",
+    "scotland",
+    "wales",
+    "northern ireland",
     "australia",
     "india",
     "south africa",
@@ -1535,10 +1538,10 @@ FIELD RULES:
 
 7. "state": Strictly "Available" or "Not Available". If the state name is given in the address, select "Available"; if not, select "Not Available". Note: (County, Province, Prefecture) should be considered as State.
    - Country Capitals (CRITICAL UNIVERSAL RULE): If a country's capital is mentioned in the address, then both City and State are considered "Available".
-   - Official States & Provinces: Any recognized first-level administrative division across all countries (State, active County, Province, Prefecture, Territory, Emirate, or Provincial-Level Direct Municipality such as Shanghai/Tianjin/Chongqing) = "Available". Disregard State Names in Street Lines (e.g. "Pennsylvania Avenue").
+   - Official States & Provinces: Any recognized first-level administrative division across all countries (State, active County, Province, Prefecture, Territory, Emirate, or Provincial-Level Direct Municipality such as Shanghai/Tianjin/Chongqing) = "Available". Disregard State Names in Street Lines (e.g. "Pennsylvania Avenue") and NEVER count the Country name itself (including UK constituent countries like England, Scotland, Wales, Northern Ireland) as a State/County!
    - Non-capital cities & ordinary municipalities alone (e.g. Manchester, Birmingham, Milton Keynes, Shenzhen, Pune, Sydney, Auckland, Durban, or Taiwan's New Taipei City, Taoyuan, Taichung, Kaohsiung, Tainan, Hsinchu City, Chiayi City, Keelung, and old merged Hsien) -> "Not Available" unless a State/County/Province/Prefecture/Capital is also present. (In Taiwan, only the 13 active Counties — Changhua, Chiayi, Hsinchu, Hualien, Kinmen, Lienchiang, Miaoli, Nantou, Penghu, Pingtung, Taitung, Yilan, Yunlin County — and Taipei City capital qualify as State = "Available".)
 8. "city": Strictly "Available" or "Not Available".
-   - QUALIFYING ONLY: Mark "Available" ONLY if the named place is legally an incorporated City, Town, District, Municipality, or Country Capital. (If a country's capital is mentioned in the address, both City and State = "Available".)
+   - QUALIFYING ONLY: Mark "Available" ONLY if the named place is an official incorporated City, Town (including UK/international towns and burghs), District, Municipality, or Country Capital. (If a country's capital is mentioned in the address, both City and State = "Available".)
    - DISQUALIFYING (MUST BE "Not Available"): Hamlet, unincorporated community, census-designated place (CDP), village, suburb, exurb, neighborhood, residential colony, or industrial estate/park alone.
    - POSTAL LOCALITY TRAP (CRITICAL): In postal/mailing addresses ("Street, Locality, State/Province ZIP"), the locality name before the State/Postcode is frequently a mailing-only hamlet, CDP, or unincorporated community rather than an incorporated municipality. NEVER assume a postal locality is a City by its position in the address! Verify its actual municipal status; if it is a hamlet, CDP, unincorporated community, village, suburb, exurb, or not a verified incorporated City/Town/District/Municipality, you MUST output "Not Available".
 9. "emailId" / "secondaryEmailId": Real business emails explicitly present in crawled text OR on linked on-site Facebook/LinkedIn profiles; never fabricate. Return "" if none. Priority for "emailId" (Primary): Contact Page top/main company or sales email > Footer/Header email. Put the second distinct business email (from Contact Page, Footer, other pages, or linked Facebook/LinkedIn) in "secondaryEmailId".

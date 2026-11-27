@@ -537,7 +537,7 @@
 
   const ALLOWED_COUNTRIES = new Set([
     "united states of america", "taiwan", "england", "canada", "china",
-    "united kingdom", "australia", "india", "south africa",
+    "united kingdom", "scotland", "wales", "northern ireland", "australia", "india", "south africa",
     "new zealand", "ireland", "thailand",
     "south korea", "singapore", "hong kong", "pakistan",
     "united arab emirates", "kenya"
