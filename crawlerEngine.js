@@ -1592,7 +1592,7 @@ ${context.crawledText}
     let addr = String(rawAddr).trim();
 
     // 0. Strip leading labels and trailing phone/fax/email/company registration clutter
-    addr = addr.replace(/^(?:address|location|hq|headquarters|corporate\s+office|registered\s+office)\s*[:\-]\s*/i, "");
+    addr = addr.replace(/^(?:address|location|mail(?:ing)?(?:\s+address)?|hq|headquarters|corporate\s+office|registered\s+office)\s*[:\-]\s*/i, "");
     addr = addr.replace(/(?:,?\s*(?:tel|telephone|phone|ph|fax|email|e-mail|web|website|company\s+no\.?|reg(?:istered)?\s+no\.?)\s*[:\-].*)$/i, "");
 
     // 1. Strip trailing country names & common political/constituent suffixes
@@ -1616,9 +1616,26 @@ ${context.crawledText}
       }
     }
 
-    // 2. Strip UK alphanumeric postcodes (e.g. "MK14 5AN", "NR6 6NN", "SW1A 1AA") and Canadian postcodes (e.g. "L4T 3C8")
+    // 2. Strip UK alphanumeric postcodes (e.g. "MK14 5AN", "NR6 6NN", "SW1A 1AA") and Canadian postcodes (e.g. "L4T 3C8", "E4V 2G2")
     addr = addr.replace(/,?\s*\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b(?=\s*(?:,|$))/gi, "");
     addr = addr.replace(/,?\s*\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b(?=\s*(?:,|$))/gi, "");
+
+    // Re-strip trailing country name in case postcode followed country (e.g. "Canada , E4V 2G2")
+    addr = addr.replace(/[\s,]+$/, "");
+    if (countryName && countryName !== "Not Available") {
+      const escapedCountry = String(countryName).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (escapedCountry) {
+        addr = addr.replace(new RegExp(`,?\\s*\\b${escapedCountry}\\b\\s*$`, "i"), "");
+      }
+    }
+    if (String(countryName || "").trim().toLowerCase() === "canada") {
+      const caProvinces = {
+        NB: "New Brunswick", ON: "Ontario", QC: "Quebec", AB: "Alberta",
+        BC: "British Columbia", MB: "Manitoba", SK: "Saskatchewan",
+        NS: "Nova Scotia", NL: "Newfoundland and Labrador", PE: "Prince Edward Island"
+      };
+      addr = addr.replace(/\b(NB|ON|QC|AB|BC|MB|SK|NS|NL|PE)\b/gi, (_, code) => caProvinces[code.toUpperCase()] || code);
+    }
 
     // 3. Strip postal/ZIP/Indian pincodes while protecting P.O. Box, Lane, Alley, Section, Suite, Unit, Floor, Number
     const protectedPrefixRe = /\b(?:post\s+office\s+box|p\.?\s*o\.?\s*box|post\s+bag|box|number|no\.?|lane|alley|sec(?:tion)?|sector|phase|suite|ste\.?|unit|apt\.?|room|rm\.?|block|blk\.?|floor|fl\.?|plot|lot|h\.?\s*no\.?)\s*$/i;
