@@ -1682,11 +1682,12 @@ ${context.crawledText}
       if (protectedPrefixRe.test(word)) return full;
       return word;
     });
-    // Strip 5-6 digit postal code appearing after a comma before a city/locality (e.g. ", 47810 Kota Damansara" -> ", Kota Damansara")
-    addr = addr.replace(/(,\s*)(\d{5,6})(?=\s+[A-Za-z])/g, (full, comma, digits, offset) => {
+    // Strip 5-6 digit postal code appearing after a comma or space before a city/locality (e.g. ", 47810 Kota Damansara" or "Nei Hu 11491 Taipei")
+    addr = addr.replace(/(,\s*|\s+)(\d{5,6})(?=\s+[A-Za-z])/g, (full, sep, digits, offset) => {
+      if (offset === 0) return full; // never strip a 5-digit street number at the very start
       const before = addr.slice(0, offset);
       if (protectedPrefixRe.test(before)) return full;
-      return comma;
+      return sep.includes(",") ? ", " : " ";
     });
 
     // Clean stray commas/spaces
@@ -2378,7 +2379,7 @@ ${context.crawledText}
           "kinmen county", "lienchiang county", "miaoli county", "nantou county",
           "penghu county", "pingtung county", "taitung county", "yilan county", "yunlin county"
         ];
-        const isTaipeiCapital = /\btaipei\s+city\b/i.test(addrLow) && !/\bnew\s+taipei\s+city\b/i.test(addrLow);
+        const isTaipeiCapital = /\btaipei\b/i.test(addrLow) && !/\bnew\s+taipei\b/i.test(addrLow) && !/\btaipei\s+county\b/i.test(addrLow);
         const hasActiveCounty = taiwanActiveCounties.some(c => addrLow.includes(c));
         aiResult.data.state = (isTaipeiCapital || hasActiveCounty) ? "Available" : "Not Available";
         if (!aiStateReason || (aiResult.data.state === "Not Available" && /available|county|state/i.test(aiStateReason))) {

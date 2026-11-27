@@ -227,8 +227,9 @@ const AddressNormalizer = (() => {
     // Remove trailing unwanted punctuation at the end of the entire address
     addr = addr.replace(/,\s*,/g, ",").replace(/[,;.\-:]+$/, "").trim();
 
-    // Separate missing space after thoroughfare words/abbreviations like "Jl.KM" -> "Jl KM" or "Number.2" -> "Number 2"
+    // Separate missing space after thoroughfare words/abbreviations like "Jl.KM" -> "Jl KM", "RoadNei" -> "Road Nei", "Number.2" -> "Number 2"
     addr = addr.replace(/\b(jalan|jln?|road|rd|street|st|avenue|ave|boulevard|blvd|drive|dr|lane|ln|court|ct|place|pl)\.(?=[A-Za-z])/gi, "$1 ");
+    addr = addr.replace(/\b(Road|Street|Avenue|Boulevard|Drive|Lane|Court|Place|Parkway|District|Section)(?=[A-Z][a-z])/g, "$1 ");
     addr = addr.replace(/\b(number)\.\s*(?=\d)/gi, "$1 ");
     addr = addr.replace(/\b(number\s+\d+)\.(?=\s|,|$)/gi, "$1");
     // Expand "Km" / "Km." -> "Kilometer" only when immediately followed by a number (e.g. "Km 606" -> "Kilometer 606")
