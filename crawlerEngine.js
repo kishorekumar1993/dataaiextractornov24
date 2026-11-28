@@ -2410,6 +2410,17 @@ ${context.crawledText}
       }
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
         let compNameClean = aiResult.data.companyName.trim();
+        // Global legal suffix recovery: if AI returned a short/brand name without a legal suffix,
+        // check crawledText for "<companyName> <legalSuffix>" (e.g. "WF Energy Controls Pty Ltd") and expand it.
+        const hasLegalSuffix = /\b(?:Limited|Incorporated|Corporation|Company|Proprietary|Berhad|Haftung|Aktiengesellschaft|Anonyme|Simplifiée|Limitée|Azioni|Limitata|Limitada|Vennootschap|Kaisha|Partnership|Ltd\.?|Inc\.?|Corp\.?|LLC|LLP|PLC|GmbH|Co\.?|Pty\.?|Pvt\.?|Pte\.?|Bhd\.?)\s*$/i.test(compNameClean);
+        if (!hasLegalSuffix && context && context.crawledText) {
+          const escapedComp = compNameClean.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+          const legalSuffixRe = new RegExp(`\\b(${escapedComp}(?:\\s*,?\\s*(?:Co\\.?\\s*,?\\s*Ltd\\.?|Pty\\.?\\s*Ltd\\.?|Pvt\\.?\\s*Ltd\\.?|Pte\\.?\\s*Ltd\\.?|Sdn\\.?\\s*Bhd\\.?|Ltd\\.?|Limited|Inc\\.?|Incorporated|Corp\\.?|Corporation|P\\.?L\\.?L\\.?C\\.?|L\\.?L\\.?C\\.?|L\\.?L\\.?P\\.?|P\\.?L\\.?C\\.?|GmbH|S\\.?p\\.?A\\.?|S\\.?r\\.?l\\.?|B\\.?V\\.?|N\\.?V\\.?|K\\.?K\\.?|Ltda\\.?|Lda\\.?)))\\b`, "i");
+          const legalMatch = context.crawledText.match(legalSuffixRe);
+          if (legalMatch && legalMatch[1]) {
+            compNameClean = legalMatch[1].trim();
+          }
+        }
         if (CompanyNormalizer && CompanyNormalizer.normalizeCompanyName) {
           compNameClean = CompanyNormalizer.normalizeCompanyName(compNameClean);
         }
