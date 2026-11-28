@@ -619,14 +619,7 @@
       return aliases[c.toLowerCase()] || c;
     }
 
-    function resolveProductCountDefault(val) {
-      if (val === undefined || val === null || val === "" || val === "Not Available") {
-        return "3";
-      }
-      const str = String(val).trim().toLowerCase();
-      if (str === "one" || str === "1") return "1";
-      if (str === "two" || str === "2") return "2";
-      if (str === "0") return "0";
+    function resolveProductCountDefault() {
       return "3";
     }
 
@@ -655,8 +648,8 @@
         { key: "companyName", value: (data.companyName || "").replace(/^[\s\u00A0]+|[\s\u00A0]+$/g, "") },
         { key: "companyAddress", value: (data.companyAddress || "").replace(/^[\s\u00A0]+|[\s\u00A0]+$/g, "") },
         { key: "countryName", value: normalizeCountryName((data.countryName || "").trim()) },
-        { key: "state", value: (data.state || "Available").trim() },
-        { key: "city", value: (data.city || "Available").trim() },
+        { key: "state", value: (data.state || "Not Available").trim() },
+        { key: "city", value: (data.city || "Not Available").trim() },
         { key: "emailId", value: (data.emailId || "").replace(/[\s\u00A0]+/g, "") },
         { key: "secondaryEmailId", value: (data.secondaryEmailId || "").replace(/[\s\u00A0]+/g, "") },
         { key: "phoneNumber", value: (data.phoneNumber || "").replace(/[\s\u00A0]+/g, "") },

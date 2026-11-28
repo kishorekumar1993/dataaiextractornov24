@@ -772,21 +772,13 @@
       clean[key] = obj[key] !== undefined && obj[key] !== null ? String(obj[key]) : "";
     }
 
-    // Strict validation for State
+    // Strict validation for State & City (never assume Available if companyAddress is missing / Not Available)
+    const hasAddress = Boolean(clean.companyAddress && clean.companyAddress.trim() && clean.companyAddress.trim().toLowerCase() !== "not available");
     const rawState = clean.state.trim().toLowerCase();
-    if (rawState === "available") {
-      clean.state = "Available";
-    } else {
-      clean.state = "Not Available";
-    }
+    clean.state = (hasAddress && rawState === "available") ? "Available" : "Not Available";
 
-    // Strict validation for City
     const rawCity = clean.city.trim().toLowerCase();
-    if (rawCity === "available") {
-      clean.city = "Available";
-    } else {
-      clean.city = "Not Available";
-    }
+    clean.city = (hasAddress && rawCity === "available") ? "Available" : "Not Available";
 
     // Validate emailId & secondaryEmailId (reject placeholders/assets, fallback to context.detectedEmails if needed)
     const isRealEmail = (e) => {

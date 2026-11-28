@@ -1595,7 +1595,7 @@ FIELD RULES:
      * Commas: Preserve source commas exactly; NEVER insert artificial commas (e.g., before State/Province or when joining multi-line addresses).
      * Cleanup: Remove pincode/postal/ZIP codes (e.g. "Taoyuan 330" -> "Taoyuan", UK postcodes like "MK14 5AN" or "NR6 6NN" -> ""), country names (including "United Kingdom", "England", "Taiwan R.O.C.", "R.O.C."), company names, leading labels ("Address:", "HQ:"), and trailing phone/fax/email/registration/punctuation. ALWAYS remove all bracket/parenthesis characters ( ), [ ] from companyAddress while keeping the words/landmarks inside (e.g. "(Opposite KCC cheese Factory)" -> "Opposite KCC Cheese Factory"). NEVER drop state/province names (e.g. Central Java, Maharashtra, Wisconsin) from companyAddress, and NEVER modernize or replace place/county names written on the website (keep "Taipei County", "Tucheng City", etc. exactly as written on the site).
 
-7. "state": Strictly "Available" or "Not Available". If the state name is given in the address, select "Available"; if not, select "Not Available". Note: (County, Province, Prefecture) should be considered as State.
+7. "state": Strictly "Available" or "Not Available". ONLY choose "Available" if the state, county, province, prefecture, or country capital is EXPLICITLY present in "companyAddress"; NEVER assume or guess "Available" when it is missing or when "companyAddress" is "Not Available". Note: (County, Province, Prefecture) should be considered as State.
    - Country Capitals (CRITICAL UNIVERSAL RULE): If a country's capital is mentioned in the address, then both City and State are considered "Available".
    - Official States & Provinces: Any recognized first-level administrative division across all countries (State, active County, Province, Prefecture, Territory, Emirate, or Provincial-Level Direct Municipality such as Shanghai/Tianjin/Chongqing) = "Available". Disregard State Names in Street Lines (e.g. "Pennsylvania Avenue") and NEVER count the Country name itself (including UK constituent countries like England, Scotland, Wales, Northern Ireland) as a State/County!
    - Non-capital cities & ordinary municipalities alone (e.g. Manchester, Birmingham, Milton Keynes, Shenzhen, Pune, Sydney, Auckland, Durban, or Taiwan's New Taipei City, Taoyuan, Taichung, Kaohsiung, Tainan, Hsinchu City, Chiayi City, Keelung, and old merged Hsien) -> "Not Available" unless a State/County/Province/Prefecture/Capital is also present. (In Taiwan, only the 13 active Counties — Changhua, Chiayi, Hsinchu, Hualien, Kinmen, Lienchiang, Miaoli, Nantou, Penghu, Pingtung, Taitung, Yilan, Yunlin County — and Taipei City capital qualify as State = "Available".)
@@ -2279,6 +2279,7 @@ ${context.crawledText}
         bType = "Exporter";
       }
 
+      const hasValidAddr = Boolean(cAddress && cAddress !== "Not Available" && cAddress.trim().length > 5 && /[a-zA-Z]/.test(cAddress));
       return {
         websiteStatus: "Working",
         notWorkingReason: "",
@@ -2287,8 +2288,8 @@ ${context.crawledText}
         companyName: compName,
         countryName: cName,
         companyAddress: cAddress,
-        state: "Available",
-        city: "Available",
+        state: hasValidAddr ? "Available" : "Not Available",
+        city: hasValidAddr ? "Available" : "Not Available",
         emailId: primaryEmail,
         secondaryEmailId: secondaryEmail,
         phoneNumber: primaryPhone,
@@ -2404,7 +2405,10 @@ ${context.crawledText}
         }
         aiResult.data.companyName = compNameClean;
       }
-      if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
+      if (!aiResult.data.companyAddress || aiResult.data.companyAddress === "Not Available") {
+        aiResult.data.state = "Not Available";
+        aiResult.data.city = "Not Available";
+      } else {
         rawPreCleanAddr = String(aiResult.data.companyAddress).trim();
         let cleanedAddr = cleanAddressCountryAndPostal(rawPreCleanAddr, aiResult.data.countryName);
         if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
@@ -2437,6 +2441,21 @@ ${context.crawledText}
             }
           }
         }
+        // Strip artificial commas inserted by AI when joining multi-line addresses (keep comma ONLY if source had a comma after that token/abbreviation)
+        if (context && context.crawledText) {
+          const abbrAlias = { road: "rd\\.?", street: "st\\.?", avenue: "ave\\.?", boulevard: "blvd\\.?", drive: "dr\\.?", lane: "ln\\.?", court: "ct\\.?", place: "pl\\.?", parkway: "pkwy\\.?", suite: "ste\\.?", floor: "(?:fl\\.?|f)" };
+          cleanedAddr = cleanedAddr.replace(/\b([A-Za-z0-9]+),\s+([A-Za-z0-9]+)/g, (full, w1, w2) => {
+            const w1Low = w1.toLowerCase();
+            const w1Pat = abbrAlias[w1Low] ? `(?:${w1}|${abbrAlias[w1Low]})` : w1.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const w2Esc = w2.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const hadCommaInSource = new RegExp(`\\b${w1Pat}\\s*,\\s*${w2Esc}\\b`, "i").test(context.crawledText);
+            const hadNoCommaAcrossWords = new RegExp(`\\b${w1Pat}\\s+${w2Esc}\\b`, "i").test(context.crawledText);
+            if (!hadCommaInSource && hadNoCommaAcrossWords) {
+              return `${w1} ${w2}`;
+            }
+            return full;
+          });
+        }
         // Strip hallucinated "/" in "12/Floor" if the crawled website text had "12F" without a slash
         if (context && context.crawledText) {
           cleanedAddr = cleanedAddr.replace(/\b(\d+)\/Floor\b/gi, (full, fNum) => {
@@ -2451,7 +2470,7 @@ ${context.crawledText}
         ].filter(Boolean);
         const normNoSpace = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
         const addrNoSpace = normNoSpace(cleanedAddr);
-        const addrTokens = cleanedAddr.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 4);
+        const addrTokens = cleanedAddr.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 4 || /^\d+$/.test(t));
         for (const mAddr of allContactMaps) {
           const mNoSpace = normNoSpace(mAddr);
           const overlapCount = addrTokens.filter(t => mNoSpace.includes(t)).length;
@@ -2461,18 +2480,43 @@ ${context.crawledText}
             const seg = mParts[mi];
             const segNoSpace = normNoSpace(seg);
             if (!segNoSpace || segNoSpace.length < 4) continue;
-            if (addrNoSpace.includes(segNoSpace)) continue;
-            if (/^\d{3,6}$/.test(seg) || /\b(?:taiwan|india|china|united\s+states|united\s+kingdom|ltd|limited|inc|corp|llc)\b/i.test(seg)) continue;
-            if (!/\b(?:village|hamlet|barangay|subdistrict|sector|colony|nagar|khera|park|estate|phase|block|area)\b/i.test(seg)) continue;
+            if (normNoSpace(cleanedAddr).includes(segNoSpace)) continue;
+            if (/^\d{3,6}$/.test(seg) || /^[A-Z]\d[A-Z]\s*\d[A-Z]\d$/i.test(seg) || /^[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}$/i.test(seg)) continue;
+            if (/\b(?:taiwan|india|china|canada|australia|singapore|united\s+states|united\s+kingdom|usa|uk|ltd|limited|inc|incorporated|corp|llc|pty)\b/i.test(seg)) continue;
+            const prevSeg = mParts[mi - 1];
+            const prevClean = prevSeg.replace(/\b(?:rd\.?|road|st\.?|street|ave\.?|avenue|blvd\.?|boulevard|dr\.?|drive|ln\.?|lane)\b/gi, "");
+            const prevNoSpace = normNoSpace(prevClean);
             const nextSeg = mParts[mi + 1];
-            const nextNoSpace = normNoSpace(nextSeg.replace(/\b(?:dist\.?|district)\b/gi, ""));
-            if (!nextNoSpace || nextNoSpace.length < 3) continue;
+            const nextNoSpace = normNoSpace(nextSeg.replace(/\b(?:dist\.?|district)\b/gi, "").replace(/\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/gi, "").replace(/\b\d{5}(?:-\d{4})?\b/g, ""));
             const cParts = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
-            const insertIdx = cParts.findIndex(cp => normNoSpace(cp).includes(nextNoSpace));
-            if (insertIdx > 0) {
+            let insertIdx = -1;
+            if (prevNoSpace && prevNoSpace.length >= 4) {
+              const prevIdx = cParts.findIndex(cp => normNoSpace(cp).includes(prevNoSpace));
+              if (prevIdx >= 0) insertIdx = prevIdx + 1;
+            }
+            if (insertIdx === -1 && nextNoSpace && nextNoSpace.length >= 3) {
+              insertIdx = cParts.findIndex(cp => normNoSpace(cp).includes(nextNoSpace));
+            }
+            if (insertIdx > 0 && insertIdx <= cParts.length) {
               cParts.splice(insertIdx, 0, seg);
               cleanedAddr = cParts.join(", ");
-              break;
+            }
+          }
+        }
+        // Also ensure Contact Page City is not dropped if AI adopted Embedded Map sub-locality instead (e.g. "550 Oakdale Road, North York, Ontario" + Contact "550 Oakdale Road, Toronto, ON" -> "550 Oakdale Road, North York, Toronto, Ontario")
+        if (allContactMaps.length > 0 && contactPages.length > 0) {
+          const cPartsNow = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
+          if (cPartsNow.length >= 3) {
+            const streetAnchor = normNoSpace(cPartsNow[0].replace(/\b(?:rd\.?|road|st\.?|street|ave\.?|avenue|blvd\.?|boulevard|dr\.?|drive|ln\.?|lane)\b/gi, ""));
+            const contactText = contactPages.map(p => p.textSnippet || "").join("\n");
+            const contactCityMatch = contactText.match(new RegExp(`\\b${cPartsNow[0].split(/\s+/).slice(0, 2).join("\\s+")}[^,\\n]{0,30},\\s*([A-Za-z][A-Za-z\\s.-]{2,30})\\s*,`, "i"));
+            if (streetAnchor && contactCityMatch && contactCityMatch[1]) {
+              const contactCity = contactCityMatch[1].trim();
+              const ccNorm = normNoSpace(contactCity);
+              if (ccNorm.length >= 3 && !normNoSpace(cleanedAddr).includes(ccNorm) && !/^(?:usa|uk|canada|taiwan|australia|india|china|on|ny|ca|tx|wi)$/i.test(contactCity)) {
+                cPartsNow.splice(cPartsNow.length - 1, 0, AddressNormalizer && AddressNormalizer.titleCaseToken ? contactCity.split(/\s+/).map(AddressNormalizer.titleCaseToken).join(" ") : contactCity);
+                cleanedAddr = cPartsNow.join(", ");
+              }
             }
           }
         }
@@ -2495,7 +2539,10 @@ ${context.crawledText}
             : "Special Municipality / Non-County City in Taiwan";
         }
       }
-      if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
+      if (!aiResult.data.companyAddress || aiResult.data.companyAddress === "Not Available") {
+        aiResult.data.state = "Not Available";
+        aiResult.data.city = "Not Available";
+      } else {
         if (/\b(?:district|municipality)\b/i.test(aiResult.data.companyAddress) && String(aiResult.data.city || "").toLowerCase() !== "available") {
           aiResult.data.city = "Available";
         }
@@ -2508,7 +2555,7 @@ ${context.crawledText}
           aiResult.data.city = "Available";
         } else {
           // Universal Capital rule: if a country's capital is mentioned in the address (not as a street name), both City and State = Available
-          const capitalRe = /\b(?:singapore|taipei|tokyo|bangkok|seoul|kuala\s+lumpur|london|paris|berlin|beijing|new\s+delhi|ottawa|canberra|wellington|jakarta|manila|hanoi|abu\s+dhabi|riyadh|doha|amsterdam|brussels|vienna|bern|madrid|rome|lisbon|athens|cairo|nairobi|pretoria|brasilia|mexico\s+city|buenos\s+aires|santiago|bogota|lima|washington\s*,?\s*d\.?c\.?)\b(?!\s+(?:road|rd|street|st|avenue|ave|drive|dr|lane|ln|boulevard|blvd|way|court|ct|place|pl|parkway|pkwy)\b)/i;
+          const capitalRe = /\b(?:singapore|taipei|tokyo|bangkok|seoul|kuala\s+lumpur|london|paris|berlin|dublin|beijing|new\s+delhi|ottawa|canberra|wellington|jakarta|manila|hanoi|abu\s+dhabi|riyadh|doha|amsterdam|brussels|vienna|bern|madrid|rome|lisbon|athens|oslo|stockholm|copenhagen|helsinki|warsaw|prague|budapest|bucharest|sofia|zagreb|belgrade|kyiv|reykjavik|ankara|islamabad|dhaka|colombo|kathmandu|muscat|manama|kuwait\s+city|amman|beirut|cairo|nairobi|pretoria|brasilia|mexico\s+city|buenos\s+aires|santiago|bogota|lima|washington\s*,?\s*d\.?c\.?)\b(?!\s+(?:road|rd|street|st|avenue|ave|drive|dr|lane|ln|boulevard|blvd|way|court|ct|place|pl|parkway|pkwy)\b)/i;
           if (capitalRe.test(aiResult.data.companyAddress) && !/\bnew\s+taipei\b/i.test(aiResult.data.companyAddress)) {
             aiResult.data.state = "Available";
             aiResult.data.city = "Available";
@@ -2537,16 +2584,9 @@ ${context.crawledText}
           aiResult.data.secondaryEmailId = sameDomainCandidate || distinctCandidates[0] || "";
         }
 
-        const normCount = (v, allowZero = false) => {
-          const s = String(v ?? "").trim().toLowerCase();
-          if (s === "one" || s === "1") return "1";
-          if (s === "two" || s === "2") return "2";
-          if (allowZero && s === "0") return "0";
-          return "3";
-        };
-        aiResult.data.numberOfProducts = normCount(aiResult.data.numberOfProducts, false);
-        aiResult.data.productImages = normCount(aiResult.data.productImages, true);
-        aiResult.data.numberOfProductDescriptions = normCount(aiResult.data.numberOfProductDescriptions, false);
+        aiResult.data.numberOfProducts = "3";
+        aiResult.data.productImages = "3";
+        aiResult.data.numberOfProductDescriptions = "3";
       }
     }
 
