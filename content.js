@@ -539,7 +539,7 @@
     "united states of america", "taiwan", "england", "canada", "china",
     "united kingdom", "scotland", "wales", "northern ireland", "australia", "india", "south africa",
     "new zealand", "ireland", "thailand",
-    "south korea", "singapore", "hong kong", "pakistan",
+    "singapore", "hong kong", "pakistan",
     "united arab emirates", "kenya"
   ]);
 

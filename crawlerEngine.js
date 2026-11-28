@@ -830,7 +830,6 @@ const CrawlerEngine = (() => {
     "new zealand",
     "ireland",
     "thailand",
-    "south korea",
     "singapore",
     "hong kong",
     "pakistan",
@@ -2464,14 +2463,17 @@ ${context.crawledText}
           cleanedAddr = AddressNormalizer.normalizeAddress(cleanedAddr);
         }
         cleanedAddr = cleanAddressCountryAndPostal(cleanedAddr, aiResult.data.countryName);
-        // Strip hallucinated leading "Number " if the crawled website text never had "No." / "Number" before that street number
-        const leadingNumMatch = cleanedAddr.match(/^Number\s+(\d+)\b/i);
-        if (leadingNumMatch && context && context.crawledText) {
-          const num = leadingNumMatch[1];
-          const sourceHadNo = new RegExp(`\\b(?:no\\.?|number)\\s*${num}\\b`, "i").test(context.crawledText);
-          if (!sourceHadNo) {
-            cleanedAddr = cleanedAddr.replace(/^Number\s+/i, "");
-          }
+        // Strip hallucinated "Number " anywhere in the address if the crawled website text never had "No." / "Number" before that number
+        if (context && context.crawledText) {
+          cleanedAddr = cleanedAddr.replace(/\bNumber\s+(\d+)\b/gi, (full, num) => {
+            const sourceHadNo = new RegExp(`\\b(?:no\\.?|number)\\s*${num}\\b`, "i").test(context.crawledText);
+            return sourceHadNo ? full : num;
+          });
+          // Collapse AI-inserted spaces around numeric street-range hyphens (e.g. "38 - 46" -> "38-46") when source had no spaces
+          cleanedAddr = cleanedAddr.replace(/\b(\d+)\s+[-–—]\s+(\d+)\b/g, (full, n1, n2) => {
+            const tightRe = new RegExp(`\\b${n1}-${n2}\\b`);
+            return tightRe.test(context.crawledText) ? `${n1}-${n2}` : full;
+          });
         }
         // Deterministically recover missing leading street number if AI omitted it (e.g. "North Airport Road" when source has "1300 N. Airport Rd.")
         if (context && context.crawledText && !/^(?:\d+|Number|Unit|Suite|Post|P\.?O\.?|Box|Lot|Plot|Floor|Building|Block|House|Room|Apartment)\b/i.test(cleanedAddr)) {
@@ -2735,6 +2737,15 @@ ${context.crawledText}
         if (/\b(?:district|municipality)\b/i.test(aiResult.data.companyAddress) && String(aiResult.data.city || "").toLowerCase() !== "available") {
           aiResult.data.city = "Available";
           aiCityReason = "District / Municipality in address";
+        }
+        // Recover City = Available if AI marked Not Available despite a clear city/suburb/town appearing after a thoroughfare and before a known state/province
+        if (
+          String(aiResult.data.city || "").toLowerCase() === "not available" &&
+          String(aiResult.data.state || "").toLowerCase() === "available" &&
+          /\b(?:street|road|avenue|boulevard|drive|lane|court|place|parkway|highway|terrace|crescent|close|way|parade)\b[,\s]+([A-Za-z][A-Za-z\s-]{2,30}?)[,\s]+(?:New\s+South\s+Wales|Queensland|Victoria|Western\s+Australia|South\s+Australia|Tasmania|Australian\s+Capital\s+Territory|Northern\s+Territory|Ontario|Quebec|British\s+Columbia|Alberta|Manitoba|Saskatchewan|Nova\s+Scotia|New\s+Brunswick|Prince\s+Edward\s+Island)\b/i.test(aiResult.data.companyAddress)
+        ) {
+          aiResult.data.city = "Available";
+          aiCityReason = "City/Suburb present in address";
         }
         // Singapore alone keeps "Singapore" in companyAddress and marks both City and State = Available
         if (String(aiResult.data.countryName || "").trim().toLowerCase() === "singapore") {
