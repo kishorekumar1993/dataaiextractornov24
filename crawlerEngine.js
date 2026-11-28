@@ -1655,7 +1655,7 @@ FIELD RULES:
      (3) ONLY if NEITHER "United Kingdom"/"UK" NOR "England"/"Wales"/"Scotland"/"Northern Ireland" is available on the website or social media, infer the constituent country/locality (e.g. "England") from the city and state/county name.
 
 6. "companyAddress" — Contact Page, Footer and Map Address Comparison:
-   - STRICT PRIORITY ORDER: (1) Visible Contact Page – Primary Source + Embedded Map – Additional Address Verification Source (ABSOLUTE HIGHEST PRIORITY); (2) Visible Website Footer – Secondary Source (ONLY use Footer if Contact Page + Map have NO address, or if Footer explicitly has Corporate Office/HQ while Contact Page only lists a Registered/Branch Office); (3) Hidden JSON-LD / Schema metadata is ONLY a fallback — if visible Contact Page or Footer shows a different address, ALWAYS use the visible Contact Page / Footer address (JSON-LD often holds stale/outdated addresses).
+   - STRICT PRIORITY ORDER: (1) Visible Contact Page – Primary Source + Embedded Map – Additional Address Verification Source (ABSOLUTE HIGHEST PRIORITY); (2) Visible Website Footer – Secondary Source (ONLY use Footer if Contact Page + Map have NO address, or if Footer explicitly has Corporate Office/HQ while Contact Page only lists a Registered/Branch Office); (3) A Facebook page linked directly from the company website is a corroboration source only. If its address clearly matches the website address, use it to verify/correct address component order and comma placement, and add only missing details that agree with the same location. Never let Facebook override a conflicting website HQ address or introduce a branch address; (4) Hidden JSON-LD / Schema metadata is ONLY a fallback — if visible Contact Page or Footer shows a different address, ALWAYS use the visible Contact Page / Footer address (JSON-LD often holds stale/outdated addresses).
    - HQ (Headquarters) address is always first priority over Registered Office, Branch, Factory, or Plant.
    - Current Active Address Priority (CRITICAL): NEVER select former, historical, or previous addresses ("prior to", "formerly located at", "relocated from").
    - Comparison:
@@ -1671,7 +1671,7 @@ FIELD RULES:
      * Directional prefixes attached to numbers: "N173" -> "North173", "W21640" -> "West21640", N/S/E/W -> North/South/East/West.
      * Floor Designations: Expand any floor abbreviation while preserving "/" if present ("7/F." -> "7/Floor", "12/F." -> "12/Floor", "1F" -> "1Floor", "3f.-6" -> "3Floor - 6", "1st F"/"1st Fl." -> "1st Floor"). NEVER remove "/" from "7/F." or "12/F."!
      * "No." / "Number" Rule: Expand "No." / "No" to "Number" with a space and NO dot (e.g. "No.2" -> "Number 2", "No. 10" -> "Number 10", NEVER "Number.2") ONLY if "No."/"No"/"Number" was in the source; NEVER prepend "Number" to pure street numbers or slash-separated units, and NEVER convert "#" into "Number" (keep "#" as "#"!).
-     * Commas: Preserve source commas exactly; NEVER insert artificial commas (e.g., before State/Province or when joining multi-line addresses).
+     * Commas: Preserve source commas exactly; NEVER insert artificial commas (e.g., before State/Province or when joining multi-line addresses). When the website and its linked Facebook page show the same address with different punctuation, prefer the website's component order and use a comma between each verified address component; remove duplicate commas and repeated province/state names.
      * Cleanup: Remove pincode/postal/ZIP codes (e.g. "Taoyuan 330" -> "Taoyuan", UK postcodes like "MK14 5AN" or "NR6 6NN" -> ""), country names (including "United Kingdom", "England", "Taiwan R.O.C.", "R.O.C."), company names, leading labels ("Address:", "HQ:"), and trailing phone/fax/email/registration/punctuation. ALWAYS remove all bracket/parenthesis characters ( ), [ ] from companyAddress while keeping the words/landmarks inside (e.g. "(Opposite KCC cheese Factory)" -> "Opposite KCC Cheese Factory"). NEVER drop state/province names (e.g. Central Java, Maharashtra, Wisconsin) from companyAddress, and NEVER modernize or replace place/county names written on the website (keep "Taipei County", "Tucheng City", etc. exactly as written on the site).
 
 7. "state": Strictly "Available" or "Not Available". ONLY choose "Available" if the state, county, province, prefecture, or country capital is EXPLICITLY present in "companyAddress"; NEVER assume or guess "Available" when it is missing or when "companyAddress" is "Not Available". Note: (County, Province, Prefecture) should be considered as State.
@@ -2116,6 +2116,8 @@ ${context.crawledText}
       resolveMapEmbedAddress(mainHtml, fetchFn).catch(() => []),
       Promise.all(socialUrls.map(async (sUrl) => {
         let sTitle = "";
+        let sAddressEvidence = "";
+        let sFbAddress = "";
         const sEmails = [];
         try {
           if (fetchFn && /(?:facebook\.com|fb\.com)/i.test(sUrl)) {
@@ -2136,6 +2138,33 @@ ${context.crawledText}
               if (ogT && ogT[1] && !/^error$/i.test(ogT[1].trim())) {
                 sTitle = ogT[1].replace(/\s*\|\s*Facebook\s*$/i, "").trim();
               }
+              // Facebook often exposes the business address in page metadata or
+              // visible contact details. Keep a small evidence excerpt for AI cross-checking.
+              const metaDescription = sHtml.match(/<meta\b[^>]*(?:name|property)=["'](?:description|og:description)["'][^>]*content=["']([^"']+)["'][^>]*>/i)?.[1] || "";
+              const socialText = `${cleanHtmlToText(sHtml, false)}\n${cleanHtmlToText(metaDescription, false)}`;
+              const addressLines = socialText.split(/[\r\n]+/)
+                .map(line => line.replace(/\s+/g, " ").trim())
+                .filter(line => line.length >= 8 && line.length <= 240 &&
+                  (/(?:address|location|located at)\s*[:\-]/i.test(line) ||
+                    /\b\d{1,5}\s+[\w.'’-]+(?:\s+[\w.'’-]+){0,5}\s+(?:street|st\.?|road|rd\.?|avenue|ave\.?|drive|dr\.?|lane|ln\.?|boulevard|blvd\.?|highway|hwy\.?|way|court|ct\.?|crescent|parade)\b/i.test(line)))
+                .slice(0, 3);
+              if (addressLines.length) sAddressEvidence = addressLines.join(" | ");
+              // Try to extract a structured FB address (for comma cross-check).
+              // Facebook pages often embed address in JSON-LD structured data.
+              const fbAddrFromJsonLd = sHtml.match(/"streetAddress"\s*:\s*"([^"]+)"/i);
+              const fbCity = sHtml.match(/"addressLocality"\s*:\s*"([^"]+)"/i);
+              const fbRegion = sHtml.match(/"addressRegion"\s*:\s*"([^"]+)"/i);
+              if (fbAddrFromJsonLd && fbAddrFromJsonLd[1]) {
+                let fbAddr = fbAddrFromJsonLd[1].trim();
+                if (fbCity && fbCity[1]) fbAddr += `, ${fbCity[1].trim()}`;
+                if (fbRegion && fbRegion[1]) fbAddr += `, ${fbRegion[1].trim()}`;
+                sFbAddress = fbAddr;
+              } else if (addressLines.length) {
+                // Fall back: strip the "Address:" label prefix and use the first line
+                sFbAddress = addressLines[0]
+                  .replace(/^(?:address|location|located at)\s*[:\-]\s*/i, "")
+                  .trim();
+              }
               const foundEmails = sHtml.match(EMAIL_REGEX) || [];
               for (const em of foundEmails) {
                 const lower = em.replace(/[\s\u00A0]+/g, "").toLowerCase();
@@ -2147,7 +2176,7 @@ ${context.crawledText}
             }
           }
         } catch (_) { }
-        return { url: sUrl, title: sTitle, emails: sEmails };
+        return { url: sUrl, title: sTitle, emails: sEmails, addressEvidence: sAddressEvidence, fbAddress: sFbAddress };
       }))
     ]);
     if (Array.isArray(mainEmbedResult) && mainEmbedResult.length > 0) {
@@ -2196,6 +2225,7 @@ ${context.crawledText}
       pagesText += `\n--- LINKED SOCIAL PROFILES (ON-SITE LINKS) ---\n`;
       for (const sp of socialProfilesInfo) {
         pagesText += `URL: ${sp.url}${sp.title ? ` | Title: ${sp.title}` : ""}${sp.emails.length > 0 ? ` | Emails: ${sp.emails.join(", ")}` : ""}\n`;
+        if (sp.addressEvidence) pagesText += `Facebook address evidence (cross-check only): ${sp.addressEvidence}\n`;
       }
     }
     pagesText += "\n";
@@ -2399,6 +2429,8 @@ ${context.crawledText}
     let rawPreCleanAddr = "";
     let aiStateReason = "";
     let aiCityReason = "";
+    // Hoist normNoSpace to function scope so it is always available (prevents "compNorm is not defined" TDZ error)
+    const normNoSpace = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     if (aiResult && aiResult.data) {
       if (typeof aiResult.data.stateReason === "string") {
         aiStateReason = aiResult.data.stateReason.trim();
@@ -2514,6 +2546,12 @@ ${context.crawledText}
         aiResult.data.city = "Not Available";
       } else {
         rawPreCleanAddr = String(aiResult.data.companyAddress).trim();
+        // Strip any CJK / non-Latin characters from address before processing
+        // (prevents Chinese company names from map embeds bleeding into the address)
+        rawPreCleanAddr = rawPreCleanAddr
+          .replace(/[\u2E80-\u9FFF\uA000-\uA4FF\uAC00-\uD7AF\uF900-\uFAFF\uFE30-\uFE4F]+/g, " ")
+          .replace(/\s*\/\s*[A-Z0-9\s]{5,}(?:Co\.|Ltd\.|Inc\.|Corp\.|Industrial|Company)/g, " ")
+          .replace(/\s+/g, " ").trim();
         let cleanedAddr = cleanAddressCountryAndPostal(rawPreCleanAddr, aiResult.data.countryName);
         if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
           cleanedAddr = AddressNormalizer.normalizeAddress(cleanedAddr);
@@ -2575,7 +2613,6 @@ ${context.crawledText}
           ...contactPages.flatMap(p => p.mapAddresses || []),
           ...mainMapAddresses
         ].filter(Boolean);
-        const normNoSpace = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
         const compNorm = normNoSpace(aiResult.data.companyName || "");
         const addrNoSpace = normNoSpace(cleanedAddr);
         const addrTokens = cleanedAddr.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 4 || /^\d+$/.test(t));
@@ -2621,7 +2658,7 @@ ${context.crawledText}
             if (!segNoSpace || segNoSpace.length < 4) continue;
             if (normNoSpace(cleanedAddr).includes(segNoSpace)) continue;
             if (/^\d{3,6}$/.test(seg) || /^[A-Z]\d[A-Z]\s*\d[A-Z]\d$/i.test(seg) || /^[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}$/i.test(seg)) continue;
-            if (/[\u3000-\u9fff\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff]/.test(seg)) continue;
+            if (/[\u2E80-\u9FFF\uA000-\uA4FF\uAC00-\uD7AF\u0400-\u04FF\u0600-\u06FF\uF900-\uFAFF\uFE30-\uFE4F]/.test(seg)) continue;
             if (/\d+號/.test(seg) || (compNorm && compNorm.length >= 4 && segNoSpace.includes(compNorm.slice(0, Math.min(compNorm.length, 10))))) continue;
             if (/\b(?:taiwan|india|china|canada|australia|singapore|united\s+states|united\s+kingdom|usa|uk|co\.?|company|ltd\.?|limited|inc\.?|incorporated|corp\.?|corporation|llc|llp|plc|gmbh|pty|pvt|pte|bhd)\b/i.test(seg)) continue;
             const prevSeg = mParts[mi - 1];
@@ -2689,6 +2726,67 @@ ${context.crawledText}
             cleanedParts.push(candidate);
           }
           cleanedAddr = cleanedParts.join(", ");
+          cleanedAddr = cleanedAddr.replace(/\s*,\s*,+/g, ", ").replace(/\s+/g, " ").replace(/^,\s*|,\s*$/g, "").trim();
+        }
+        // ── Facebook address comma cross-check ──────────────────────────────────
+        // If the company website links to a Facebook page and that FB page shows
+        // the same address (≥3 token overlap), use the FB comma positions as the
+        // authoritative comma structure for the cleaned address.
+        if (socialProfilesInfo && socialProfilesInfo.length > 0) {
+          for (const sp of socialProfilesInfo) {
+            if (!sp.fbAddress) continue;
+            const fbAddr = sp.fbAddress.trim();
+            if (!fbAddr || fbAddr.length < 10) continue;
+            // Strip CJK and non-ASCII from fbAddr before comparison
+            const fbAddrAscii = fbAddr.replace(/[^\x00-\x7F]/g, " ").replace(/\s+/g, " ").trim();
+            if (fbAddrAscii.length < 8) continue;
+            const fbTokens = fbAddrAscii.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3);
+            const cleanTokens = cleanedAddr.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3);
+            const overlapCount = fbTokens.filter(t => cleanTokens.includes(t)).length;
+            if (overlapCount >= 3) {
+              // Apply FB comma positions: split FB address by commas, find each
+              // segment in the cleaned address (token match), and re-segment using
+              // FB comma boundaries — preserving the website's original text values.
+              const fbParts = fbAddrAscii.split(",").map(s => s.trim()).filter(Boolean);
+              if (fbParts.length >= 2) {
+                const cleanParts = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
+                // Build a merged list that respects FB comma positions:
+                // For each FB part, find which cleaned parts best correspond to it
+                // and group them, then re-join with commas.
+                const usedCleanIdx = new Set();
+                const fbAlignedParts = [];
+                for (const fbPart of fbParts) {
+                  const fbPartNorm = normNoSpace(fbPart);
+                  if (!fbPartNorm || fbPartNorm.length < 2) continue;
+                  // Find the best matching clean part(s) for this FB segment
+                  const matched = [];
+                  for (let ci = 0; ci < cleanParts.length; ci++) {
+                    if (usedCleanIdx.has(ci)) continue;
+                    const cpNorm = normNoSpace(cleanParts[ci]);
+                    // If this clean part's tokens overlap significantly with FB part
+                    const cpToks = cleanParts[ci].toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3);
+                    const fpToks = fbPart.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3);
+                    const tOvlp = cpToks.filter(t => fpToks.includes(t)).length;
+                    if (tOvlp >= 1 || (fpToks.length === 1 && fbPartNorm.includes(cpNorm)) || (cpNorm.length >= 3 && fbPartNorm.includes(cpNorm))) {
+                      matched.push(ci);
+                    }
+                  }
+                  if (matched.length > 0) {
+                    matched.forEach(i => usedCleanIdx.add(i));
+                    // Use the original cleanParts text (not FB text) for final output
+                    fbAlignedParts.push(matched.map(i => cleanParts[i]).join(" "));
+                  }
+                }
+                // Add any remaining unmatched clean parts at the end
+                for (let ci = 0; ci < cleanParts.length; ci++) {
+                  if (!usedCleanIdx.has(ci)) fbAlignedParts.push(cleanParts[ci]);
+                }
+                if (fbAlignedParts.length >= 2 && fbAlignedParts.length <= cleanParts.length + fbParts.length) {
+                  cleanedAddr = fbAlignedParts.join(", ");
+                }
+              }
+            }
+          }
         }
         // Deterministically recover missing Australian state if AI omitted it (e.g. "59 Railway Parade, Rocklea" when source has "Rocklea, QLD 4106")
         if (/australia/i.test(String(aiResult.data.countryName || "")) && context && context.crawledText && !/\b(?:Queensland|New\s+South\s+Wales|Victoria|Western\s+Australia|South\s+Australia|Tasmania|Australian\s+Capital\s+Territory|Northern\s+Territory)\b/i.test(cleanedAddr)) {
