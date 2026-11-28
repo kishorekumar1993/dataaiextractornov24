@@ -2696,11 +2696,11 @@ ${context.crawledText}
           };
           const lastLow = lastSegCheck.toLowerCase();
           const abbr = stateAbbrReverse[lastLow];
-          const combinedSource = `${context.crawledText}\n${allContactMaps.join("\n")}`;
+          const combinedSource = `${context.crawledText}\n${allContactMaps.join("\n")}`.replace(/\s+/g, " ");
           const matchedEmbeddedStateAbbr = Object.entries(stateAbbrReverse).some(([sName, sAbbr]) =>
             lastLow.endsWith(sName) && (new RegExp(`\\b${sName.replace(/\s+/g, "\\s+")}\\b`, "i").test(combinedSource) || new RegExp(`\\b${sAbbr}\\b`, "i").test(combinedSource))
           );
-          const hasFullInSource = lastSegCheck.length >= 3 && new RegExp(`\\b${lastSegCheck.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(combinedSource);
+          const hasFullInSource = lastSegCheck.length >= 3 && new RegExp(`\\b${lastSegCheck.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")}\\b`, "i").test(combinedSource);
           const hasAbbrInSource = abbr && new RegExp(`\\b${abbr}\\b`, "i").test(combinedSource);
           if (lastSegCheck.length >= 3 && !hasFullInSource && !hasAbbrInSource && !matchedEmbeddedStateAbbr && lastLow !== "singapore" && !lastLow.includes("|")) {
             addrPartsCheck.pop();
@@ -2734,9 +2734,9 @@ ${context.crawledText}
         aiStateReason = "No address found";
         aiCityReason = "No address found";
       } else {
-        if (/\b(?:district|municipality)\b/i.test(aiResult.data.companyAddress) && String(aiResult.data.city || "").toLowerCase() !== "available") {
+        if (/\b(?:district|township|town|municipality)\b/i.test(aiResult.data.companyAddress) && String(aiResult.data.city || "").toLowerCase() !== "available") {
           aiResult.data.city = "Available";
-          aiCityReason = "District / Municipality in address";
+          aiCityReason = "District / Township / Municipality in address";
         }
         // Recover City = Available if AI marked Not Available despite a clear city/suburb/town appearing after a thoroughfare and before a known state/province
         if (
