@@ -2684,9 +2684,12 @@ ${context.crawledText}
           const lastLow = lastSegCheck.toLowerCase();
           const abbr = stateAbbrReverse[lastLow];
           const combinedSource = `${context.crawledText}\n${allContactMaps.join("\n")}`;
+          const matchedEmbeddedStateAbbr = Object.entries(stateAbbrReverse).some(([sName, sAbbr]) =>
+            lastLow.endsWith(sName) && (new RegExp(`\\b${sName.replace(/\s+/g, "\\s+")}\\b`, "i").test(combinedSource) || new RegExp(`\\b${sAbbr}\\b`, "i").test(combinedSource))
+          );
           const hasFullInSource = lastSegCheck.length >= 3 && new RegExp(`\\b${lastSegCheck.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(combinedSource);
           const hasAbbrInSource = abbr && new RegExp(`\\b${abbr}\\b`, "i").test(combinedSource);
-          if (lastSegCheck.length >= 3 && !hasFullInSource && !hasAbbrInSource && lastLow !== "singapore") {
+          if (lastSegCheck.length >= 3 && !hasFullInSource && !hasAbbrInSource && !matchedEmbeddedStateAbbr && lastLow !== "singapore" && !lastLow.includes("|")) {
             addrPartsCheck.pop();
             cleanedAddr = addrPartsCheck.join(", ");
             aiResult.data.state = "Not Available";
