@@ -2728,62 +2728,103 @@ ${context.crawledText}
           cleanedAddr = cleanedParts.join(", ");
           cleanedAddr = cleanedAddr.replace(/\s*,\s*,+/g, ", ").replace(/\s+/g, " ").replace(/^,\s*|,\s*$/g, "").trim();
         }
-        // ── Facebook address comma cross-check ──────────────────────────────────
-        // If the company website links to a Facebook page and that FB page shows
-        // the same address (≥3 token overlap), use the FB comma positions as the
-        // authoritative comma structure for the cleaned address.
-        if (socialProfilesInfo && socialProfilesInfo.length > 0) {
-          for (const sp of socialProfilesInfo) {
-            if (!sp.fbAddress) continue;
-            const fbAddr = sp.fbAddress.trim();
-            if (!fbAddr || fbAddr.length < 10) continue;
-            // Strip CJK and non-ASCII from fbAddr before comparison
-            const fbAddrAscii = fbAddr.replace(/[^\x00-\x7F]/g, " ").replace(/\s+/g, " ").trim();
-            if (fbAddrAscii.length < 8) continue;
-            const fbTokens = fbAddrAscii.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3);
-            const cleanTokens = cleanedAddr.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3);
-            const overlapCount = fbTokens.filter(t => cleanTokens.includes(t)).length;
-            if (overlapCount >= 3) {
-              // Apply FB comma positions: split FB address by commas, find each
-              // segment in the cleaned address (token match), and re-segment using
-              // FB comma boundaries — preserving the website's original text values.
-              const fbParts = fbAddrAscii.split(",").map(s => s.trim()).filter(Boolean);
-              if (fbParts.length >= 2) {
-                const cleanParts = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
-                // Build a merged list that respects FB comma positions:
-                // For each FB part, find which cleaned parts best correspond to it
-                // and group them, then re-join with commas.
+        // ── Source-text comma cross-check ───────────────────────────────────────
+        // Facebook cannot be reliably fetched (login wall). Instead, scan the
+        // ALREADY-CRAWLED website text (contact page + footer + main page) for the
+        // exact address string as it appears on the site, then use the commas found
+        // there as the authoritative comma structure for cleanedAddr.
+        //
+        // Strategy:
+        //  1. Build a list of key tokens from cleanedAddr (numbers + long words).
+        //  2. Slide a window over crawledText lines to find a line/block that
+        //     contains ≥60% of those tokens.
+        //  3. If found, use the comma positions in that source string to re-segment
+        //     cleanedAddr — keeping cleanedAddr's normalized words, just re-placing
+        //     commas where the source had them.
+        if (context && context.crawledText && cleanedAddr && cleanedAddr.includes(",")) {
+          const addrKeyTokens = cleanedAddr.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, " ")
+            .split(/\s+/)
+            .filter(t => t.length >= 3 || /^\d+$/.test(t));
+
+          if (addrKeyTokens.length >= 3) {
+            // Also check contact page text snippets
+            const contactTextBlob = [
+              context.crawledText,
+              ...contactPages.map(p => p.textSnippet || ""),
+              ...contactPages.map(p => p.footerText || ""),
+              mainFooter || ""
+            ].join("\n");
+
+            // Split source into candidate lines/sentences (split on newline or period+space)
+            const sourceLines = contactTextBlob
+              .replace(/\r\n/g, "\n")
+              .split(/\n+/)
+              .map(l => l.trim())
+              .filter(l => l.length >= 10 && l.length <= 400);
+
+            let bestLine = null;
+            let bestOverlap = 0;
+
+            for (const line of sourceLines) {
+              // Skip lines that are mostly digits (phone numbers, prices) or URLs
+              if (/^[\d\s\-+().]{6,}$/.test(line) || /https?:\/\//i.test(line)) continue;
+              const lineToks = line.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3 || /^\d+$/.test(t));
+              const overlap = addrKeyTokens.filter(t => lineToks.includes(t)).length;
+              const ratio = overlap / addrKeyTokens.length;
+              if (ratio >= 0.6 && overlap > bestOverlap) {
+                bestOverlap = overlap;
+                bestLine = line;
+              }
+            }
+
+            if (bestLine && bestLine.includes(",")) {
+              // bestLine contains the address as written on the site (with its commas).
+              // Use its comma positions to re-segment cleanedAddr.
+              const srcParts = bestLine.split(",").map(s => s.trim()).filter(Boolean);
+              const cleanParts = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
+
+              if (srcParts.length >= 2 && srcParts.length !== cleanParts.length) {
+                // Only re-segment if the comma counts differ (otherwise no change needed)
                 const usedCleanIdx = new Set();
-                const fbAlignedParts = [];
-                for (const fbPart of fbParts) {
-                  const fbPartNorm = normNoSpace(fbPart);
-                  if (!fbPartNorm || fbPartNorm.length < 2) continue;
-                  // Find the best matching clean part(s) for this FB segment
+                const reSegmented = [];
+
+                for (const srcPart of srcParts) {
+                  const srcPartNorm = normNoSpace(srcPart);
+                  if (!srcPartNorm || srcPartNorm.length < 2) continue;
+                  const srcToks = srcPart.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3 || /^\d+$/.test(t));
+
                   const matched = [];
                   for (let ci = 0; ci < cleanParts.length; ci++) {
                     if (usedCleanIdx.has(ci)) continue;
                     const cpNorm = normNoSpace(cleanParts[ci]);
-                    // If this clean part's tokens overlap significantly with FB part
-                    const cpToks = cleanParts[ci].toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3);
-                    const fpToks = fbPart.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3);
-                    const tOvlp = cpToks.filter(t => fpToks.includes(t)).length;
-                    if (tOvlp >= 1 || (fpToks.length === 1 && fbPartNorm.includes(cpNorm)) || (cpNorm.length >= 3 && fbPartNorm.includes(cpNorm))) {
+                    const cpToks = cleanParts[ci].toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3 || /^\d+$/.test(t));
+                    // Match if: shared tokens ≥1, or one contains the other (short segs)
+                    const sharedToks = cpToks.filter(t => srcToks.includes(t)).length;
+                    const containsMatch = srcPartNorm.length >= 3 && (srcPartNorm.includes(cpNorm) || cpNorm.includes(srcPartNorm));
+                    if (sharedToks >= 1 || containsMatch) {
                       matched.push(ci);
                     }
                   }
                   if (matched.length > 0) {
                     matched.forEach(i => usedCleanIdx.add(i));
-                    // Use the original cleanParts text (not FB text) for final output
-                    fbAlignedParts.push(matched.map(i => cleanParts[i]).join(" "));
+                    // Keep cleanParts text (normalized), joined with space when src merged them
+                    reSegmented.push(matched.map(i => cleanParts[i]).join(" "));
                   }
                 }
-                // Add any remaining unmatched clean parts at the end
+
+                // Append any unmatched cleanParts at the end (e.g. normalized state name)
                 for (let ci = 0; ci < cleanParts.length; ci++) {
-                  if (!usedCleanIdx.has(ci)) fbAlignedParts.push(cleanParts[ci]);
+                  if (!usedCleanIdx.has(ci)) reSegmented.push(cleanParts[ci]);
                 }
-                if (fbAlignedParts.length >= 2 && fbAlignedParts.length <= cleanParts.length + fbParts.length) {
-                  cleanedAddr = fbAlignedParts.join(", ");
+
+                // Only apply if re-segmentation is sane (not too many or too few parts)
+                if (reSegmented.length >= 2 && reSegmented.length <= cleanParts.length) {
+                  cleanedAddr = reSegmented.join(", ");
                 }
+              } else if (srcParts.length >= 2 && srcParts.length === cleanParts.length) {
+                // Same number of parts — verify order is correct, no change needed
+                // But if source had fewer commas (parts got merged), re-apply
               }
             }
           }
