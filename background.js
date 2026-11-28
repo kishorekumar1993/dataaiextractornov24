@@ -128,7 +128,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   // 6. Crawl & Extract for Portal Autofill (orchestrated in background)
-  const CRAWL_CACHE_VERSION = "v95";
+  const CRAWL_CACHE_VERSION = "v96";
   if (request.action === "crawlAndExtractForPortal") {
     (async () => {
       try {

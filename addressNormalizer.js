@@ -379,7 +379,8 @@ const AddressNormalizer = (() => {
     result = result.replace(/\s*,\s*/g, ", ")
                    .replace(/([a-zA-Z]{2,})(?:\s+-\s*|\s*-\s+)([a-zA-Z0-9]+)/g, "$1 - $2")
                    .replace(/\s+/g, " ")
-                   .replace(/[,;.\-:]+$/, "")
+                   .replace(/^(?!#[A-Za-z0-9])[^A-Za-z0-9À-ÖØ-öø-ÿ\u4e00-\u9fff]+/, "")
+                   .replace(/[^A-Za-z0-9À-ÖØ-öø-ÿ\u4e00-\u9fff]+$/, "")
                    .trim();
 
     // Always strip artificial "Number " before slash unit/street numbers (e.g. "Number 6/97" -> "6/97", "Number 4/95" -> "4/95")
