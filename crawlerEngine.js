@@ -1669,7 +1669,7 @@ ${context.crawledText}
       /,?\s*\bP\.?R\.?C\.?\s*$/i,
       /,?\s*\bU\.?S\.?A\.?\s*$/i,
       /,?\s*\bUnited\s+States(?:\s+Of\s+America)?\s*$/i,
-      /,?\s*\b(?:United\s+Kingdom|Great\s+Britain|U\.?K\.?|England|Scotland|Wales|Northern\s+Ireland)\s*$/i
+      /,?\s*\b(?:United\s+Kingdom|Great\s+Britain|U\.?K\.?|England|Scotland|(?<!\bNew\s+South\s+)Wales|Northern\s+Ireland)\s*$/i
     ];
     for (let pass = 0; pass < 2; pass++) {
       for (const pat of countryPatterns) {
@@ -2480,9 +2480,41 @@ ${context.crawledText}
           const overlapCount = addrTokens.filter(t => mNoSpace.includes(t)).length;
           if (overlapCount < 2) continue;
           const mParts = mAddr.split(",").map(s => s.trim()).filter(Boolean);
+          // Check mParts[0] for a leading building/house/unit/estate name missing from cleanedAddr (e.g. Map "Winchester House, Forest Ln, Alne, York YO61 1TU" + Contact "Forest Lane, Alne, York, North Yorkshire")
+          if (mParts.length >= 3) {
+            const firstMapSeg = mParts[0];
+            const firstMapNorm = normNoSpace(firstMapSeg);
+            const secondMapNorm = normNoSpace(
+              mParts[1].replace(/\bRd\.?\b/gi, "Road").replace(/\bSt\.?\b/gi, "Street").replace(/\bLn\.?\b/gi, "Lane").replace(/\bAve\.?\b/gi, "Avenue").replace(/\bDr\.?\b/gi, "Drive")
+            );
+            const cParts0 = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
+            const c0Norm = cParts0[0] ? normNoSpace(cParts0[0]) : "";
+            const compNorm = normNoSpace(aiResult.data.companyName || "");
+            const isBuildingPrefix = /\b(?:house|building|bldg|tower|court|manor|hall|centre|center|chambers|plaza|park|estate|works|mill|unit|suite|block)\b/i.test(firstMapSeg);
+            if (
+              firstMapNorm.length >= 4 &&
+              isBuildingPrefix &&
+              !normNoSpace(cleanedAddr).includes(firstMapNorm) &&
+              (!compNorm || !compNorm.includes(firstMapNorm)) &&
+              secondMapNorm.length >= 4 &&
+              c0Norm.includes(secondMapNorm)
+            ) {
+              cleanedAddr = `${firstMapSeg}, ${cleanedAddr}`;
+            }
+          }
           for (let mi = 1; mi < mParts.length - 1; mi++) {
             const seg = mParts[mi];
-            const segNoSpace = normNoSpace(seg);
+            const segCore = seg
+              .replace(/\b(?:NSW|VIC|QLD|WA|SA|TAS|ACT|NT|ON|QC|BC|AB|MB|SK|NS|NB|NL|PE|AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY)\b(?:\s+\d{4,5})?$/i, "")
+              .replace(/\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b/gi, "")
+              .replace(/\b\d{4,6}\b/g, "")
+              .replace(/\bRd\.?\b/gi, "Road")
+              .replace(/\bSt\.?\b/gi, "Street")
+              .replace(/\bLn\.?\b/gi, "Lane")
+              .replace(/\bAve\.?\b/gi, "Avenue")
+              .replace(/\bDr\.?\b/gi, "Drive")
+              .trim();
+            const segNoSpace = normNoSpace(segCore || seg);
             if (!segNoSpace || segNoSpace.length < 4) continue;
             if (normNoSpace(cleanedAddr).includes(segNoSpace)) continue;
             if (/^\d{3,6}$/.test(seg) || /^[A-Z]\d[A-Z]\s*\d[A-Z]\d$/i.test(seg) || /^[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}$/i.test(seg)) continue;
@@ -2530,10 +2562,21 @@ ${context.crawledText}
           const cleanedParts = [];
           const seenNorm = new Set();
           for (const part of dedupParts) {
-            // Strip embedded AU/US state+postcode from a non-final segment if expanded state appears later
-            const strippedPart = part.replace(/\b(?:QLD|NSW|VIC|WA|SA|TAS|ACT|NT)\s+\d{4}\b/gi, "").replace(/\s+/g, " ").trim();
+            // Strip embedded AU/UK/CA state+postcode from a segment and deduplicate abbreviated vs expanded thoroughfare duplicates
+            const strippedPart = part
+              .replace(/\b(?:QLD|NSW|VIC|WA|SA|TAS|ACT|NT)\s+\d{4}\b/gi, "")
+              .replace(/\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b/gi, "")
+              .replace(/\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b/gi, "")
+              .replace(/\s+/g, " ")
+              .trim();
             const candidate = strippedPart || part;
-            const key = candidate.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const expandedForKey = candidate
+              .replace(/\bRd\.?\b/gi, "Road")
+              .replace(/\bSt\.?\b/gi, "Street")
+              .replace(/\bLn\.?\b/gi, "Lane")
+              .replace(/\bAve\.?\b/gi, "Avenue")
+              .replace(/\bDr\.?\b/gi, "Drive");
+            const key = expandedForKey.toLowerCase().replace(/[^a-z0-9]/g, "");
             if (key && seenNorm.has(key)) continue;
             if (key) seenNorm.add(key);
             cleanedParts.push(candidate);
