@@ -1757,7 +1757,8 @@ ${context.crawledText}
       if (countryName && countryName !== "Not Available" && String(countryName).trim().toLowerCase() !== "singapore") {
         const escapedCountry = String(countryName).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         if (escapedCountry) {
-          addr = addr.replace(new RegExp(`,?\\s*\\b${escapedCountry}\\b\\s*$`, "i"), "");
+          const prefixGuard = /^australia$/i.test(String(countryName).trim()) ? "(?<!\\bWestern\\s+)(?<!\\bSouth\\s+)" : "";
+          addr = addr.replace(new RegExp(`,?\\s*${prefixGuard}\\b${escapedCountry}\\b\\s*$`, "i"), "");
         }
       }
     }
@@ -1771,7 +1772,8 @@ ${context.crawledText}
     if (countryName && countryName !== "Not Available" && String(countryName).trim().toLowerCase() !== "singapore") {
       const escapedCountry = String(countryName).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       if (escapedCountry) {
-        addr = addr.replace(new RegExp(`,?\\s*\\b${escapedCountry}\\b[\\s,.]*$`, "i"), "");
+        const prefixGuard = /^australia$/i.test(String(countryName).trim()) ? "(?<!\\bWestern\\s+)(?<!\\bSouth\\s+)" : "";
+        addr = addr.replace(new RegExp(`,?\\s*${prefixGuard}\\b${escapedCountry}\\b[\\s,.]*$`, "i"), "");
       }
     }
     if (String(countryName || "").trim().toLowerCase() === "canada") {
@@ -2546,11 +2548,13 @@ ${context.crawledText}
         aiResult.data.city = "Not Available";
       } else {
         rawPreCleanAddr = String(aiResult.data.companyAddress).trim();
-        // Strip any CJK / non-Latin characters from address before processing
+        // Strip any CJK / non-Latin characters (and attached building number like "2號...") + bilingual company fragments from address
         // (prevents Chinese company names from map embeds bleeding into the address)
         rawPreCleanAddr = rawPreCleanAddr
+          .replace(/\b\d+\s*[\u2E80-\u9FFF\uA000-\uA4FF\uAC00-\uD7AF\uF900-\uFAFF\uFE30-\uFE4F]+[^,]*/g, " ")
           .replace(/[\u2E80-\u9FFF\uA000-\uA4FF\uAC00-\uD7AF\uF900-\uFAFF\uFE30-\uFE4F]+/g, " ")
-          .replace(/\s*\/\s*[A-Z0-9\s]{5,}(?:Co\.|Ltd\.|Inc\.|Corp\.|Industrial|Company)/g, " ")
+          .replace(/\s*\/\s*[A-Za-z0-9\s.,&'-]*(?:Co\.?|Ltd\.?|Limited|Inc\.?|Incorporated|Corp\.?|Corporation|Industrial|Company)[^,]*/gi, " ")
+          .replace(/\s*,\s*,+/g, ", ")
           .replace(/\s+/g, " ").trim();
         let cleanedAddr = cleanAddressCountryAndPostal(rawPreCleanAddr, aiResult.data.countryName);
         if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
