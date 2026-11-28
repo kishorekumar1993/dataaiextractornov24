@@ -1807,8 +1807,8 @@ ${context.crawledText}
         TN: "Tennessee", TX: "Texas", UT: "Utah", VT: "Vermont", VA: "Virginia", WA: "Washington",
         WV: "West Virginia", WI: "Wisconsin", WY: "Wyoming", DC: "District of Columbia"
       };
-      // Expand US state codes when at the end or preceded by a comma/space after a city (avoid directional N/S/E/W or street initials)
-      addr = addr.replace(/(?:,\s*|\s+)\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\b(?=\s*(?:,|$))/g, (full, code) => {
+      // Expand US state codes when at the end, before comma, or before 5-digit ZIP (avoid directional N/S/E/W or street initials)
+      addr = addr.replace(/(?:,\s*|\s+)\b(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|DC)\b(?=\s*(?:,|$|\d{5}(?:-\d{4})?\b))/g, (full, code) => {
         const sep = full.startsWith(",") ? ", " : " ";
         return sep + (usStates[code.toUpperCase()] || code);
       });
