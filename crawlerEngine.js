@@ -1674,7 +1674,7 @@ ${context.crawledText}
       for (const pat of countryPatterns) {
         addr = addr.replace(pat, "");
       }
-      if (countryName && countryName !== "Not Available") {
+      if (countryName && countryName !== "Not Available" && String(countryName).trim().toLowerCase() !== "singapore") {
         const escapedCountry = String(countryName).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         if (escapedCountry) {
           addr = addr.replace(new RegExp(`,?\\s*\\b${escapedCountry}\\b\\s*$`, "i"), "");
@@ -1686,9 +1686,9 @@ ${context.crawledText}
     addr = addr.replace(/,?\s*\b[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}\b(?=\s*(?:,|$))/gi, "");
     addr = addr.replace(/,?\s*\b[A-Z]\d[A-Z]\s*\d[A-Z]\d\b(?=\s*(?:,|$))/gi, "");
 
-    // Re-strip trailing country name in case postcode followed country (e.g. "Canada , E4V 2G2" or "Taiwan.")
+    // Re-strip trailing country name in case postcode followed country (e.g. "Canada , E4V 2G2" or "Taiwan.") — keep Singapore
     addr = addr.replace(/[\s,.]+$/, "");
-    if (countryName && countryName !== "Not Available") {
+    if (countryName && countryName !== "Not Available" && String(countryName).trim().toLowerCase() !== "singapore") {
       const escapedCountry = String(countryName).trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       if (escapedCountry) {
         addr = addr.replace(new RegExp(`,?\\s*\\b${escapedCountry}\\b[\\s,.]*$`, "i"), "");
@@ -2497,6 +2497,21 @@ ${context.crawledText}
       if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
         if (/\b(?:district|municipality)\b/i.test(aiResult.data.companyAddress) && String(aiResult.data.city || "").toLowerCase() !== "available") {
           aiResult.data.city = "Available";
+        }
+        // Singapore alone keeps "Singapore" in companyAddress and marks both City and State = Available
+        if (String(aiResult.data.countryName || "").trim().toLowerCase() === "singapore") {
+          if (!/\bsingapore\b/i.test(aiResult.data.companyAddress)) {
+            aiResult.data.companyAddress = `${aiResult.data.companyAddress.replace(/,\s*$/, "")}, Singapore`;
+          }
+          aiResult.data.state = "Available";
+          aiResult.data.city = "Available";
+        } else {
+          // Universal Capital rule: if a country's capital is mentioned in the address (not as a street name), both City and State = Available
+          const capitalRe = /\b(?:singapore|taipei|tokyo|bangkok|seoul|kuala\s+lumpur|london|paris|berlin|beijing|new\s+delhi|ottawa|canberra|wellington|jakarta|manila|hanoi|abu\s+dhabi|riyadh|doha|amsterdam|brussels|vienna|bern|madrid|rome|lisbon|athens|cairo|nairobi|pretoria|brasilia|mexico\s+city|buenos\s+aires|santiago|bogota|lima|washington\s*,?\s*d\.?c\.?)\b(?!\s+(?:road|rd|street|st|avenue|ave|drive|dr|lane|ln|boulevard|blvd|way|court|ct|place|pl|parkway|pkwy)\b)/i;
+          if (capitalRe.test(aiResult.data.companyAddress) && !/\bnew\s+taipei\b/i.test(aiResult.data.companyAddress)) {
+            aiResult.data.state = "Available";
+            aiResult.data.city = "Available";
+          }
         }
       }
       if (String(aiResult.data.websiteStatus || "").trim().toLowerCase() === "working") {
