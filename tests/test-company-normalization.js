@@ -113,6 +113,22 @@ test("Expand extended industry/business abbreviations (Bros., Assoc., Mach., Mgm
     CompanyNormalizer.normalizeCompanyName("Apex Mfg., Inc."),
     "Apex Manufacturing, Incorporated"
   );
+  assert.strictEqual(
+    CompanyNormalizer.normalizeCompanyName("ABC MFG. & ENGG. CO., LTD."),
+    "ABC Manufacturing & Engineering Company, Limited"
+  );
+  assert.strictEqual(
+    CompanyNormalizer.normalizeCompanyName("KPT PRECISION TOOLS CO., LTD."),
+    "KPT Precision Tools Company, Limited"
+  );
+  assert.strictEqual(
+    CompanyNormalizer.normalizeCompanyName("FlexiPack Mfg. Co., Ltd."),
+    "FlexiPack Manufacturing Company, Limited"
+  );
+  assert.strictEqual(
+    CompanyNormalizer.normalizeCompanyName("iTech Solutions Inc."),
+    "iTech Solutions Incorporated"
+  );
 });
 
 console.log("==========================================================");

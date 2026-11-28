@@ -2002,7 +2002,7 @@ ${context.crawledText}
     const allEmails = new Set(mainContacts.emails);
     const allPhones = new Set(mainContacts.phones);
     const subpageTimeoutMs = options.subpageTimeoutMs || 10000;
-    const SUBPAGE_CONCURRENCY = 6;
+    const SUBPAGE_CONCURRENCY = 3;
 
     for (let i = 0; i < priorityLinks.length; i += SUBPAGE_CONCURRENCY) {
       const batch = priorityLinks.slice(i, i + SUBPAGE_CONCURRENCY);

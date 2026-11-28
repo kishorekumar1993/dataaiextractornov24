@@ -120,6 +120,7 @@ const CompanyNormalizer = (() => {
   const KNOWN_ACRONYMS = new Set([
     "USA", "UK", "UAE", "KSA", "PRC", "ROC", "IBM", "BMW", "CNC", "OEM", "ODM",
     "LED", "LCD", "PVC", "ABS", "ISO", "CAD", "CAM", "ERP", "CRM", "B2B", "B2C",
+    "ABC", "XYZ", "SMC", "HMT", "EDM", "TIG", "MIG", "PLC", "HVAC",
     "AG", "KG", "SA", "SL", "BV", "NV", "KK", "AB", "AS", "OY", "CV", "PT"
   ]);
 
@@ -128,14 +129,19 @@ const CompanyNormalizer = (() => {
    */
   function titleCaseToken(token, isAllCapsSource = false) {
     if (!token) return "";
-    // Preserve known acronyms, or 2-4 uppercase chars when the overall company name is NOT all-caps
+    // Preserve known acronyms, consonant-only 2-4 letter acronyms (e.g. KPT, SMC), or 2-4 uppercase chars when not all-caps
     if (token === token.toUpperCase() && /^[A-Z0-9&+-]+$/.test(token)) {
-      if (KNOWN_ACRONYMS.has(token) || token.length <= 2 || (!isAllCapsSource && token.length <= 4)) {
+      const isConsonantAcronym = token.length >= 2 && token.length <= 4 && !/[AEIOUY]/.test(token);
+      if (KNOWN_ACRONYMS.has(token) || isConsonantAcronym || token.length <= 2 || (!isAllCapsSource && token.length <= 4)) {
         return token;
       }
     }
     // Alphanumeric with numbers (e.g. 4CPlus, 3D, B2B)
     if (/\d/.test(token)) {
+      return token;
+    }
+    // Preserve intentional mixed-case / camelCase brand names when source is not all-caps (e.g. iTech, FlexiPack, eBay)
+    if (!isAllCapsSource && /[a-z]/.test(token) && /[A-Z]/.test(token.slice(1)) && !token.includes("-") && !/[&\/]/.test(token)) {
       return token;
     }
     // Compound tokens joined by & or / without spaces (e.g. "Manufacturing&Engineering")

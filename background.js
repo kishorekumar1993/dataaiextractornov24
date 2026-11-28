@@ -34,8 +34,19 @@ chrome.runtime.onInstalled.addListener(async () => {
   await queueReady;
 });
 
-// Initialize queue once when service worker wakes up
-const queueReady = queueManager.init().catch(err => console.warn("Queue init error:", err));
+// Initialize queue once when service worker wakes up, applying stored concurrency/delay settings
+const queueReady = (async () => {
+  await queueManager.init();
+  try {
+    const cfg = await chrome.storage.local.get(["concurrency", "interRequestDelayMs"]);
+    if (cfg && typeof cfg.concurrency === "number" && cfg.concurrency >= 1) {
+      queueManager.concurrency = cfg.concurrency;
+    }
+    if (cfg && typeof cfg.interRequestDelayMs === "number" && cfg.interRequestDelayMs >= 0) {
+      queueManager.interRequestDelayMs = cfg.interRequestDelayMs;
+    }
+  } catch (_) {}
+})().catch(err => console.warn("Queue init error:", err));
 
 // Listener for subpage fetch requests and queue management
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -128,12 +139,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
 
   // 6. Crawl & Extract for Portal Autofill (orchestrated in background)
-  const CRAWL_CACHE_VERSION = "v126";
+  const CRAWL_CACHE_VERSION = "v129";
   if (request.action === "crawlAndExtractForPortal") {
     (async () => {
       try {
         await queueReady;
-        const cleanKey = request.targetUrl.toLowerCase().split("#")[0].split("?")[0].replace(/\/$/, "");
+        const cleanKey = request.targetUrl.toLowerCase().split("#")[0].replace(/\/$/, "");
         const cached = !request.forceRefresh ? queueManager.completedMap[cleanKey] : null;
         if (cached && cached.cacheVersion === CRAWL_CACHE_VERSION && cached.data && cached.completedAt) {
           const ageMs = Date.now() - (Date.parse(cached.completedAt) || 0);
@@ -190,7 +201,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             });
             const [res] = await chrome.scripting.executeScript({
               target: { tabId },
-              func: () => (document.documentElement ? document.documentElement.outerHTML : "")
+              func: async (isMapsUrl) => {
+                if (!isMapsUrl) {
+                  // Wait briefly for SPA hydration if body text is still empty
+                  for (let i = 0; i < 8; i++) {
+                    const len = (document.body && document.body.innerText ? document.body.innerText.trim().length : 0);
+                    if (len >= 200) break;
+                    await new Promise(r => setTimeout(r, 250));
+                  }
+                }
+                return document.documentElement ? document.documentElement.outerHTML : "";
+              },
+              args: [/google\.com[^/]*\/maps\/embed/i.test(url) || (/maps\.google\./i.test(url) && /output=embed/i.test(url))]
             });
             return res && res.result ? res.result : "";
           } catch (_) {

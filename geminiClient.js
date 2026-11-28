@@ -834,6 +834,17 @@
     }
     if (clean.companyAddress) {
       clean.companyAddress = clean.companyAddress.trim();
+      // Deterministic source-evidence verification: when real crawledText is available,
+      // reject 100% hallucinated addresses that share zero key tokens with the crawled site.
+      if (clean.companyAddress.toLowerCase() !== "not available" && context && typeof context.crawledText === "string" && context.crawledText.length > 30) {
+        const srcLow = context.crawledText.toLowerCase();
+        const addrToks = clean.companyAddress.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 4 || /^\d+$/.test(t));
+        if (addrToks.length >= 2 && !addrToks.some(t => srcLow.includes(t))) {
+          clean.companyAddress = "Not Available";
+          clean.state = "Not Available";
+          clean.city = "Not Available";
+        }
+      }
     }
     if (clean.countryName) {
       clean.countryName = normalizeCountryName(clean.countryName);

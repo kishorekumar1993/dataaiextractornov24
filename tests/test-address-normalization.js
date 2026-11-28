@@ -183,6 +183,34 @@ test("Zero artificial commas inserted during normalization or postal/country rem
     AddressNormalizer.normalizeAddress("Number 6/97 Lewis Road, Wantirna South Victoria"),
     "6/97 Lewis Road, Wantirna South Victoria"
   );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("65 Basaltic Road Concord Ontario"),
+    "65 Basaltic Road Concord Ontario"
+  );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("65 Basaltic Road, Concord, Ontario"),
+    "65 Basaltic Road, Concord, Ontario"
+  );
+});
+
+// 10. Guard against false-positive country/postal/directional corruption
+test("Protect US state Georgia, Highway numbers, and single-letter Block/Avenue labels", () => {
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("100 Peachtree Street, Atlanta, Georgia"),
+    "100 Peachtree Street, Atlanta, Georgia"
+  );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("Block E, Sector 5, Noida"),
+    "Block E, Sector 5, Noida"
+  );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("120 Avenue E, Bayonne, New Jersey"),
+    "120 Avenue E, Bayonne, New Jersey"
+  );
+  assert.strictEqual(
+    AddressNormalizer.normalizeAddress("Highway 12345, Austin, Texas"),
+    "Highway 12345, Austin, Texas"
+  );
 });
 
 console.log("==========================================================");
