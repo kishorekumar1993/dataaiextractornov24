@@ -1665,7 +1665,7 @@ FIELD RULES:
      * Scenario 4: Contact Page and Map Are Different -> Compare Contact Page and Map: if Map has fuller details for the same location, adopt it; if Map is a different city, ignore it. If Contact Page has only a form + Map, take Contact Map address.
      * Scenario 5: All Three Addresses Are Different -> Do not merge different locations; use Contact Page as base and set "websiteStatus": "Manual Review" if irreconcilable.
      * Scenario 6: Contact Page Address Is Not Available in Text -> If Contact Page has only a form + Map, take Contact Map address; else fallback to Footer.
-   - Address Completion Rules: Supplement only from the same verified physical HQ location; never add unrelated branches or guessed details. NEVER omit any Village, Sub-locality, Area, Sector, Industrial Estate, or Street/Unit name shown on the Embedded Map when merging with the Contact Page address (Rule 8 only governs the "city" dropdown, NEVER remove Village/Locality words from "companyAddress").
+   - Address Completion Rules: Supplement only from the same verified physical HQ location; never add unrelated branches or guessed details. Every address component, including a UK county, must be explicitly present in the selected Contact Page/Footer/Map address for that same location. Never infer or append a county from a city, postcode, geocoder, or unrelated mention elsewhere in crawled text. NEVER omit any Village, Sub-locality, Area, Sector, Industrial Estate, or Street/Unit name shown on the Embedded Map when merging with the Contact Page address (Rule 8 only governs the "city" dropdown, NEVER remove Village/Locality words from "companyAddress").
    - Formatting & Expansion:
      * Expand all recognizable abbreviations in Title Case: Rd -> Road, St -> Street, Ave -> Avenue, Blvd -> Boulevard, Hwy -> Highway, Dr -> Drive, Ln -> Lane, Ct -> Court, Pl -> Place, Pkwy -> Parkway, Jl./Jln. -> Jalan, PJU -> Petaling Jaya Utara, PJS -> Petaling Jaya Selatan, Km/Km. -> Kilometer, Kab. -> Kabupaten, Kec. -> Kecamatan, Sec. -> Section, Dist. -> District, Ind./Indl. -> Industrial, Bldg. -> Building, Rm. -> Room, Ste. -> Suite, Apt. -> Apartment, Blk. -> Block, P.O. Box -> Post Office Box (NEVER remove P.O. Box!), P.O. -> Post Office, P.B. -> Post Bag, C/O -> Care Of, H.No. -> House Number, US/CA/AU state codes (WI -> Wisconsin, CA -> California, Vic -> Victoria, ON -> Ontario).
      * Directional prefixes attached to numbers: "N173" -> "North173", "W21640" -> "West21640", N/S/E/W -> North/South/East/West.
@@ -2621,7 +2621,7 @@ ${context.crawledText}
           const overlapCount = addrTokens.filter(t => mNoSpace.includes(t)).length;
           if (overlapCount < 2) continue;
           const mParts = mAddr.split(",").map(s => s.trim()).filter(Boolean);
-          // Check mParts[0] for a leading building/house/unit/estate name missing from cleanedAddr (e.g. Map "Winchester House, Forest Ln, Alne, York YO61 1TU" + Contact "Forest Lane, Alne, York, North Yorkshire")
+          // Check mParts[0] for a leading building/house/unit/estate name missing from cleanedAddr.
           if (mParts.length >= 3) {
             const firstMapSeg = mParts[0];
             const firstMapNorm = normNoSpace(firstMapSeg);
@@ -2856,34 +2856,7 @@ ${context.crawledText}
             cleanedAddr = `${cleanedAddr}, ${twMatch[1]}`;
           }
         }
-        // Deterministically recover missing UK County if AI omitted it (e.g. "Winchester House, Forest Lane, Alne, York" when Contact Page has "York, North Yorkshire")
-        if (/^(?:united\s+kingdom|england|scotland|wales|northern\s+ireland)$/i.test(String(aiResult.data.countryName || "").trim()) && context && context.crawledText) {
-          const ukCounties = [
-            "North Yorkshire", "West Yorkshire", "South Yorkshire", "East Riding of Yorkshire", "East Yorkshire",
-            "Bedfordshire", "Berkshire", "Buckinghamshire", "Cambridgeshire", "Cheshire", "Cornwall", "Cumbria",
-            "Derbyshire", "Devon", "Dorset", "Durham", "East Sussex", "Essex", "Gloucestershire", "Greater London",
-            "Greater Manchester", "Hampshire", "Herefordshire", "Hertfordshire", "Isle of Wight", "Kent", "Lancashire",
-            "Leicestershire", "Lincolnshire", "Merseyside", "Norfolk", "Northamptonshire", "Northumberland",
-            "Nottinghamshire", "Oxfordshire", "Rutland", "Shropshire", "Somerset", "Staffordshire", "Suffolk",
-            "Surrey", "Tyne and Wear", "Warwickshire", "West Midlands", "West Sussex", "Wiltshire", "Worcestershire"
-          ];
-          const hasCountyAlready = ukCounties.some(c => new RegExp(`\\b${c.replace(/\s+/g, "\\s+")}\\b`, "i").test(cleanedAddr));
-          if (!hasCountyAlready) {
-            const lastSeg = (cleanedAddr.split(",").pop() || "").trim();
-            const lastWord = (lastSeg.split(/\s+/).pop() || "").replace(/[^A-Za-z-]/g, "");
-            if (lastWord.length >= 3) {
-              for (const county of ukCounties) {
-                const countyPat = county.replace(/\s+/g, "\\s+");
-                if (new RegExp(`\\b${lastWord}\\s*,\\s*${countyPat}\\b`, "i").test(context.crawledText)) {
-                  cleanedAddr = `${cleanedAddr}, ${county}`;
-                  aiResult.data.state = "Available";
-                  aiStateReason = `${county} (County)`;
-                  break;
-                }
-              }
-            }
-          }
-        }
+        // Do not infer or append UK counties. Keep a county only when the extracted address explicitly contains it; unrelated mentions in crawled text may refer to another location or branch.
         // Strip hallucinated trailing State/County added by AI when neither the full name nor its abbreviation exists in crawledText or mapAddresses
         if (context && context.crawledText && cleanedAddr.includes(",")) {
           const addrPartsCheck = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
@@ -2911,7 +2884,14 @@ ${context.crawledText}
           );
           const hasFullInSource = lastSegCheck.length >= 3 && new RegExp(`\\b${lastSegCheck.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")}\\b`, "i").test(combinedSource);
           const hasAbbrInSource = abbr && new RegExp(`\\b${abbr}\\b`, "i").test(combinedSource);
-          if (lastSegCheck.length >= 3 && !hasFullInSource && !hasAbbrInSource && !matchedEmbeddedStateAbbr && lastLow !== "singapore" && !lastLow.includes("|")) {
+          const isUkAddress = /^(?:united\s+kingdom|england|scotland|wales|northern\s+ireland)$/i.test(String(aiResult.data.countryName || "").trim());
+          const previousAddressPart = addrPartsCheck[addrPartsCheck.length - 2] || "";
+          const escapeAddressPattern = value => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+          const explicitUkAddressSuffix = isUkAddress && previousAddressPart
+            ? new RegExp(`\\b${escapeAddressPattern(previousAddressPart)}[,\\s]+${escapeAddressPattern(lastSegCheck)}\\b`, "i").test(combinedSource)
+            : true;
+          const unsupportedUkSuffix = isUkAddress && !explicitUkAddressSuffix;
+          if (lastSegCheck.length >= 3 && ((!hasFullInSource && !hasAbbrInSource && !matchedEmbeddedStateAbbr) || unsupportedUkSuffix) && lastLow !== "singapore" && !lastLow.includes("|")) {
             addrPartsCheck.pop();
             cleanedAddr = addrPartsCheck.join(", ");
             aiResult.data.state = "Not Available";
