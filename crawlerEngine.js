@@ -1252,10 +1252,18 @@ const CrawlerEngine = (() => {
             if (typeof addr === "string") {
               addrStr = addr;
             } else if (addr && typeof addr === "object") {
-              addrStr = [addr.streetAddress, addr.addressLocality, addr.addressRegion, addr.postalCode, addr.addressCountry]
+              const rawParts = [addr.streetAddress, addr.addressLocality, addr.addressRegion, addr.postalCode, addr.addressCountry]
                 .map(v => (typeof v === "object" && v !== null ? v.name : v))
-                .filter(Boolean)
-                .join(", ");
+                .map(v => String(v || "").trim())
+                .filter(Boolean);
+              const dedupedLd = [];
+              for (const part of rawParts) {
+                const lower = part.toLowerCase();
+                if (/^[a-z]{2,3}$/i.test(part) && dedupedLd.length > 0) continue; // skip ISO/TXQ codes
+                if (dedupedLd.some(existing => existing.toLowerCase().includes(lower))) continue;
+                dedupedLd.push(part);
+              }
+              addrStr = dedupedLd.join(", ");
             }
             jsonLd.push({
               type: node["@type"] || "",
@@ -2010,7 +2018,18 @@ ${context.crawledText}
             } catch (_) { }
           }
           if (!subHtml) return null;
-          const subText = cleanHtmlToText(subHtml);
+          let subText = cleanHtmlToText(subHtml);
+          // SPA / JS-rendered contact page fallback: if static HTML has sparse text or no contact digits/emails, render in tab
+          if (link.category === "contact" && typeof options.renderTabFallback === "function" &&
+              (subText.length < 250 || (!/@/.test(subText) && !/\b\d{4,}\b/.test(subText)))) {
+            try {
+              const renderedSub = await options.renderTabFallback(link.url);
+              if (renderedSub && cleanHtmlToText(renderedSub).length > subText.length) {
+                subHtml = renderedSub;
+                subText = cleanHtmlToText(subHtml);
+              }
+            } catch (_) { }
+          }
           let subMapAddresses = extractMapAddresses(subHtml);
           if (link.category === "contact" || subMapAddresses.length === 0) {
             const embedAddrs = await resolveMapEmbedAddress(subHtml, fetchFn, link.category === "contact" ? options.renderTabFallback : null);
@@ -2543,6 +2562,26 @@ ${context.crawledText}
         }
         aiResult.data.companyName = compNameClean;
       }
+      // JSON-LD PostalAddress deterministic safety net:
+      // If AI missed the address or truncated it while mainMeta.jsonLd has a verified full PostalAddress, recover it.
+      if (mainMeta && Array.isArray(mainMeta.jsonLd)) {
+        const ldAddrCandidate = mainMeta.jsonLd.map(n => n && n.address ? String(n.address).trim() : "").find(a => a && a.length >= 10 && /\d/.test(a));
+        if (ldAddrCandidate) {
+          let ldClean = cleanAddressCountryAndPostal(ldAddrCandidate, aiResult.data.countryName);
+          if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
+            ldClean = AddressNormalizer.normalizeAddress(ldClean);
+          }
+          ldClean = cleanAddressCountryAndPostal(ldClean, aiResult.data.countryName);
+          const curAddr = String(aiResult.data.companyAddress || "").trim();
+          const curParts = curAddr && curAddr !== "Not Available" ? curAddr.split(",").map(s => s.trim()).filter(Boolean) : [];
+          const ldParts = ldClean ? ldClean.split(",").map(s => s.trim()).filter(Boolean) : [];
+          if (ldParts.length >= 2 && (!curAddr || curAddr === "Not Available")) {
+            aiResult.data.companyAddress = ldClean;
+          } else if (curParts.length <= 2 && ldParts.length > curParts.length && normNoSpace(ldClean).startsWith(normNoSpace(curParts[0] || ""))) {
+            aiResult.data.companyAddress = ldClean;
+          }
+        }
+      }
       if (!aiResult.data.companyAddress || aiResult.data.companyAddress === "Not Available") {
         aiResult.data.state = "Not Available";
         aiResult.data.city = "Not Available";
@@ -2927,6 +2966,26 @@ ${context.crawledText}
           aiStateReason = aiResult.data.state === "Available"
             ? (isTaipeiCapital ? "Taipei City (Capital)" : "Taiwan Active County")
             : "Special Municipality / Non-County City in Taiwan";
+        }
+      }
+      // JSON-LD PostalAddress deterministic safety net:
+      // If AI missed the address or truncated it while mainMeta.jsonLd has a verified full PostalAddress, recover it.
+      if (mainMeta && Array.isArray(mainMeta.jsonLd)) {
+        const ldAddrCandidate = mainMeta.jsonLd.map(n => n && n.address ? String(n.address).trim() : "").find(a => a && a.length >= 10 && /\d/.test(a));
+        if (ldAddrCandidate) {
+          let ldClean = cleanAddressCountryAndPostal(ldAddrCandidate, aiResult.data.countryName);
+          if (AddressNormalizer && AddressNormalizer.normalizeAddress) {
+            ldClean = AddressNormalizer.normalizeAddress(ldClean);
+          }
+          ldClean = cleanAddressCountryAndPostal(ldClean, aiResult.data.countryName);
+          const curAddr = String(aiResult.data.companyAddress || "").trim();
+          const curParts = curAddr && curAddr !== "Not Available" ? curAddr.split(",").map(s => s.trim()).filter(Boolean) : [];
+          const ldParts = ldClean ? ldClean.split(",").map(s => s.trim()).filter(Boolean) : [];
+          if (ldParts.length >= 2 && (!curAddr || curAddr === "Not Available")) {
+            aiResult.data.companyAddress = ldClean;
+          } else if (curParts.length <= 2 && ldParts.length > curParts.length && normNoSpace(ldClean).startsWith(normNoSpace(curParts[0] || ""))) {
+            aiResult.data.companyAddress = ldClean;
+          }
         }
       }
       if (!aiResult.data.companyAddress || aiResult.data.companyAddress === "Not Available") {

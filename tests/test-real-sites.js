@@ -229,6 +229,124 @@ async function runTests() {
     assert.strictEqual(res.data.websiteStatus, "Not Working");
   });
 
+  // 7. JSON-LD PostalAddress safety net: recovers full address when AI truncates to street only
+  await test("JSON-LD PostalAddress safety net: Recovers full address when AI truncates", async () => {
+    const html = `<html><head>
+      <script type="application/ld+json">{"@context":"https://schema.org","@type":"LocalBusiness","name":"GAU JIING Industrial Co., Ltd.","address":{"@type":"PostalAddress","streetAddress":"No.46, 23rd Rd., Taichung Industrial District, Taichung City 40850, Taiwan.","addressLocality":"Taichung City","addressRegion":"TXQ","postalCode":"40850","addressCountry":"TW"}}</script>
+    </head><body><p>No.46, 23rd Rd., Taichung Industrial District, Taichung City 40850, Taiwan.</p></body></html>`;
+    const res = await CrawlerEngine.crawlAndExtractUrl("http://www.yog-jsonld-test.com.tw", {
+      apiKey: "test",
+      fetchFn: async (u) => makeHtmlResponse(html, u),
+      geminiClient: makeMockGemini({
+        websiteStatus: "Working",
+        businessType: "Manufacturer",
+        companyProfile: "Available",
+        companyName: "Gau Jiing Industrial Co., Ltd.",
+        countryName: "Taiwan",
+        companyAddress: "Number 46, 23rd Road",
+        state: "Not Available",
+        city: "Available",
+        emailId: "",
+        secondaryEmailId: "",
+        phoneNumber: "",
+        numberOfProducts: "3",
+        productImages: "3",
+        numberOfProductDescriptions: "3"
+      })
+    });
+    assert.strictEqual(res.data.companyAddress, "Number 46, 23rd Road, Taichung Industrial District, Taichung City");
+  });
+
+  // 8. SPA contact page renderTabFallback when static fetch returns empty shell
+  await test("SPA contact page: Uses renderTabFallback when static contact page has no text", async () => {
+    const mainHtml = `<html><body><h1>SPA Corp</h1><a href="/contact">Contact Us</a><p>Leading industrial equipment manufacturer since 1995.</p></body></html>`;
+    const staticContactShell = `<html><body><div id="root"></div><script src="/app.js"></script></body></html>`;
+    const renderedContactHtml = `<html><body><div id="root"><p>100 Innovation Way, Austin, TX 78701</p><p>sales@spacorp.com | 512-555-0199</p></div></body></html>`;
+    let tabFallbackCalled = false;
+    const res = await CrawlerEngine.crawlAndExtractUrl("http://www.spacorp-test.com", {
+      apiKey: "test",
+      fetchFn: async (u) => makeHtmlResponse(u.includes("/contact") ? staticContactShell : mainHtml, u),
+      renderTabFallback: async (u) => {
+        if (u.includes("/contact")) {
+          tabFallbackCalled = true;
+          return renderedContactHtml;
+        }
+        return "";
+      },
+      geminiClient: makeMockGemini({
+        websiteStatus: "Working",
+        businessType: "Manufacturer",
+        companyProfile: "Available",
+        companyName: "SPA Corp",
+        countryName: "United States Of America",
+        companyAddress: "100 Innovation Way, Austin, TX 78701",
+        state: "Available",
+        city: "Available",
+        emailId: "sales@spacorp.com",
+        secondaryEmailId: "",
+        phoneNumber: "5125550199",
+        numberOfProducts: "3",
+        productImages: "3",
+        numberOfProductDescriptions: "3"
+      })
+    });
+    assert.strictEqual(tabFallbackCalled, true);
+    assert.strictEqual(res.data.companyAddress, "100 Innovation Way, Austin, Texas");
+  });
+
+  // 9. India address: Strips 6-digit PIN code while preserving Sector & State
+  await test("India address: Strips PIN code and preserves Sector & Uttar Pradesh", async () => {
+    const html = `<html><body><p>B-14, Sector - 3, Noida - 201301, Uttar Pradesh, India</p><p>info@indiacorp.in</p></body></html>`;
+    const res = await CrawlerEngine.crawlAndExtractUrl("http://www.indiacorp-test.in", {
+      apiKey: "test",
+      fetchFn: async (u) => makeHtmlResponse(html, u),
+      geminiClient: makeMockGemini({
+        websiteStatus: "Working",
+        businessType: "Manufacturer",
+        companyProfile: "Available",
+        companyName: "India Corp",
+        countryName: "India",
+        companyAddress: "B-14, Sector - 3, Noida - 201301, Uttar Pradesh, India",
+        state: "Available",
+        city: "Available",
+        emailId: "info@indiacorp.in",
+        secondaryEmailId: "",
+        phoneNumber: "",
+        numberOfProducts: "3",
+        productImages: "3",
+        numberOfProductDescriptions: "3"
+      })
+    });
+    assert.strictEqual(res.data.companyAddress, "B-14, Sector - 3, Noida, Uttar Pradesh");
+  });
+
+  // 10. UK address: Strips UK postcode and preserves County when explicitly present
+  await test("UK address: Strips postcode NR6 6NN and preserves Norfolk", async () => {
+    const html = `<html><body><p>Unit 5, Hurricane Way, Norwich, Norfolk, NR6 6NN, United Kingdom</p></body></html>`;
+    const res = await CrawlerEngine.crawlAndExtractUrl("http://www.ukcorp-test.co.uk", {
+      apiKey: "test",
+      fetchFn: async (u) => makeHtmlResponse(html, u),
+      geminiClient: makeMockGemini({
+        websiteStatus: "Working",
+        businessType: "Manufacturer",
+        companyProfile: "Available",
+        companyName: "UK Corp Ltd",
+        countryName: "United Kingdom",
+        companyAddress: "Unit 5, Hurricane Way, Norwich, Norfolk, NR6 6NN, United Kingdom",
+        state: "Available",
+        city: "Available",
+        emailId: "",
+        secondaryEmailId: "",
+        phoneNumber: "",
+        numberOfProducts: "3",
+        productImages: "3",
+        numberOfProductDescriptions: "3"
+      })
+    });
+    assert.strictEqual(res.data.companyAddress, "Unit 5, Hurricane Way, Norwich, Norfolk");
+    assert.strictEqual(res.data.state, "Available");
+  });
+
   console.log("==========================================================");
   console.log(`  REAL-SITE RESULTS: ${passed} PASSED, ${total - passed} FAILED (TOTAL ${total})`);
   console.log("==========================================================");
