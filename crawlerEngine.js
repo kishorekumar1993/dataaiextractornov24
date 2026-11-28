@@ -2647,6 +2647,16 @@ ${context.crawledText}
             }
           }
         }
+        // Deterministically recover missing Taiwan County/City if AI omitted it (e.g. "Gangshan Township" when source has "Gangshan Township, Kaohsiung County")
+        if (/^taiwan$/i.test(String(aiResult.data.countryName || "").trim()) && context && context.crawledText && /\b(?:township|district|town)\s*$/i.test(cleanedAddr)) {
+          const lastSeg = (cleanedAddr.split(",").pop() || "").trim();
+          const lastPat = lastSeg.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+          const normalizedSrc = context.crawledText.replace(/\s+/g, " ");
+          const twMatch = normalizedSrc.match(new RegExp(`\\b${lastPat}\\s*,?\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+)?\\s+(?:County|City))\\b`));
+          if (twMatch && twMatch[1] && !new RegExp(`\\b${twMatch[1].replace(/\s+/g, "\\s+")}\\b`, "i").test(cleanedAddr)) {
+            cleanedAddr = `${cleanedAddr}, ${twMatch[1]}`;
+          }
+        }
         // Deterministically recover missing UK County if AI omitted it (e.g. "Winchester House, Forest Lane, Alne, York" when Contact Page has "York, North Yorkshire")
         if (/^(?:united\s+kingdom|england|scotland|wales|northern\s+ireland)$/i.test(String(aiResult.data.countryName || "").trim()) && context && context.crawledText) {
           const ukCounties = [
