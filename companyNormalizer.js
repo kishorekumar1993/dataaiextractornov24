@@ -199,8 +199,11 @@ const CompanyNormalizer = (() => {
 
     let result = titleCasedWords.join(" ");
 
-    // 9. Clean up unnecessary trailing punctuation but keep meaningful symbols
-    result = result.replace(/[,;.\-:]+$/, "").trim();
+    // 9. Remove any special characters from the beginning or at the end of the company name (while preserving internal commas, dots, &, -, ')
+    result = result
+      .replace(/^[^A-Za-z0-9À-ÖØ-öø-ÿ\u4e00-\u9fff]+/, "")
+      .replace(/[^A-Za-z0-9À-ÖØ-öø-ÿ\u4e00-\u9fff]+$/, "")
+      .trim();
 
     return result;
   }
