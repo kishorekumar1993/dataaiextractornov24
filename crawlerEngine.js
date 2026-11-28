@@ -2552,6 +2552,7 @@ ${context.crawledText}
               if (fullState) {
                 cleanedAddr = `${cleanedAddr}, ${fullState}`;
                 aiResult.data.state = "Available";
+                aiStateReason = `${fullState} (State)`;
               }
             }
           }
@@ -2578,9 +2579,12 @@ ${context.crawledText}
       if (!aiResult.data.companyAddress || aiResult.data.companyAddress === "Not Available") {
         aiResult.data.state = "Not Available";
         aiResult.data.city = "Not Available";
+        aiStateReason = "No address found";
+        aiCityReason = "No address found";
       } else {
         if (/\b(?:district|municipality)\b/i.test(aiResult.data.companyAddress) && String(aiResult.data.city || "").toLowerCase() !== "available") {
           aiResult.data.city = "Available";
+          aiCityReason = "District / Municipality in address";
         }
         // Singapore alone keeps "Singapore" in companyAddress and marks both City and State = Available
         if (String(aiResult.data.countryName || "").trim().toLowerCase() === "singapore") {
@@ -2589,12 +2593,18 @@ ${context.crawledText}
           }
           aiResult.data.state = "Available";
           aiResult.data.city = "Available";
+          aiStateReason = "Singapore (City-State / Capital)";
+          aiCityReason = "Singapore (Capital)";
         } else {
           // Universal Capital rule: if a country's capital is mentioned in the address (not as a street name), both City and State = Available
-          const capitalRe = /\b(?:singapore|taipei|tokyo|bangkok|seoul|kuala\s+lumpur|london|paris|berlin|dublin|beijing|new\s+delhi|ottawa|canberra|wellington|jakarta|manila|hanoi|abu\s+dhabi|riyadh|doha|amsterdam|brussels|vienna|bern|madrid|rome|lisbon|athens|oslo|stockholm|copenhagen|helsinki|warsaw|prague|budapest|bucharest|sofia|zagreb|belgrade|kyiv|reykjavik|ankara|islamabad|dhaka|colombo|kathmandu|muscat|manama|kuwait\s+city|amman|beirut|cairo|nairobi|pretoria|brasilia|mexico\s+city|buenos\s+aires|santiago|bogota|lima|washington\s*,?\s*d\.?c\.?)\b(?!\s+(?:road|rd|street|st|avenue|ave|drive|dr|lane|ln|boulevard|blvd|way|court|ct|place|pl|parkway|pkwy)\b)/i;
-          if (capitalRe.test(aiResult.data.companyAddress) && !/\bnew\s+taipei\b/i.test(aiResult.data.companyAddress)) {
+          const capitalRe = /\b(singapore|taipei|tokyo|bangkok|seoul|kuala\s+lumpur|london|paris|berlin|dublin|beijing|new\s+delhi|ottawa|canberra|wellington|jakarta|manila|hanoi|abu\s+dhabi|riyadh|doha|amsterdam|brussels|vienna|bern|madrid|rome|lisbon|athens|oslo|stockholm|copenhagen|helsinki|warsaw|prague|budapest|bucharest|sofia|zagreb|belgrade|kyiv|reykjavik|ankara|islamabad|dhaka|colombo|kathmandu|muscat|manama|kuwait\s+city|amman|beirut|cairo|nairobi|pretoria|brasilia|mexico\s+city|buenos\s+aires|santiago|bogota|lima|washington\s*,?\s*d\.?c\.?)\b(?!\s+(?:road|rd|street|st|avenue|ave|drive|dr|lane|ln|boulevard|blvd|way|court|ct|place|pl|parkway|pkwy)\b)/i;
+          const capMatch = aiResult.data.companyAddress.match(capitalRe);
+          if (capMatch && !/\bnew\s+taipei\b/i.test(aiResult.data.companyAddress)) {
             aiResult.data.state = "Available";
             aiResult.data.city = "Available";
+            const capName = capMatch[1].trim();
+            aiStateReason = `${capName} (Capital)`;
+            aiCityReason = `${capName} (Capital)`;
           }
         }
       }
@@ -2748,12 +2758,26 @@ ${context.crawledText}
     // If no comma separated the street and locality (e.g. "1880 Open Meadows Road Ashville"), extract the locality after the thoroughfare word
     const streetSuffixMatch = rawSecondLast.match(/\b(?:Road|Street|Avenue|Boulevard|Highway|Drive|Lane|Court|Place|Parkway|Way)\s+([A-Za-z][A-Za-z\s'-]{1,35})$/i);
     const cleanLocality = streetSuffixMatch ? streetSuffixMatch[1].trim() : rawSecondLast;
-    const stateReason = aiStateReason || (String(dObj.state || "").toLowerCase() === "available"
-      ? (lastPart ? `${lastPart} (State/County/Province)` : "State/County/Province present")
-      : "No State/County/Province in address");
-    const cityReason = aiCityReason || (String(dObj.city || "").toLowerCase() === "available"
-      ? (cleanLocality ? `${cleanLocality} (City/Town)` : (lastPart ? `${lastPart} (City/Capital)` : "City/Town present"))
-      : (cleanLocality ? `${cleanLocality} (Not official City/Town)` : "No official City/Town in address"));
+    const isStateAvail = String(dObj.state || "").toLowerCase() === "available";
+    const isCityAvail = String(dObj.city || "").toLowerCase() === "available";
+    const stateReasonContradicts = aiStateReason && (
+      (isStateAvail && /\bno\s+state|not\s+available/i.test(aiStateReason)) ||
+      (!isStateAvail && !/\bno\s+state|not\s+available|non-county|special\s+municipality/i.test(aiStateReason))
+    );
+    const cityReasonContradicts = aiCityReason && (
+      (isCityAvail && /\bno\s+official|\bnot\s+official|not\s+available|suburb|hamlet|unincorporated/i.test(aiCityReason)) ||
+      (!isCityAvail && !/\bno\s+official|\bnot\s+official|not\s+available|suburb|hamlet|unincorporated|village|cdp|township|estate|no\s+address/i.test(aiCityReason))
+    );
+    const stateReason = (!aiStateReason || stateReasonContradicts)
+      ? (isStateAvail
+        ? (lastPart ? `${lastPart} (State/County/Province)` : "State/County/Province present")
+        : "No State/County/Province in address")
+      : aiStateReason;
+    const cityReason = (!aiCityReason || cityReasonContradicts)
+      ? (isCityAvail
+        ? (cleanLocality ? `${cleanLocality} (City/Town)` : (lastPart ? `${lastPart} (City/Capital)` : "City/Town present"))
+        : (cleanLocality ? `${cleanLocality} (Not official City/Town)` : "No official City/Town in address"))
+      : aiCityReason;
     const fieldReasons = {
       companyAddress: addrReason,
       state: stateReason,
