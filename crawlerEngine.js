@@ -1573,8 +1573,11 @@ FIELD RULES:
    - COMPLETENESS & INTERNAL SYMBOLS: Never truncate internal words or legal suffixes; keep established brand acronyms (IBM, BMW) and internal special characters (&, -, /, ') as-is; strip slogans and copyright text.
     - LINKED SOCIAL (FACEBOOK/LINKEDIN) TITLE & SLUG: If the website text/footer/header only shows a short/trade name without a legal suffix (Inc, LLC, Ltd, Corp, etc.), check the linked on-site Facebook/LinkedIn URL slug or page title in LINKED SOCIAL PROFILES for the full legal company name (preserving "&" if present in the brand/title).
     - OFFICIAL ENGLISH VERSION PRIORITY: If an official English version of the site (/en or en. subdomain) is crawled alongside a non-English page, ALWAYS prefer the official English company name and English address from the English page (e.g. "PAT NBK CO., LTD." -> "Pat Nbk Company, Limited") instead of translating the non-English name/address yourself.
-5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", etc. If the country name is not on the site, check LINKED SOCIAL PROFILES or infer it from the city and state/locality name.
-   - UK LOCALITY RULE (STRICT): For United Kingdom (England, Wales, Scotland, Northern Ireland), we consider the constituent country/locality as the country name when present. If BOTH a constituent country (e.g. "England", "Wales", "Scotland", "Northern Ireland") AND "United Kingdom" are mentioned anywhere on the site, you MUST take the constituent country (e.g. "England") as "countryName".
+5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", etc.
+   - UK / LOCALITY RULE (STRICT 3-CASE ORDER):
+     (1) If "England", "Wales", "Scotland", or "Northern Ireland" IS explicitly mentioned on the website or in LINKED SOCIAL PROFILES (even if "United Kingdom"/"UK" is also mentioned), you MUST use that constituent country (e.g. "England") as "countryName".
+     (2) If "United Kingdom" or "UK" IS explicitly mentioned on the website or in LINKED SOCIAL PROFILES, and "England"/"Wales"/"Scotland"/"Northern Ireland" is NOT mentioned, you MUST use "United Kingdom" (NEVER guess or replace "United Kingdom" with "England").
+     (3) ONLY if NEITHER "United Kingdom"/"UK" NOR "England"/"Wales"/"Scotland"/"Northern Ireland" is available on the website or social media, infer the constituent country/locality (e.g. "England") from the city and state/county name.
 
 6. "companyAddress" — Contact Page, Footer and Map Address Comparison:
    - STRICT PRIORITY ORDER: (1) Visible Contact Page – Primary Source + Embedded Map – Additional Address Verification Source (ABSOLUTE HIGHEST PRIORITY); (2) Visible Website Footer – Secondary Source (ONLY use Footer if Contact Page + Map have NO address, or if Footer explicitly has Corporate Office/HQ while Contact Page only lists a Registered/Branch Office); (3) Hidden JSON-LD / Schema metadata is ONLY a fallback — if visible Contact Page or Footer shows a different address, ALWAYS use the visible Contact Page / Footer address (JSON-LD often holds stale/outdated addresses).
@@ -2391,13 +2394,18 @@ ${context.crawledText}
           aiResult.data.countryName = "Ireland";
         }
       }
-      // UK locality rule: if countryName is United Kingdom and England/Wales/Scotland/Northern Ireland is explicitly mentioned in crawledText, prefer the constituent country
-      if (String(aiResult.data.countryName || "").trim().toLowerCase() === "united kingdom" && context && context.crawledText) {
+      // UK locality rule:
+      // (1) If United Kingdom and England/Wales/Scotland/Northern Ireland are BOTH mentioned -> take constituent country
+      // (2) If AI returned England/Scotland/Wales/Northern Ireland when ONLY United Kingdom/UK was mentioned -> keep United Kingdom
+      if (context && context.crawledText) {
         const ukLocalityMatch = context.crawledText.match(/(?<!\bNew\s+)(?<!\bNew\s+South\s+)\b(England|Scotland|Wales|Northern\s+Ireland)\b(?!\s+(?:Road|Rd|Street|St|Avenue|Ave|Drive|Dr|Lane|Ln|Way)\b)/i);
-        if (ukLocalityMatch && ukLocalityMatch[1]) {
+        const hasUkMention = /\b(?:United\s+Kingdom|U\.?K\.?)\b/i.test(context.crawledText);
+        const cLow = String(aiResult.data.countryName || "").trim().toLowerCase();
+        if (cLow === "united kingdom" && ukLocalityMatch && ukLocalityMatch[1]) {
           const loc = ukLocalityMatch[1].trim().toLowerCase();
-          const locTitle = loc === "northern ireland" ? "Northern Ireland" : loc.charAt(0).toUpperCase() + loc.slice(1);
-          aiResult.data.countryName = locTitle;
+          aiResult.data.countryName = loc === "northern ireland" ? "Northern Ireland" : loc.charAt(0).toUpperCase() + loc.slice(1);
+        } else if (/^(?:england|scotland|wales|northern\s+ireland)$/.test(cLow) && !ukLocalityMatch && hasUkMention) {
+          aiResult.data.countryName = "United Kingdom";
         }
       }
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
