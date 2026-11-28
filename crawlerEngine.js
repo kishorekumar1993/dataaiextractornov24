@@ -2728,35 +2728,50 @@ ${context.crawledText}
           cleanedAddr = cleanedParts.join(", ");
           cleanedAddr = cleanedAddr.replace(/\s*,\s*,+/g, ", ").replace(/\s+/g, " ").replace(/^,\s*|,\s*$/g, "").trim();
         }
-        // ── Source-text comma cross-check ───────────────────────────────────────
-        // Facebook cannot be reliably fetched (login wall). Instead, scan the
-        // ALREADY-CRAWLED website text (contact page + footer + main page) for the
-        // exact address string as it appears on the site, then use the commas found
-        // there as the authoritative comma structure for cleanedAddr.
-        //
-        // Strategy:
-        //  1. Build a list of key tokens from cleanedAddr (numbers + long words).
-        //  2. Slide a window over crawledText lines to find a line/block that
-        //     contains ≥60% of those tokens.
-        //  3. If found, use the comma positions in that source string to re-segment
-        //     cleanedAddr — keeping cleanedAddr's normalized words, just re-placing
-        //     commas where the source had them.
-        if (context && context.crawledText && cleanedAddr && cleanedAddr.includes(",")) {
+        // ── Source-text comma cross-check & Multi-line address comma segmentation ─
+        // 1. If a thoroughfare and following city were merged without a comma
+        //    (e.g. "85 Northwest Point Boulevard Elk Grove Village, Illinois"),
+        //    split them when source text had a line-break/comma or a state follows.
+        // 2. Compare cleanedAddr against the matching source/FB address line (after
+        //    stripping country/postal) and only re-segment when comma counts differ,
+        //    matching each cleanPart to its single best-scoring srcPart.
+        if (context && context.crawledText && cleanedAddr) {
+          const addrParts = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
+          for (let pi = 0; pi < addrParts.length; pi++) {
+            const p = addrParts[pi];
+            const m = p.match(/^(.*?\b(?:Road|Street|Avenue|Boulevard|Drive|Lane|Court|Place|Circle|Parkway|Highway|Way|Terrace|Crescent|Close|Parade|Walk))\s+([A-Z][a-zA-Z\s.-]{2,})$/i);
+            if (m && !/^(?:North|South|East|West|Northeast|Northwest|Southeast|Southwest|Extension|Road|Street|Avenue|Boulevard)$/i.test(m[2])) {
+              const streetPart = m[1].trim();
+              const cityPart = m[2].trim();
+              const streetEsc = streetPart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+              const cityEsc = cityPart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
+              const sourceHasNewline = new RegExp(`${streetEsc}[.,;]?[ \\t]*[\\r\\n]+[ \\t]*${cityEsc}`, "i").test(context.crawledText);
+              const sourceHasComma = new RegExp(`${streetEsc}\\s*,\\s*${cityEsc}`, "i").test(context.crawledText);
+              const isFollowedByState = pi < addrParts.length - 1;
+              if (sourceHasNewline || sourceHasComma || isFollowedByState) {
+                addrParts[pi] = streetPart;
+                addrParts.splice(pi + 1, 0, cityPart);
+                cleanedAddr = addrParts.join(", ");
+                break;
+              }
+            }
+          }
+
           const addrKeyTokens = cleanedAddr.toLowerCase()
             .replace(/[^a-z0-9\s]/g, " ")
             .split(/\s+/)
             .filter(t => t.length >= 3 || /^\d+$/.test(t));
 
           if (addrKeyTokens.length >= 3) {
-            // Also check contact page text snippets
+            const fbAddresses = (socialProfilesInfo || []).map(sp => sp.fbAddress || "").filter(Boolean);
             const contactTextBlob = [
               context.crawledText,
               ...contactPages.map(p => p.textSnippet || ""),
               ...contactPages.map(p => p.footerText || ""),
-              mainFooter || ""
+              mainFooter || "",
+              ...fbAddresses
             ].join("\n");
 
-            // Split source into candidate lines/sentences (split on newline or period+space)
             const sourceLines = contactTextBlob
               .replace(/\r\n/g, "\n")
               .split(/\n+/)
@@ -2767,7 +2782,6 @@ ${context.crawledText}
             let bestOverlap = 0;
 
             for (const line of sourceLines) {
-              // Skip lines that are mostly digits (phone numbers, prices) or URLs
               if (/^[\d\s\-+().]{6,}$/.test(line) || /https?:\/\//i.test(line)) continue;
               const lineToks = line.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3 || /^\d+$/.test(t));
               const overlap = addrKeyTokens.filter(t => lineToks.includes(t)).length;
@@ -2779,52 +2793,45 @@ ${context.crawledText}
             }
 
             if (bestLine && bestLine.includes(",")) {
-              // bestLine contains the address as written on the site (with its commas).
-              // Use its comma positions to re-segment cleanedAddr.
-              const srcParts = bestLine.split(",").map(s => s.trim()).filter(Boolean);
+              const cleanedBestLine = cleanAddressCountryAndPostal(bestLine, aiResult.data.countryName);
+              const srcParts = cleanedBestLine.split(",").map(s => s.trim()).filter(Boolean);
               const cleanParts = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
 
               if (srcParts.length >= 2 && srcParts.length !== cleanParts.length) {
-                // Only re-segment if the comma counts differ (otherwise no change needed)
-                const usedCleanIdx = new Set();
-                const reSegmented = [];
+                // Assign each cleanPart to its single best-matching srcPart (never merge unrelated parts)
+                const partBuckets = srcParts.map(() => []);
+                const unmatchedClean = [];
 
-                for (const srcPart of srcParts) {
-                  const srcPartNorm = normNoSpace(srcPart);
-                  if (!srcPartNorm || srcPartNorm.length < 2) continue;
-                  const srcToks = srcPart.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3 || /^\d+$/.test(t));
-
-                  const matched = [];
-                  for (let ci = 0; ci < cleanParts.length; ci++) {
-                    if (usedCleanIdx.has(ci)) continue;
-                    const cpNorm = normNoSpace(cleanParts[ci]);
-                    const cpToks = cleanParts[ci].toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3 || /^\d+$/.test(t));
-                    // Match if: shared tokens ≥1, or one contains the other (short segs)
+                for (let ci = 0; ci < cleanParts.length; ci++) {
+                  const cpNorm = normNoSpace(cleanParts[ci]);
+                  const cpToks = cleanParts[ci].toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3 || /^\d+$/.test(t));
+                  let bestSi = -1;
+                  let bestPartScore = 0;
+                  for (let si = 0; si < srcParts.length; si++) {
+                    const srcPartNorm = normNoSpace(srcParts[si]);
+                    if (!srcPartNorm || srcPartNorm.length < 2) continue;
+                    const srcToks = srcParts[si].toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 3 || /^\d+$/.test(t));
                     const sharedToks = cpToks.filter(t => srcToks.includes(t)).length;
-                    const containsMatch = srcPartNorm.length >= 3 && (srcPartNorm.includes(cpNorm) || cpNorm.includes(srcPartNorm));
-                    if (sharedToks >= 1 || containsMatch) {
-                      matched.push(ci);
+                    const exactBonus = (cpNorm && srcPartNorm === cpNorm) ? 10 : ((srcPartNorm.length >= 4 && (srcPartNorm.includes(cpNorm) || cpNorm.includes(srcPartNorm))) ? 2 : 0);
+                    const score = sharedToks * 3 + exactBonus;
+                    if (score > bestPartScore) {
+                      bestPartScore = score;
+                      bestSi = si;
                     }
                   }
-                  if (matched.length > 0) {
-                    matched.forEach(i => usedCleanIdx.add(i));
-                    // Keep cleanParts text (normalized), joined with space when src merged them
-                    reSegmented.push(matched.map(i => cleanParts[i]).join(" "));
+                  if (bestSi >= 0 && bestPartScore >= 3) {
+                    partBuckets[bestSi].push(cleanParts[ci]);
+                  } else {
+                    unmatchedClean.push(cleanParts[ci]);
                   }
                 }
 
-                // Append any unmatched cleanParts at the end (e.g. normalized state name)
-                for (let ci = 0; ci < cleanParts.length; ci++) {
-                  if (!usedCleanIdx.has(ci)) reSegmented.push(cleanParts[ci]);
-                }
+                const reSegmented = partBuckets.filter(b => b.length > 0).map(b => b.join(" "));
+                for (const u of unmatchedClean) reSegmented.push(u);
 
-                // Only apply if re-segmentation is sane (not too many or too few parts)
-                if (reSegmented.length >= 2 && reSegmented.length <= cleanParts.length) {
+                if (reSegmented.length >= 2 && reSegmented.length >= cleanParts.length) {
                   cleanedAddr = reSegmented.join(", ");
                 }
-              } else if (srcParts.length >= 2 && srcParts.length === cleanParts.length) {
-                // Same number of parts — verify order is correct, no change needed
-                // But if source had fewer commas (parts got merged), re-apply
               }
             }
           }
@@ -2891,7 +2898,8 @@ ${context.crawledText}
             ? new RegExp(`\\b${escapeAddressPattern(previousAddressPart)}[,\\s]+${escapeAddressPattern(lastSegCheck)}\\b`, "i").test(combinedSource)
             : true;
           const unsupportedUkSuffix = isUkAddress && !explicitUkAddressSuffix;
-          if (lastSegCheck.length >= 3 && ((!hasFullInSource && !hasAbbrInSource && !matchedEmbeddedStateAbbr) || unsupportedUkSuffix) && lastLow !== "singapore" && !lastLow.includes("|")) {
+          const isKnownStateOrCounty = Boolean(abbr) || /\b(?:county|province|state|prefecture)\b/i.test(lastSegCheck) || (isUkAddress && /shire$/i.test(lastLow));
+          if (isKnownStateOrCounty && lastSegCheck.length >= 3 && ((!hasFullInSource && !hasAbbrInSource && !matchedEmbeddedStateAbbr) || unsupportedUkSuffix) && lastLow !== "singapore" && !lastLow.includes("|")) {
             addrPartsCheck.pop();
             cleanedAddr = addrPartsCheck.join(", ");
             aiResult.data.state = "Not Available";
