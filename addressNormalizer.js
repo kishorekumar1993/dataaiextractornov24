@@ -243,11 +243,18 @@ const AddressNormalizer = (() => {
     // Labeled postal codes (e.g. PIN: 201010, ZIP: 90210)
     addr = addr.replace(/(?:,\s*|\s+)\b(?:postal\s+code|postcode|zip\s*code|zip|pincode|pin)\s*:?\s*\b\d{5,6}\b/gi, "");
     // Postal code at end of string or preceding a country name (protecting units/boxes/suites/numbers)
-    addr = addr.replace(/(?<!\b(?:box|suite|ste|number|no|kb|room|rm|apt|unit|building|bldg|sector|house|fl|floor|lot|plot)\s+)(?:,\s*|\s+)\b\d{5,6}\b(?=\s*(?:,|$|\b(?:india|usa|united states|taiwan|malaysia|singapore|china|australia|canada)\b))/gi, "");
+    const protectedNumPrefix = /^(?:box|suite|ste|number|no|kb|room|rm|apt|unit|building|bldg|sector|house|fl|floor|lot|plot)\.?$/i;
+    addr = addr.replace(/([A-Za-z.]+)?(?:,\s*|\s+)\b(\d{5,6})\b(?=\s*(?:,|$|\b(?:india|usa|united states|taiwan|malaysia|singapore|china|australia|canada)\b))/gi, (full, word) => {
+      if (word && protectedNumPrefix.test(word)) return full;
+      return word || "";
+    });
     // Leading detached postal code (e.g. "413, Taichung City...")
     addr = addr.replace(/^\b\d{3,6}\b,\s*/, "");
     // Trailing 5-digit US zip with optional 4-digit extension at end of string
-    addr = addr.replace(/(?<!\b(?:box|suite|ste|number|no|kb|room|rm|apt|unit|building|bldg|sector|house|fl|floor|lot|plot)\s+)(?:,\s*|\s+)\b\d{5}(?:-\d{4})?\s*$/, "");
+    addr = addr.replace(/([A-Za-z.]+)?(?:,\s*|\s+)\b(\d{5})(?:-\d{4})?\s*$/, (full, word) => {
+      if (word && protectedNumPrefix.test(word)) return full;
+      return word || "";
+    });
 
     // 6. Remove country names at the end of the address (protecting "Western Australia", "South Australia", and "Singapore" — Singapore alone keeps its country name in address)
     addr = addr.replace(/(?:,\s*|\s+)\b(?!(?:Australia)\b(?<=Western\s+Australia|South\s+Australia))(?:Afghanistan|Albania|Algeria|Andorra|Angola|Argentina|Armenia|(?<!\bWestern\s+|\bSouth\s+)Australia|Austria|Azerbaijan|Bahamas|Bahrain|Bangladesh|Barbados|Belarus|Belgium|Belize|Benin|Bhutan|Bolivia|Bosnia|Botswana|Brazil|Brunei|Bulgaria|Burkina Faso|Burundi|Cambodia|Cameroon|Canada|Cape Verde|Central African Republic|Chad|Chile|China|Colombia|Comoros|Congo|Costa Rica|Croatia|Cuba|Cyprus|Czech Republic|Denmark|Djibouti|Dominica|Dominican Republic|East Timor|Ecuador|Egypt|El Salvador|Equatorial Guinea|Eritrea|Estonia|Ethiopia|Fiji|Finland|France|Gabon|Gambia|Georgia|Germany|Ghana|Greece|Grenada|Guatemala|Guinea|Guyana|Haiti|Honduras|Hungary|Iceland|India|Indonesia|Iran|Iraq|Ireland|Israel|Italy|Ivory Coast|Jamaica|Japan|Jordan|Kazakhstan|Kenya|Kiribati|Kuwait|Kyrgyzstan|Laos|Latvia|Lebanon|Lesotho|Liberia|Libya|Liechtenstein|Lithuania|Luxembourg|Macedonia|Madagascar|Malawi|Malaysia|Maldives|Mali|Malta|Marshall Islands|Mauritania|Mauritius|Mexico|Micronesia|Moldova|Monaco|Mongolia|Montenegro|Morocco|Mozambique|Myanmar|Namibia|Nauru|Nepal|Netherlands|New Zealand|Nicaragua|Niger|Nigeria|North Korea|Norway|Oman|Pakistan|Palau|Panama|Papua New Guinea|Paraguay|Peru|Philippines|Poland|Portugal|Qatar|Romania|Russia|Rwanda|Saint Kitts and Nevis|Saint Lucia|Saint Vincent|Samoa|San Marino|Saudi Arabia|Senegal|Serbia|Seychelles|Sierra Leone|Slovakia|Slovenia|Solomon Islands|Somalia|South Africa|South Korea|South Sudan|Spain|Sri Lanka|Sudan|Suriname|Swaziland|Sweden|Switzerland|Syria|Taiwan|Tajikistan|Tanzania|Thailand|Togo|Tonga|Trinidad and Tobago|Tunisia|Turkey|Turkmenistan|Tuvalu|Uganda|Ukraine|United Arab Emirates|UAE|United Kingdom|UK|U\.K\.|United States|United States of America|USA|U\.S\.A\.|Uruguay|Uzbekistan|Vanuatu|Vatican City|Venezuela|Vietnam|Yemen|Zambia|Zimbabwe)\s*$/i, "");
