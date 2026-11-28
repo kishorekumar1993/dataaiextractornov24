@@ -2573,6 +2573,7 @@ ${context.crawledText}
           ...mainMapAddresses
         ].filter(Boolean);
         const normNoSpace = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+        const compNorm = normNoSpace(aiResult.data.companyName || "");
         const addrNoSpace = normNoSpace(cleanedAddr);
         const addrTokens = cleanedAddr.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(t => t.length >= 4 || /^\d+$/.test(t));
         for (const mAddr of allContactMaps) {
@@ -2589,7 +2590,6 @@ ${context.crawledText}
             );
             const cParts0 = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
             const c0Norm = cParts0[0] ? normNoSpace(cParts0[0]) : "";
-            const compNorm = normNoSpace(aiResult.data.companyName || "");
             const isBuildingPrefix = /\b(?:house|building|bldg|tower|court|manor|hall|centre|center|chambers|plaza|park|estate|works|mill|unit|suite|block)\b/i.test(firstMapSeg);
             if (
               firstMapNorm.length >= 4 &&
@@ -2618,7 +2618,9 @@ ${context.crawledText}
             if (!segNoSpace || segNoSpace.length < 4) continue;
             if (normNoSpace(cleanedAddr).includes(segNoSpace)) continue;
             if (/^\d{3,6}$/.test(seg) || /^[A-Z]\d[A-Z]\s*\d[A-Z]\d$/i.test(seg) || /^[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}$/i.test(seg)) continue;
-            if (/\b(?:taiwan|india|china|canada|australia|singapore|united\s+states|united\s+kingdom|usa|uk|ltd|limited|inc|incorporated|corp|llc|pty)\b/i.test(seg)) continue;
+            if (/[\u3000-\u9fff\uac00-\ud7af\u0400-\u04ff\u0600-\u06ff]/.test(seg)) continue;
+            if (/\d+號/.test(seg) || (compNorm && compNorm.length >= 4 && segNoSpace.includes(compNorm.slice(0, Math.min(compNorm.length, 10))))) continue;
+            if (/\b(?:taiwan|india|china|canada|australia|singapore|united\s+states|united\s+kingdom|usa|uk|co\.?|company|ltd\.?|limited|inc\.?|incorporated|corp\.?|corporation|llc|llp|plc|gmbh|pty|pvt|pte|bhd)\b/i.test(seg)) continue;
             const prevSeg = mParts[mi - 1];
             const prevClean = prevSeg.replace(/\b(?:rd\.?|road|st\.?|street|ave\.?|avenue|blvd\.?|boulevard|dr\.?|drive|ln\.?|lane)\b/gi, "");
             const prevNoSpace = normNoSpace(prevClean);
