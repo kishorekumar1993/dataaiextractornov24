@@ -2662,6 +2662,37 @@ ${context.crawledText}
             }
           }
         }
+        // Strip hallucinated trailing State/County added by AI when neither the full name nor its abbreviation exists in crawledText or mapAddresses
+        if (context && context.crawledText && cleanedAddr.includes(",")) {
+          const addrPartsCheck = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
+          const lastSegCheck = addrPartsCheck[addrPartsCheck.length - 1] || "";
+          const stateAbbrReverse = {
+            "alabama": "al", "alaska": "ak", "arizona": "az", "arkansas": "ar", "california": "ca", "colorado": "co",
+            "connecticut": "ct", "delaware": "de", "florida": "fl", "georgia": "ga", "hawaii": "hi", "idaho": "id",
+            "illinois": "il", "indiana": "in", "iowa": "ia", "kansas": "ks", "kentucky": "ky", "louisiana": "la",
+            "maine": "me", "maryland": "md", "massachusetts": "ma", "michigan": "mi", "minnesota": "mn", "mississippi": "ms",
+            "missouri": "mo", "montana": "mt", "nebraska": "ne", "nevada": "nv", "new hampshire": "nh", "new jersey": "nj",
+            "new mexico": "nm", "new york": "ny", "north carolina": "nc", "north dakota": "nd", "ohio": "oh", "oklahoma": "ok",
+            "oregon": "or", "pennsylvania": "pa", "rhode island": "ri", "south carolina": "sc", "south dakota": "sd",
+            "tennessee": "tn", "texas": "tx", "utah": "ut", "vermont": "vt", "virginia": "va", "washington": "wa",
+            "west virginia": "wv", "wisconsin": "wi", "wyoming": "wy", "district of columbia": "dc",
+            "queensland": "qld", "new south wales": "nsw", "victoria": "vic", "western australia": "wa",
+            "south australia": "sa", "tasmania": "tas", "australian capital territory": "act", "northern territory": "nt",
+            "ontario": "on", "quebec": "qc", "british columbia": "bc", "alberta": "ab", "manitoba": "mb",
+            "saskatchewan": "sk", "nova scotia": "ns", "new brunswick": "nb", "prince edward island": "pe"
+          };
+          const lastLow = lastSegCheck.toLowerCase();
+          const abbr = stateAbbrReverse[lastLow];
+          const combinedSource = `${context.crawledText}\n${allContactMaps.join("\n")}`;
+          const hasFullInSource = lastSegCheck.length >= 3 && new RegExp(`\\b${lastSegCheck.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(combinedSource);
+          const hasAbbrInSource = abbr && new RegExp(`\\b${abbr}\\b`, "i").test(combinedSource);
+          if (lastSegCheck.length >= 3 && !hasFullInSource && !hasAbbrInSource && lastLow !== "singapore") {
+            addrPartsCheck.pop();
+            cleanedAddr = addrPartsCheck.join(", ");
+            aiResult.data.state = "Not Available";
+            aiStateReason = "No State/County/Province in address";
+          }
+        }
         aiResult.data.companyAddress = cleanedAddr;
       }
       // Enforce Taiwan State rule (13 active Counties + Taipei City capital only) and explicit District/Town/Municipality City rule
