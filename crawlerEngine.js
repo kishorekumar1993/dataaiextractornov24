@@ -2379,6 +2379,10 @@ ${context.crawledText}
         if (CompanyNormalizer && CompanyNormalizer.normalizeCompanyName) {
           compNameClean = CompanyNormalizer.normalizeCompanyName(compNameClean);
         }
+        // Fix AI confusing Australian "Pty Ltd" with "Private Limited" -> "Proprietary Limited"
+        if (/\bPrivate\s+Limited\b/i.test(compNameClean) && context && context.crawledText && /\bPty\.?\s*Ltd\.?\b/i.test(context.crawledText) && !/\b(?:Pvt|Private)\b/i.test(context.crawledText)) {
+          compNameClean = compNameClean.replace(/\bPrivate\s+Limited\b/gi, "Proprietary Limited");
+        }
         // Preserve country codes (UK, USA, U.S.A.) inside companyName if Gemini expanded them to full country names
         if (context && context.crawledText) {
           const codePairs = [
@@ -2516,6 +2520,38 @@ ${context.crawledText}
               if (ccNorm.length >= 3 && !normNoSpace(cleanedAddr).includes(ccNorm) && !/^(?:usa|uk|canada|taiwan|australia|india|china|on|ny|ca|tx|wi)$/i.test(contactCity)) {
                 cPartsNow.splice(cPartsNow.length - 1, 0, AddressNormalizer && AddressNormalizer.titleCaseToken ? contactCity.split(/\s+/).map(AddressNormalizer.titleCaseToken).join(" ") : contactCity);
                 cleanedAddr = cPartsNow.join(", ");
+              }
+            }
+          }
+        }
+        // Deduplicate repeated locality/state+postcode segments (e.g. "59 Railway Parade, Rocklea QLD 4106, Rocklea, Queensland" -> "59 Railway Parade, Rocklea, Queensland")
+        {
+          const dedupParts = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);
+          const cleanedParts = [];
+          const seenNorm = new Set();
+          for (const part of dedupParts) {
+            // Strip embedded AU/US state+postcode from a non-final segment if expanded state appears later
+            const strippedPart = part.replace(/\b(?:QLD|NSW|VIC|WA|SA|TAS|ACT|NT)\s+\d{4}\b/gi, "").replace(/\s+/g, " ").trim();
+            const candidate = strippedPart || part;
+            const key = candidate.toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (key && seenNorm.has(key)) continue;
+            if (key) seenNorm.add(key);
+            cleanedParts.push(candidate);
+          }
+          cleanedAddr = cleanedParts.join(", ");
+        }
+        // Deterministically recover missing Australian state if AI omitted it (e.g. "59 Railway Parade, Rocklea" when source has "Rocklea, QLD 4106")
+        if (/australia/i.test(String(aiResult.data.countryName || "")) && context && context.crawledText && !/\b(?:Queensland|New\s+South\s+Wales|Victoria|Western\s+Australia|South\s+Australia|Tasmania|Australian\s+Capital\s+Territory|Northern\s+Territory)\b/i.test(cleanedAddr)) {
+          const lastSeg = (cleanedAddr.split(",").pop() || "").trim();
+          const lastWord = (lastSeg.split(/\s+/).pop() || "").replace(/[^A-Za-z-]/g, "");
+          if (lastWord.length >= 3) {
+            const auStateMap = { QLD: "Queensland", NSW: "New South Wales", VIC: "Victoria", WA: "Western Australia", SA: "South Australia", TAS: "Tasmania", ACT: "Australian Capital Territory", NT: "Northern Territory" };
+            const mState = context.crawledText.match(new RegExp(`\\b${lastWord}\\s*,?\\s*(QLD|NSW|VIC|WA|SA|TAS|ACT|NT)\\b`, "i"));
+            if (mState && mState[1]) {
+              const fullState = auStateMap[mState[1].toUpperCase()];
+              if (fullState) {
+                cleanedAddr = `${cleanedAddr}, ${fullState}`;
+                aiResult.data.state = "Available";
               }
             }
           }
