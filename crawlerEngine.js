@@ -1573,7 +1573,8 @@ FIELD RULES:
    - COMPLETENESS & INTERNAL SYMBOLS: Never truncate internal words or legal suffixes; keep established brand acronyms (IBM, BMW) and internal special characters (&, -, /, ') as-is; strip slogans and copyright text.
     - LINKED SOCIAL (FACEBOOK/LINKEDIN) TITLE & SLUG: If the website text/footer/header only shows a short/trade name without a legal suffix (Inc, LLC, Ltd, Corp, etc.), check the linked on-site Facebook/LinkedIn URL slug or page title in LINKED SOCIAL PROFILES for the full legal company name (preserving "&" if present in the brand/title).
     - OFFICIAL ENGLISH VERSION PRIORITY: If an official English version of the site (/en or en. subdomain) is crawled alongside a non-English page, ALWAYS prefer the official English company name and English address from the English page (e.g. "PAT NBK CO., LTD." -> "Pat Nbk Company, Limited") instead of translating the non-English name/address yourself.
-5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", "United Kingdom" (or constituent country e.g. "England" if explicitly stated), etc. Infer from city/state if omitted.
+5. "countryName": Full official English name in Title Case. Always use "United States Of America" (never "USA"/"United States"), "United Arab Emirates", etc. If the country name is not on the site, check LINKED SOCIAL PROFILES or infer it from the city and state/locality name.
+   - UK LOCALITY RULE (STRICT): For United Kingdom (England, Wales, Scotland, Northern Ireland), we consider the constituent country/locality as the country name when present. If BOTH a constituent country (e.g. "England", "Wales", "Scotland", "Northern Ireland") AND "United Kingdom" are mentioned anywhere on the site, you MUST take the constituent country (e.g. "England") as "countryName".
 
 6. "companyAddress" — Contact Page, Footer and Map Address Comparison:
    - STRICT PRIORITY ORDER: (1) Visible Contact Page – Primary Source + Embedded Map – Additional Address Verification Source (ABSOLUTE HIGHEST PRIORITY); (2) Visible Website Footer – Secondary Source (ONLY use Footer if Contact Page + Map have NO address, or if Footer explicitly has Corporate Office/HQ while Contact Page only lists a Registered/Branch Office); (3) Hidden JSON-LD / Schema metadata is ONLY a fallback — if visible Contact Page or Footer shows a different address, ALWAYS use the visible Contact Page / Footer address (JSON-LD often holds stale/outdated addresses).
@@ -2373,6 +2374,31 @@ ${context.crawledText}
         if (gemini && gemini.normalizeCountryName) {
           aiResult.data.countryName = gemini.normalizeCountryName(aiResult.data.countryName);
         }
+      } else if (aiResult.data.companyAddress && aiResult.data.companyAddress !== "Not Available") {
+        // Infer country from state/province/city in companyAddress if omitted
+        const addrForCountry = aiResult.data.companyAddress;
+        if (/\b(?:Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|Florida|Georgia|Hawaii|Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|Missouri|Montana|Nebraska|Nevada|New\s+Hampshire|New\s+Jersey|New\s+Mexico|New\s+York|North\s+Carolina|North\s+Dakota|Ohio|Oklahoma|Oregon|Pennsylvania|Rhode\s+Island|South\s+Carolina|South\s+Dakota|Tennessee|Texas|Utah|Vermont|Virginia|Washington|West\s+Virginia|Wisconsin|Wyoming)\b/i.test(addrForCountry)) {
+          aiResult.data.countryName = "United States Of America";
+        } else if (/\b(?:Ontario|Quebec|British\s+Columbia|Alberta|Manitoba|Saskatchewan|Nova\s+Scotia|New\s+Brunswick|Newfoundland|Prince\s+Edward\s+Island)\b/i.test(addrForCountry)) {
+          aiResult.data.countryName = "Canada";
+        } else if (/\b(?:New\s+South\s+Wales|Queensland|Victoria|Western\s+Australia|South\s+Australia|Tasmania|Australian\s+Capital\s+Territory|Northern\s+Territory)\b/i.test(addrForCountry)) {
+          aiResult.data.countryName = "Australia";
+        } else if (/\bSingapore\b/i.test(addrForCountry)) {
+          aiResult.data.countryName = "Singapore";
+        } else if (/\b(?:Taipei|Taichung|Kaohsiung|Tainan|Taoyuan|Hsinchu|Changhua|Miaoli)\b/i.test(addrForCountry)) {
+          aiResult.data.countryName = "Taiwan";
+        } else if (/\bDublin\b/i.test(addrForCountry)) {
+          aiResult.data.countryName = "Ireland";
+        }
+      }
+      // UK locality rule: if countryName is United Kingdom and England/Wales/Scotland/Northern Ireland is explicitly mentioned in crawledText, prefer the constituent country
+      if (String(aiResult.data.countryName || "").trim().toLowerCase() === "united kingdom" && context && context.crawledText) {
+        const ukLocalityMatch = context.crawledText.match(/(?<!\bNew\s+)(?<!\bNew\s+South\s+)\b(England|Scotland|Wales|Northern\s+Ireland)\b(?!\s+(?:Road|Rd|Street|St|Avenue|Ave|Drive|Dr|Lane|Ln|Way)\b)/i);
+        if (ukLocalityMatch && ukLocalityMatch[1]) {
+          const loc = ukLocalityMatch[1].trim().toLowerCase();
+          const locTitle = loc === "northern ireland" ? "Northern Ireland" : loc.charAt(0).toUpperCase() + loc.slice(1);
+          aiResult.data.countryName = locTitle;
+        }
       }
       if (aiResult.data.companyName && aiResult.data.companyName !== "Not Available") {
         let compNameClean = aiResult.data.companyName.trim();
@@ -2596,6 +2622,34 @@ ${context.crawledText}
                 cleanedAddr = `${cleanedAddr}, ${fullState}`;
                 aiResult.data.state = "Available";
                 aiStateReason = `${fullState} (State)`;
+              }
+            }
+          }
+        }
+        // Deterministically recover missing UK County if AI omitted it (e.g. "Winchester House, Forest Lane, Alne, York" when Contact Page has "York, North Yorkshire")
+        if (/^(?:united\s+kingdom|england|scotland|wales|northern\s+ireland)$/i.test(String(aiResult.data.countryName || "").trim()) && context && context.crawledText) {
+          const ukCounties = [
+            "North Yorkshire", "West Yorkshire", "South Yorkshire", "East Riding of Yorkshire", "East Yorkshire",
+            "Bedfordshire", "Berkshire", "Buckinghamshire", "Cambridgeshire", "Cheshire", "Cornwall", "Cumbria",
+            "Derbyshire", "Devon", "Dorset", "Durham", "East Sussex", "Essex", "Gloucestershire", "Greater London",
+            "Greater Manchester", "Hampshire", "Herefordshire", "Hertfordshire", "Isle of Wight", "Kent", "Lancashire",
+            "Leicestershire", "Lincolnshire", "Merseyside", "Norfolk", "Northamptonshire", "Northumberland",
+            "Nottinghamshire", "Oxfordshire", "Rutland", "Shropshire", "Somerset", "Staffordshire", "Suffolk",
+            "Surrey", "Tyne and Wear", "Warwickshire", "West Midlands", "West Sussex", "Wiltshire", "Worcestershire"
+          ];
+          const hasCountyAlready = ukCounties.some(c => new RegExp(`\\b${c.replace(/\s+/g, "\\s+")}\\b`, "i").test(cleanedAddr));
+          if (!hasCountyAlready) {
+            const lastSeg = (cleanedAddr.split(",").pop() || "").trim();
+            const lastWord = (lastSeg.split(/\s+/).pop() || "").replace(/[^A-Za-z-]/g, "");
+            if (lastWord.length >= 3) {
+              for (const county of ukCounties) {
+                const countyPat = county.replace(/\s+/g, "\\s+");
+                if (new RegExp(`\\b${lastWord}\\s*,\\s*${countyPat}\\b`, "i").test(context.crawledText)) {
+                  cleanedAddr = `${cleanedAddr}, ${county}`;
+                  aiResult.data.state = "Available";
+                  aiStateReason = `${county} (County)`;
+                  break;
+                }
               }
             }
           }
