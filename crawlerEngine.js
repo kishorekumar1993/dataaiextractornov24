@@ -1781,6 +1781,9 @@ ${context.crawledText}
         NS: "Nova Scotia", NL: "Newfoundland and Labrador", PE: "Prince Edward Island"
       };
       addr = addr.replace(/\b(NB|ON|QC|AB|BC|MB|SK|NS|NL|PE)\b/gi, (_, code) => caProvinces[code.toUpperCase()] || code);
+      // AI sometimes returns both the Canadian abbreviation and expanded name
+      // (for example, "Mississauga, ON, Ontario"). Keep the expanded province once.
+      addr = addr.replace(/\b(New Brunswick|Ontario|Quebec|Alberta|British Columbia|Manitoba|Saskatchewan|Nova Scotia|Newfoundland and Labrador|Prince Edward Island)\s*,\s*\1\b/gi, "$1");
     }
     if (/united\s+states/i.test(String(countryName || ""))) {
       const usStates = {
@@ -2614,7 +2617,7 @@ ${context.crawledText}
               .replace(/\bAve\.?\b/gi, "Avenue")
               .replace(/\bDr\.?\b/gi, "Drive")
               .trim();
-            const segNoSpace = normNoSpace(segCore || seg);
+            const segNoSpace = normNoSpace(segCore);
             if (!segNoSpace || segNoSpace.length < 4) continue;
             if (normNoSpace(cleanedAddr).includes(segNoSpace)) continue;
             if (/^\d{3,6}$/.test(seg) || /^[A-Z]\d[A-Z]\s*\d[A-Z]\d$/i.test(seg) || /^[A-Z]{1,2}\d[A-Z0-9]?\s*\d[A-Z]{2}$/i.test(seg)) continue;
@@ -2658,6 +2661,8 @@ ${context.crawledText}
             }
           }
         }
+        // Re-clean & expand state/province codes after map merge so abbreviations like "ON" expand before deduplication
+        cleanedAddr = cleanAddressCountryAndPostal(cleanedAddr, aiResult.data.countryName);
         // Deduplicate repeated locality/state+postcode segments (e.g. "59 Railway Parade, Rocklea QLD 4106, Rocklea, Queensland" -> "59 Railway Parade, Rocklea, Queensland")
         {
           const dedupParts = cleanedAddr.split(",").map(s => s.trim()).filter(Boolean);

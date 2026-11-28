@@ -142,6 +142,10 @@ const CompanyNormalizer = (() => {
     if (token.length > 1 && /[&\/]/.test(token)) {
       return token.split(/([&\/])/).map(part => (part === "&" || part === "/") ? part : titleCaseToken(part, isAllCapsSource)).join("");
     }
+    // Hyphenated words (e.g. "Store-rite" -> "Store-Rite")
+    if (token.length > 1 && token.includes("-")) {
+      return token.split("-").map(part => part ? titleCaseToken(part, isAllCapsSource) : "").join("-");
+    }
     return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
   }
 
