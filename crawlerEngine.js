@@ -837,6 +837,82 @@ const CrawlerEngine = (() => {
     "kenya"
   ]);
 
+  const TLD_TO_COUNTRY = {
+    "af": "Afghanistan", "al": "Albania", "dz": "Algeria", "ad": "Andorra", "ao": "Angola",
+    "ag": "Antigua And Barbuda", "ar": "Argentina", "com.ar": "Argentina", "am": "Armenia",
+    "au": "Australia", "com.au": "Australia", "at": "Austria", "az": "Azerbaijan",
+    "bs": "Bahamas", "bh": "Bahrain", "com.bh": "Bahrain", "bd": "Bangladesh", "com.bd": "Bangladesh",
+    "bb": "Barbados", "by": "Belarus", "be": "Belgium", "bz": "Belize", "bj": "Benin",
+    "bt": "Bhutan", "bo": "Bolivia", "com.bo": "Bolivia", "ba": "Bosnia And Herzegovina",
+    "bw": "Botswana", "br": "Brazil", "com.br": "Brazil", "bn": "Brunei", "bg": "Bulgaria",
+    "bf": "Burkina Faso", "bi": "Burundi", "kh": "Cambodia", "cm": "Cameroon", "ca": "Canada",
+    "cv": "Cape Verde", "cf": "Central African Republic", "td": "Chad", "cl": "Chile", "com.cl": "Chile",
+    "cn": "China", "com.cn": "China", "co": "Colombia", "com.co": "Colombia", "km": "Comoros",
+    "cg": "Republic Of The Congo", "cd": "Democratic Republic Of The Congo", "cr": "Costa Rica",
+    "ci": "Ivory Coast", "hr": "Croatia", "com.hr": "Croatia", "cu": "Cuba", "cy": "Cyprus",
+    "cz": "Czech Republic", "dk": "Denmark", "dj": "Djibouti", "dm": "Dominica",
+    "do": "Dominican Republic", "ec": "Ecuador", "com.ec": "Ecuador", "eg": "Egypt", "com.eg": "Egypt",
+    "sv": "El Salvador", "gq": "Equatorial Guinea", "er": "Eritrea", "ee": "Estonia",
+    "sz": "Eswatini", "et": "Ethiopia", "fj": "Fiji", "fi": "Finland", "fr": "France",
+    "ga": "Gabon", "gm": "Gambia", "ge": "Georgia", "de": "Germany", "gh": "Ghana", "com.gh": "Ghana",
+    "gr": "Greece", "com.gr": "Greece", "gd": "Grenada", "gt": "Guatemala", "gn": "Guinea",
+    "gw": "Guinea-Bissau", "gy": "Guyana", "ht": "Haiti", "hn": "Honduras",
+    "hk": "Hong Kong", "com.hk": "Hong Kong", "hu": "Hungary", "co.hu": "Hungary", "is": "Iceland",
+    "in": "India", "co.in": "India", "id": "Indonesia", "co.id": "Indonesia", "ir": "Iran",
+    "iq": "Iraq", "ie": "Ireland", "il": "Israel", "co.il": "Israel", "it": "Italy",
+    "jm": "Jamaica", "jp": "Japan", "co.jp": "Japan", "jo": "Jordan", "com.jo": "Jordan",
+    "kz": "Kazakhstan", "ke": "Kenya", "co.ke": "Kenya", "ki": "Kiribati",
+    "kp": "North Korea", "kr": "South Korea", "co.kr": "South Korea", "kw": "Kuwait", "com.kw": "Kuwait",
+    "kg": "Kyrgyzstan", "la": "Laos", "lv": "Latvia", "lb": "Lebanon", "com.lb": "Lebanon",
+    "ls": "Lesotho", "lr": "Liberia", "ly": "Libya", "li": "Liechtenstein", "lt": "Lithuania",
+    "lu": "Luxembourg", "mo": "Macau", "mg": "Madagascar", "mw": "Malawi",
+    "my": "Malaysia", "com.my": "Malaysia", "mv": "Maldives", "ml": "Mali", "mt": "Malta",
+    "mh": "Marshall Islands", "mr": "Mauritania", "mu": "Mauritius", "mx": "Mexico", "com.mx": "Mexico",
+    "fm": "Micronesia", "md": "Moldova", "mc": "Monaco", "mn": "Mongolia", "me": "Montenegro",
+    "ma": "Morocco", "mz": "Mozambique", "mm": "Myanmar", "na": "Namibia", "nr": "Nauru",
+    "np": "Nepal", "nl": "Netherlands", "nz": "New Zealand", "co.nz": "New Zealand",
+    "ni": "Nicaragua", "ne": "Niger", "ng": "Nigeria", "com.ng": "Nigeria",
+    "mk": "North Macedonia", "no": "Norway", "om": "Oman", "com.om": "Oman",
+    "pk": "Pakistan", "com.pk": "Pakistan", "pw": "Palau", "ps": "Palestine", "pa": "Panama",
+    "pg": "Papua New Guinea", "py": "Paraguay", "com.py": "Paraguay", "pe": "Peru", "com.pe": "Peru",
+    "ph": "Philippines", "com.ph": "Philippines", "pl": "Poland", "com.pl": "Poland",
+    "pt": "Portugal", "com.pt": "Portugal", "qa": "Qatar", "com.qa": "Qatar",
+    "ro": "Romania", "com.ro": "Romania", "ru": "Russia", "com.ru": "Russia", "rw": "Rwanda",
+    "kn": "Saint Kitts And Nevis", "lc": "Saint Lucia", "vc": "Saint Vincent And The Grenadines",
+    "ws": "Samoa", "sm": "San Marino", "st": "Sao Tome And Principe",
+    "sa": "Saudi Arabia", "com.sa": "Saudi Arabia", "sn": "Senegal", "rs": "Serbia", "co.rs": "Serbia",
+    "sc": "Seychelles", "sl": "Sierra Leone", "sg": "Singapore", "com.sg": "Singapore",
+    "sk": "Slovakia", "si": "Slovenia", "sb": "Solomon Islands", "so": "Somalia",
+    "za": "South Africa", "co.za": "South Africa", "ss": "South Sudan",
+    "es": "Spain", "com.es": "Spain", "lk": "Sri Lanka", "com.lk": "Sri Lanka",
+    "sd": "Sudan", "sr": "Suriname", "se": "Sweden", "ch": "Switzerland", "sy": "Syria",
+    "tw": "Taiwan", "com.tw": "Taiwan", "tj": "Tajikistan", "tz": "Tanzania",
+    "th": "Thailand", "co.th": "Thailand", "tl": "Timor-Leste", "tg": "Togo", "to": "Tonga",
+    "tt": "Trinidad And Tobago", "tn": "Tunisia", "tr": "Turkey", "com.tr": "Turkey",
+    "tm": "Turkmenistan", "tv": "Tuvalu", "ug": "Uganda", "ua": "Ukraine", "com.ua": "Ukraine",
+    "ae": "United Arab Emirates", "com.ae": "United Arab Emirates",
+    "uk": "United Kingdom", "co.uk": "United Kingdom", "us": "United States Of America",
+    "uy": "Uruguay", "com.uy": "Uruguay", "uz": "Uzbekistan", "vu": "Vanuatu", "va": "Vatican City",
+    "ve": "Venezuela", "com.ve": "Venezuela", "vn": "Vietnam", "com.vn": "Vietnam",
+    "ye": "Yemen", "zm": "Zambia", "zw": "Zimbabwe"
+  };
+
+  // Commercialized ccTLDs commonly used by global companies outside their country
+  const GENERICIZED_CCTLDS = new Set([
+    "co", "io", "ai", "tv", "me", "cc", "ws", "fm", "ly", "so", "to", "gg", "nu", "bz", "vc", "ag", "gd", "la", "sh", "ac"
+  ]);
+
+  function detectCountryFromHostname(hostname, { strictCcTldOnly = false } = {}) {
+    if (!hostname) return null;
+    const parts = String(hostname).toLowerCase().split(".").filter(Boolean);
+    if (parts.length < 2) return null;
+    const tld = parts[parts.length - 1];
+    const twoPartTld = parts.slice(-2).join(".");
+    if (TLD_TO_COUNTRY[twoPartTld]) return TLD_TO_COUNTRY[twoPartTld];
+    if (strictCcTldOnly && GENERICIZED_CCTLDS.has(tld)) return null;
+    return TLD_TO_COUNTRY[tld] || null;
+  }
+
   function isAllowedCountry(countryName) {
     if (!countryName) return true;
     const norm = (GeminiClient && GeminiClient.normalizeCountryName)
@@ -1816,6 +1892,49 @@ ${context.crawledText}
     const origin = urlObj.origin;
     const hostname = urlObj.hostname;
 
+    // Pre-API Country Check: reject explicit unsupported country-code TLDs (e.g. .kr, .jp, .de) before fetching subpages or calling Gemini
+    const preApiCountry = detectCountryFromHostname(hostname, { strictCcTldOnly: true });
+    if (preApiCountry && !isAllowedCountry(preApiCountry)) {
+      const reason = `Unsupported Country: "${preApiCountry}" is not in the allowed countries list.`;
+      return {
+        success: false,
+        websiteStatus: "Not Working",
+        nonWorkingReason: reason,
+        redirectDetected: statusResult.redirectDetected,
+        redirectType: statusResult.redirectType,
+        originalUrl: statusResult.originalUrl,
+        finalUrl: statusResult.finalUrl,
+        originalDomain: statusResult.originalDomain,
+        finalDomain: statusResult.finalDomain,
+        redirectChain: statusResult.redirectChain,
+        httpStatus: statusResult.httpStatus,
+        isEligibleForExtraction: false,
+        manualReviewRequired: false,
+        data: {
+          websiteStatus: "Not Working",
+          notWorkingReason: reason,
+          websiteName: targetUrl,
+          businessType: "",
+          companyProfile: "",
+          companyName: "",
+          countryName: "",
+          companyAddress: "",
+          state: "",
+          city: "",
+          emailId: "",
+          secondaryEmailId: "",
+          phoneNumber: "",
+          numberOfProducts: "",
+          productImages: "",
+          numberOfProductDescriptions: ""
+        },
+        meta: {
+          isExtractionSkipped: true,
+          reason
+        }
+      };
+    }
+
     let mainHtml = statusResult.finalHtml;
     if (!mainHtml) {
       const mainResp = await fetchWithTimeout(fetchFn, cleanUrl, options.subpageTimeoutMs || 15000);
@@ -2151,73 +2270,7 @@ ${context.crawledText}
       }
 
       // Country from TLD or detected phone
-      let cName = "Not Available";
-      const tld = hostname.split(".").slice(-1)[0].toLowerCase();
-      const twoPartTld = hostname.split(".").slice(-2).join(".").toLowerCase();
-      const TLD_TO_COUNTRY = {
-        "af": "Afghanistan", "al": "Albania", "dz": "Algeria", "ad": "Andorra", "ao": "Angola",
-        "ag": "Antigua And Barbuda", "ar": "Argentina", "com.ar": "Argentina", "am": "Armenia",
-        "au": "Australia", "com.au": "Australia", "at": "Austria", "az": "Azerbaijan",
-        "bs": "Bahamas", "bh": "Bahrain", "com.bh": "Bahrain", "bd": "Bangladesh", "com.bd": "Bangladesh",
-        "bb": "Barbados", "by": "Belarus", "be": "Belgium", "bz": "Belize", "bj": "Benin",
-        "bt": "Bhutan", "bo": "Bolivia", "com.bo": "Bolivia", "ba": "Bosnia And Herzegovina",
-        "bw": "Botswana", "br": "Brazil", "com.br": "Brazil", "bn": "Brunei", "bg": "Bulgaria",
-        "bf": "Burkina Faso", "bi": "Burundi", "kh": "Cambodia", "cm": "Cameroon", "ca": "Canada",
-        "cv": "Cape Verde", "cf": "Central African Republic", "td": "Chad", "cl": "Chile", "com.cl": "Chile",
-        "cn": "China", "com.cn": "China", "co": "Colombia", "com.co": "Colombia", "km": "Comoros",
-        "cg": "Republic Of The Congo", "cd": "Democratic Republic Of The Congo", "cr": "Costa Rica",
-        "ci": "Ivory Coast", "hr": "Croatia", "com.hr": "Croatia", "cu": "Cuba", "cy": "Cyprus",
-        "cz": "Czech Republic", "dk": "Denmark", "dj": "Djibouti", "dm": "Dominica",
-        "do": "Dominican Republic", "ec": "Ecuador", "com.ec": "Ecuador", "eg": "Egypt", "com.eg": "Egypt",
-        "sv": "El Salvador", "gq": "Equatorial Guinea", "er": "Eritrea", "ee": "Estonia",
-        "sz": "Eswatini", "et": "Ethiopia", "fj": "Fiji", "fi": "Finland", "fr": "France",
-        "ga": "Gabon", "gm": "Gambia", "ge": "Georgia", "de": "Germany", "gh": "Ghana", "com.gh": "Ghana",
-        "gr": "Greece", "com.gr": "Greece", "gd": "Grenada", "gt": "Guatemala", "gn": "Guinea",
-        "gw": "Guinea-Bissau", "gy": "Guyana", "ht": "Haiti", "hn": "Honduras",
-        "hk": "Hong Kong", "com.hk": "Hong Kong", "hu": "Hungary", "co.hu": "Hungary", "is": "Iceland",
-        "in": "India", "co.in": "India", "id": "Indonesia", "co.id": "Indonesia", "ir": "Iran",
-        "iq": "Iraq", "ie": "Ireland", "il": "Israel", "co.il": "Israel", "it": "Italy",
-        "jm": "Jamaica", "jp": "Japan", "co.jp": "Japan", "jo": "Jordan", "com.jo": "Jordan",
-        "kz": "Kazakhstan", "ke": "Kenya", "co.ke": "Kenya", "ki": "Kiribati",
-        "kp": "North Korea", "kr": "South Korea", "co.kr": "South Korea", "kw": "Kuwait", "com.kw": "Kuwait",
-        "kg": "Kyrgyzstan", "la": "Laos", "lv": "Latvia", "lb": "Lebanon", "com.lb": "Lebanon",
-        "ls": "Lesotho", "lr": "Liberia", "ly": "Libya", "li": "Liechtenstein", "lt": "Lithuania",
-        "lu": "Luxembourg", "mo": "Macau", "mg": "Madagascar", "mw": "Malawi",
-        "my": "Malaysia", "com.my": "Malaysia", "mv": "Maldives", "ml": "Mali", "mt": "Malta",
-        "mh": "Marshall Islands", "mr": "Mauritania", "mu": "Mauritius", "mx": "Mexico", "com.mx": "Mexico",
-        "fm": "Micronesia", "md": "Moldova", "mc": "Monaco", "mn": "Mongolia", "me": "Montenegro",
-        "ma": "Morocco", "mz": "Mozambique", "mm": "Myanmar", "na": "Namibia", "nr": "Nauru",
-        "np": "Nepal", "nl": "Netherlands", "nz": "New Zealand", "co.nz": "New Zealand",
-        "ni": "Nicaragua", "ne": "Niger", "ng": "Nigeria", "com.ng": "Nigeria",
-        "mk": "North Macedonia", "no": "Norway", "om": "Oman", "com.om": "Oman",
-        "pk": "Pakistan", "com.pk": "Pakistan", "pw": "Palau", "ps": "Palestine", "pa": "Panama",
-        "pg": "Papua New Guinea", "py": "Paraguay", "com.py": "Paraguay", "pe": "Peru", "com.pe": "Peru",
-        "ph": "Philippines", "com.ph": "Philippines", "pl": "Poland", "com.pl": "Poland",
-        "pt": "Portugal", "com.pt": "Portugal", "qa": "Qatar", "com.qa": "Qatar",
-        "ro": "Romania", "com.ro": "Romania", "ru": "Russia", "com.ru": "Russia", "rw": "Rwanda",
-        "kn": "Saint Kitts And Nevis", "lc": "Saint Lucia", "vc": "Saint Vincent And The Grenadines",
-        "ws": "Samoa", "sm": "San Marino", "st": "Sao Tome And Principe",
-        "sa": "Saudi Arabia", "com.sa": "Saudi Arabia", "sn": "Senegal", "rs": "Serbia", "co.rs": "Serbia",
-        "sc": "Seychelles", "sl": "Sierra Leone", "sg": "Singapore", "com.sg": "Singapore",
-        "sk": "Slovakia", "si": "Slovenia", "sb": "Solomon Islands", "so": "Somalia",
-        "za": "South Africa", "co.za": "South Africa", "ss": "South Sudan",
-        "es": "Spain", "com.es": "Spain", "lk": "Sri Lanka", "com.lk": "Sri Lanka",
-        "sd": "Sudan", "sr": "Suriname", "se": "Sweden", "ch": "Switzerland", "sy": "Syria",
-        "tw": "Taiwan", "com.tw": "Taiwan", "tj": "Tajikistan", "tz": "Tanzania",
-        "th": "Thailand", "co.th": "Thailand", "tl": "Timor-Leste", "tg": "Togo", "to": "Tonga",
-        "tt": "Trinidad And Tobago", "tn": "Tunisia", "tr": "Turkey", "com.tr": "Turkey",
-        "tm": "Turkmenistan", "tv": "Tuvalu", "ug": "Uganda", "ua": "Ukraine", "com.ua": "Ukraine",
-        "ae": "United Arab Emirates", "com.ae": "United Arab Emirates",
-        "uk": "United Kingdom", "co.uk": "United Kingdom", "us": "United States Of America",
-        "uy": "Uruguay", "com.uy": "Uruguay", "uz": "Uzbekistan", "vu": "Vanuatu", "va": "Vatican City",
-        "ve": "Venezuela", "com.ve": "Venezuela", "vn": "Vietnam", "com.vn": "Vietnam",
-        "ye": "Yemen", "zm": "Zambia", "zw": "Zimbabwe"
-      };
-      if (TLD_TO_COUNTRY[twoPartTld]) {
-        cName = TLD_TO_COUNTRY[twoPartTld];
-      } else if (TLD_TO_COUNTRY[tld]) {
-        cName = TLD_TO_COUNTRY[tld];
-      }
+      const cName = detectCountryFromHostname(hostname) || "Not Available";
 
       // Address
       let cAddress = "Not Available";
