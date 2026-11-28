@@ -1371,7 +1371,20 @@ const CrawlerEngine = (() => {
       const rank = (x) => (/about|company|profile|who-we-are|^https?:\/\/(?:en|eng|english)\.|\/(?:en|eng|english)\/?$/i.test(x.url) ? 0 : (/terms|legal/i.test(x.url) ? 1 : 2));
       return rank(a) - rank(b);
     });
-    const contacts = internalLinks.filter(l => l.category === "contact");
+    const contacts = internalLinks.filter(l => l.category === "contact").sort((a, b) => {
+      const rank = (x) => {
+        const u = (x.url || "").toLowerCase();
+        const t = (x.text || "").toLowerCase();
+        const isSecondarySubpage = /\/(?:support|portal|portals|cad-files|technical-service|spare-parts|request-for|warranty|faq|careers?|jobs?)\b|request-for-support/i.test(u);
+        const isDirectContact = /\/(?:contact|contact-us|contactus|imprint|impressum)(?:\.[a-z]+)?\/?$/i.test(u) || /\b(?:contact\s*us|corporate\s*headquarters)\b/i.test(t);
+        if (!isSecondarySubpage && isDirectContact) return 0;
+        if (!isSecondarySubpage) return 1;
+        return 2;
+      };
+      const diff = rank(a) - rank(b);
+      if (diff !== 0) return diff;
+      return (a.url || "").length - (b.url || "").length;
+    });
     const products = internalLinks.filter(l => l.category === "product");
     const others = internalLinks.filter(l => l.category === "other" || l.category === "home");
 
@@ -1386,9 +1399,9 @@ const CrawlerEngine = (() => {
     if (contacts.length > 0) addLink(contacts[0]);
     if (abouts.length > 0) addLink(abouts[0]);
     if (products.length > 0) addLink(products[0]);
+    if (contacts.length > 1) addLink(contacts[1]);
     if (products.length > 1) addLink(products[1]);
     if (abouts.length > 1) addLink(abouts[1]);
-    if (contacts.length > 1) addLink(contacts[1]);
 
     for (const l of products.slice(2)) addLink(l);
     for (const l of others) addLink(l);
@@ -2404,6 +2417,23 @@ ${context.crawledText}
           const sourceHadNo = new RegExp(`\\b(?:no\\.?|number)\\s*${num}\\b`, "i").test(context.crawledText);
           if (!sourceHadNo) {
             cleanedAddr = cleanedAddr.replace(/^Number\s+/i, "");
+          }
+        }
+        // Deterministically recover missing leading street number if AI omitted it (e.g. "North Airport Road" when source has "1300 N. Airport Rd.")
+        if (context && context.crawledText && !/^(?:\d+|Number|Unit|Suite|Post|P\.?O\.?|Box|Lot|Plot|Floor|Building|Block|House|Room|Apartment)\b/i.test(cleanedAddr)) {
+          const firstSeg = (cleanedAddr.split(",")[0] || "").trim();
+          const segWords = firstSeg.split(/\s+/).filter(w => w.length >= 2);
+          if (segWords.length >= 2) {
+            const dirMap = { north: "N\\.?", south: "S\\.?", east: "E\\.?", west: "W\\.?", northeast: "NE\\.?", northwest: "NW\\.?", southeast: "SE\\.?", southwest: "SW\\.?" };
+            const w0Lower = segWords[0].toLowerCase();
+            const hasLeadingDir = Boolean(dirMap[w0Lower]);
+            const dirPattern = hasLeadingDir ? `(?:${segWords[0]}|${dirMap[w0Lower]})\\s+` : "";
+            const anchorWord = (hasLeadingDir ? segWords[1] : segWords[0]).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const recoverRe = new RegExp(`(?:^|[\\n\\r,:;\\s])(\\d{1,5}(?:-\\d{1,4})?)\\s+${dirPattern}${anchorWord}\\b`, "i");
+            const recMatch = context.crawledText.match(recoverRe);
+            if (recMatch && recMatch[1]) {
+              cleanedAddr = `${recMatch[1]} ${cleanedAddr}`;
+            }
           }
         }
         // Strip hallucinated "/" in "12/Floor" if the crawled website text had "12F" without a slash
