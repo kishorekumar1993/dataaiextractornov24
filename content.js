@@ -645,7 +645,7 @@
         { key: "websiteStatus", value: (data.websiteStatus || "Working").trim() },
         { key: "businessType", value: (data.businessType || "").trim() },
         { key: "companyProfile", value: (data.companyProfile || "Available").trim() },
-        { key: "companyName", value: (data.companyName || "").replace(/^[\s\u00A0]+|[\s\u00A0]+$/g, "") },
+        { key: "companyName", value: (typeof CompanyNormalizer !== "undefined" && CompanyNormalizer && CompanyNormalizer.normalizeCompanyName ? CompanyNormalizer.normalizeCompanyName(data.companyName || "") : (data.companyName || "")).replace(/^[\s\u00A0]+|[\s\u00A0]+$/g, "") },
         { key: "companyAddress", value: (data.companyAddress || "").replace(/^[\s\u00A0]+|[\s\u00A0]+$/g, "") },
         { key: "countryName", value: normalizeCountryName((data.countryName || "").trim()) },
         { key: "state", value: (data.state || "Not Available").trim() },
